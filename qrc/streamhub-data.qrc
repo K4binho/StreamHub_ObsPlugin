@@ -40,7 +40,11 @@
     <file alias="icons/tiktok.svg">../assets/icons/tiktok.svg</file>
     <file alias="icons/facebook.svg">../assets/icons/facebook.svg</file>
     <file alias="icons/settings.svg">../assets/icons/settings.svg</file>
+    <file alias="icons/camera.svg">../assets/icons/camera.svg</file>
+    <file alias="icons/play.svg">../assets/icons/play.svg</file>
+    <file alias="icons/stop.svg">../assets/icons/stop.svg</file>
     <file alias="branding/streamhub-background.png">../assets/branding/streamhub-background.png</file>
     <file alias="branding/k4-crown.png">../assets/branding/k4-crown.png</file>
+    <file alias="branding/k4-logo.png">../assets/branding/k4-logo.png</file>
   </qresource>
 </RCC>

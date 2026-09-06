@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QNetworkRequest>
 #include <QPushButton>
+#include <QPainter>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -39,7 +40,9 @@ QIcon IconForPlatform(const QString &platform)
 }
 }
 
-StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
+StreamHubChatDock::StreamHubChatDock(QWidget *parent)
+    : QWidget(parent), background_(":/streamhub-ui/branding/streamhub-background.png"),
+      crown_(":/streamhub-ui/branding/k4-crown.png")
 {
     auto *container = this;
     container->setObjectName("streamHubChat");
@@ -50,7 +53,14 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
     auto *header = new QWidget(container);
     auto *headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(0, 0, 0, 0);
-    auto *brand = new QLabel(tr("▰  StreamHub Chat"), header);
+    auto *brandIcon = new QLabel(header);
+    brandIcon->setObjectName("chatBrandIcon");
+    brandIcon->setFixedSize(34, 34);
+    brandIcon->setAlignment(Qt::AlignCenter);
+    brandIcon->setPixmap(QPixmap(":/streamhub-ui/branding/k4-logo.png")
+                             .scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    headerLayout->addWidget(brandIcon);
+    auto *brand = new QLabel(tr("StreamHub Chat"), header);
     brand->setObjectName("chatBrand");
     headerLayout->addWidget(brand);
     headerLayout->addStretch();
@@ -160,6 +170,7 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
 
     container->setStyleSheet(R"(
         QWidget#streamHubChat { background: #080c14; color: #f2f7ff; }
+        QLabel#chatBrandIcon { background:transparent; }
         QLabel#chatBrand { font-size: 17px; font-weight: 700; color: #f2f7ff; }
         QLabel#connectionState { color: #9eb2cb; padding-right: 5px; }
         QLabel#connectionState[connected="true"] { color: #16d86a; }
@@ -197,6 +208,28 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
     retryTimer_->setSingleShot(true);
     retryTimer_->setInterval(3000);
     connect(retryTimer_, &QTimer::timeout, this, &StreamHubChatDock::PollOnce);
+}
+
+void StreamHubChatDock::paintEvent(QPaintEvent *event)
+{
+    QWidget::paintEvent(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+
+    if (!background_.isNull()) {
+        const QPixmap scaled = background_.scaled(size(), Qt::KeepAspectRatioByExpanding,
+                                                  Qt::SmoothTransformation);
+        painter.setOpacity(0.48);
+        painter.drawPixmap((width() - scaled.width()) / 2,
+                           (height() - scaled.height()) / 2, scaled);
+    }
+
+    if (!crown_.isNull()) {
+        const QPixmap crown = crown_.scaled(130, 130, Qt::KeepAspectRatio,
+                                            Qt::SmoothTransformation);
+        painter.setOpacity(0.13);
+        painter.drawPixmap(width() - crown.width() - 14, 70, crown);
+    }
 }
 
 void StreamHubChatDock::ConnectTo(int port)

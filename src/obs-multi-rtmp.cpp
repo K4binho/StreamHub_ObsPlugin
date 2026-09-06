@@ -71,7 +71,7 @@ protected:
         if (!background_.isNull()) {
             const QPixmap scaled = background_.scaled(size(), Qt::KeepAspectRatioByExpanding,
                                                       Qt::SmoothTransformation);
-            painter.setOpacity(0.28);
+            painter.setOpacity(0.52);
             painter.drawPixmap((width() - scaled.width()) / 2,
                                (height() - scaled.height()) / 2, scaled);
         }
@@ -79,7 +79,7 @@ protected:
         if (!crown_.isNull()) {
             const QPixmap crown = crown_.scaled(150, 150, Qt::KeepAspectRatio,
                                                 Qt::SmoothTransformation);
-            painter.setOpacity(0.09);
+            painter.setOpacity(0.16);
             painter.drawPixmap(width() - crown.width() - 18, 62, crown);
         }
     }
@@ -421,7 +421,13 @@ public:
         auto header = new QWidget(container_);
         auto headerLayout = new QHBoxLayout(header);
         headerLayout->setContentsMargins(0, 0, 0, 0);
-        auto headerLabel = new QLabel(QString::fromUtf8(u8"◉  ") + obs_module_text("Title"), header);
+        auto headerIcon = new QLabel(header);
+        headerIcon->setObjectName("outputsTitleIcon");
+        headerIcon->setFixedSize(28, 28);
+        headerIcon->setAlignment(Qt::AlignCenter);
+        headerIcon->setPixmap(QIcon(":/streamhub-ui/icons/camera.svg").pixmap(24, 24));
+        headerLayout->addWidget(headerIcon);
+        auto headerLabel = new QLabel(obs_module_text("Title"), header);
         headerLabel->setObjectName("outputsTitle");
         headerLayout->addWidget(headerLabel);
         headerLayout->addStretch();
@@ -450,13 +456,17 @@ public:
         auto allBtnLayout = new QHBoxLayout();
         allBtnLayout->setContentsMargins(0, 0, 0, 0);
         allBtnLayout->setSpacing(9);
-        auto startAllButton = new QPushButton(QString::fromUtf8(u8"▶  ") + obs_module_text("Btn.StartAll"), allBtnContainer);
+        auto startAllButton = new QPushButton(obs_module_text("Btn.StartAll"), allBtnContainer);
         startAllButton->setObjectName("startAll");
-        startAllButton->setMinimumHeight(46);
+        startAllButton->setIcon(QIcon(":/streamhub-ui/icons/play.svg"));
+        startAllButton->setIconSize(QSize(17, 17));
+        startAllButton->setFixedHeight(48);
         allBtnLayout->addWidget(startAllButton);
-        auto stopAllButton = new QPushButton(QString::fromUtf8(u8"■  ") + obs_module_text("Btn.StopAll"), allBtnContainer);
+        auto stopAllButton = new QPushButton(obs_module_text("Btn.StopAll"), allBtnContainer);
         stopAllButton->setObjectName("stopAll");
-        stopAllButton->setMinimumHeight(46);
+        stopAllButton->setIcon(QIcon(":/streamhub-ui/icons/stop.svg"));
+        stopAllButton->setIconSize(QSize(15, 15));
+        stopAllButton->setFixedHeight(48);
         allBtnLayout->addWidget(stopAllButton);
         allBtnContainer->setLayout(allBtnLayout);
         layout_->addWidget(allBtnContainer);
@@ -622,17 +632,20 @@ public:
             QWidget#streamHubOutputs { background: #080c14; color: #f2f7ff; }
             QWidget#outputsPage { background: transparent; color: #f2f7ff; }
             QScrollArea#outputsScroll, QScrollArea#outputsScroll > QWidget > QWidget { background: transparent; border: none; }
+            QLabel#outputsTitleIcon { background:transparent; }
             QLabel#outputsTitle { color: #f2f7ff; font-size: 18px; font-weight: 700; }
-            QPushButton#addDestination { background: #101a2a; border: 1px solid #29496f;
-                border-radius: 8px; padding: 8px 14px; color: #edf1fb; font-weight: 600; }
+            QPushButton#addDestination { background: rgba(16,26,42,235); border: 1px solid #0077ff;
+                border-radius: 8px; padding: 8px 14px; color: #f2f7ff; font-weight: 600; }
             QPushButton#addDestination:hover { border-color: #00c8ff; background: #15233a; }
-            QPushButton#startAll { background: #087d42; border: 1px solid #16d86a;
-                border-radius: 8px; padding:5px 8px 7px 8px; color: white; font-weight: 700; }
-            QPushButton#startAll:hover { background: #0a9651; border-color:#3cff91; }
-            QPushButton#stopAll { background: #431c29; border: 1px solid #d94155;
-                border-radius: 8px; padding:5px 8px 7px 8px; color: #ffdce3; font-weight: 700; }
-            QPushButton#stopAll:hover { background: #5b2231; }
-            QWidget#outputCard { background: rgba(16,26,42,235); border: 1px solid #29496f;
+            QPushButton#startAll { background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #00c8ff,stop:1 #0077ff);
+                border: 1px solid #41dcff; border-radius: 8px; padding:0 10px;
+                color:#080c14; font-weight:800; }
+            QPushButton#startAll:hover { background:#3bd7ff; border-color:#f2f7ff; }
+            QPushButton#stopAll { background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #d94155,stop:1 #8f1833);
+                border: 1px solid #ff5268; border-radius: 8px; padding:0 10px;
+                color:#f2f7ff; font-weight:800; }
+            QPushButton#stopAll:hover { background:#ef4a60; border-color:#ff9aaa; }
+            QWidget#outputCard { background: rgba(8,18,32,238); border: 1px solid #29496f;
                 border-radius: 9px; }
             QLabel#outputName { color: #f2f7ff; font-size: 15px; font-weight: 700; }
             QLabel#outputStatus { color: #9eb2cb; }

@@ -13,6 +13,7 @@ Este projeto é uma modificação do [obs-multi-rtmp](https://github.com/sorayuk
 - modelos de destino para Twitch, Kick, YouTube, TikTok, Facebook e RTMP personalizado;
 - **Iniciar tudo** aciona primeiro a transmissão principal do OBS e, depois que ela estiver ativa, inicia somente os destinos marcados;
 - textura StreamHub no fundo e coroa K4binho usada somente como marca d'água discreta.
+- identidade visual inspirada nas artes K4binho, com textura mais visível, logotipo K4 no chat e câmera no cabeçalho das saídas;
 
 Este plugin é fornecido gratuitamente. Se quiser apoiar o trabalho:
 

@@ -6,6 +6,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
+#include <QPixmap>
 
 class QButtonGroup;
 
@@ -44,6 +45,9 @@ private slots:
     void OnPollFinished(QNetworkReply *reply);
     void OnConfigureClicked();
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
 private:
     void AppendChatLine(const QString &platform, const QString &user, const QString &text,
                         qint64 timestamp);
@@ -63,6 +67,8 @@ private:
     bool pollInFlight_ = false;
     QString configPath_;
     QString activeFilter_ = "all";
+    QPixmap background_;
+    QPixmap crown_;
 
     static constexpr int kMaxItems = 200;
 };
