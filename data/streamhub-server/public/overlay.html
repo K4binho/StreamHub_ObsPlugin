@@ -1,14 +1,18 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<title>StreamHub - Chat Overlay</title>
-<link rel="stylesheet" href="overlay.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat da live | StreamHub</title>
+  <link rel="stylesheet" href="/overlay.css">
 </head>
 <body>
-  <div id="chat-box"></div>
-
+  <main id="chat-box" aria-label="Chat da live">
+    <h1 class="visually-hidden">Chat unificado da live</h1>
+    <div id="connection-status" class="connection-status" aria-live="polite" aria-atomic="true"></div>
+    <ol id="messages" class="messages" aria-live="polite" aria-relevant="additions"></ol>
+  </main>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="overlay.js"></script>
+  <script src="/overlay.js"></script>
 </body>
 </html>

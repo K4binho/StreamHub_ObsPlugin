@@ -10,7 +10,8 @@ const youtube = google.youtube('v3');
  * @param {object} cfg - config.youtube do config.json (apiKey, videoId)
  * @param {(msg: object) => void} onMessage
  */
-async function startYoutube(cfg, onMessage) {
+async function startYoutube(cfg, onMessage, onStatus = () => {}) {
+  onStatus('connecting', 'YouTube conectando...');
   const auth = cfg.apiKey;
 
   let liveChatId;
@@ -26,14 +27,19 @@ async function startYoutube(cfg, onMessage) {
 
     if (!liveChatId) {
       console.error('[youtube] não achei um chat ativo para esse videoId. Confira se a live está no ar.');
+      onStatus('reconnecting', 'YouTube sem chat ativo — tentando novamente');
+      setTimeout(() => startYoutube(cfg, onMessage, onStatus), 10000);
       return null;
     }
   } catch (err) {
     console.error('[youtube] erro ao buscar a live:', err.message);
+    onStatus('reconnecting', 'YouTube desconectado — reconectando');
+    setTimeout(() => startYoutube(cfg, onMessage, onStatus), 10000);
     return null;
   }
 
   console.log('[youtube] conectado ao chat da live');
+  onStatus('connected', 'YouTube conectado');
 
   let nextPageToken = undefined;
   let stopped = false;
@@ -48,6 +54,8 @@ async function startYoutube(cfg, onMessage) {
         part: 'snippet,authorDetails',
         pageToken: nextPageToken,
       });
+
+      onStatus('connected', 'YouTube conectado');
 
       nextPageToken = res.data.nextPageToken;
 
@@ -67,6 +75,7 @@ async function startYoutube(cfg, onMessage) {
       setTimeout(poll, delay);
     } catch (err) {
       console.error('[youtube] erro no polling do chat:', err.message);
+      onStatus('reconnecting', 'YouTube desconectado — reconectando');
       setTimeout(poll, 10000);
     }
   };

@@ -25,7 +25,8 @@ async function getChatroomId(channel) {
  * @param {object} cfg - config.kick (channel e, opcionalmente, chatroomId fixo)
  * @param {(msg: object) => void} onMessage
  */
-async function startKick(cfg, onMessage) {
+async function startKick(cfg, onMessage, onStatus = () => {}) {
+  onStatus('connecting', 'Kick conectando...');
   let chatroomId = cfg.chatroomId;
 
   if (!chatroomId) {
@@ -34,6 +35,8 @@ async function startKick(cfg, onMessage) {
     } catch (err) {
       console.error('[kick] não consegui achar o chatroom automaticamente:', err.message);
       console.error('[kick] pegue o chatroom_id manualmente e cole em config.kick.chatroomId');
+      onStatus('reconnecting', 'Kick desconectado — reconectando');
+      setTimeout(() => startKick(cfg, onMessage, onStatus), 10000);
       return null;
     }
   }
@@ -55,10 +58,18 @@ async function startKick(cfg, onMessage) {
 
   pusher.connection.bind('connected', () => {
     console.log(`[kick] conectado ao chat de ${cfg.channel}`);
+    onStatus('connected', 'Kick conectado');
   });
 
   pusher.connection.bind('error', (err) => {
     console.error('[kick] erro de conexão:', err);
+    onStatus('reconnecting', 'Kick desconectado — reconectando');
+  });
+
+  pusher.connection.bind('state_change', ({ current }) => {
+    if (['unavailable', 'failed', 'disconnected'].includes(current)) {
+      onStatus('reconnecting', 'Kick desconectado — reconectando');
+    }
   });
 
   return {

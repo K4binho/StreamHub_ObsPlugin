@@ -14,5 +14,5 @@ struct StreamHubPlatformPreset {
 };
 
 const QList<StreamHubPlatformPreset> &StreamHubPlatformPresets();
-const StreamHubPlatformPreset &StreamHubPlatformForTarget(const OutputTargetConfig &target);
+StreamHubPlatformPreset StreamHubPlatformForTarget(const OutputTargetConfig &target);
 void StreamHubApplyPlatformPreset(OutputTargetConfig &target, const QString &platformId);

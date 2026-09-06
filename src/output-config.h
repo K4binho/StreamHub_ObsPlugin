@@ -39,6 +39,8 @@ struct OutputTargetConfig {
     std::string id;
     std::string name;
     std::string platform = "custom";
+    std::string customIcon = "settings";
+    std::string customAccent = "#00C8FF";
     std::string protocol = "RTMP";
     bool syncStart = false;
     bool syncStop = false;

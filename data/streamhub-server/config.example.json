@@ -3,6 +3,18 @@
     "port": 3000
   },
 
+  "overlay": {
+    "messageDurationSeconds": 20,
+    "channelName": "",
+    "highlightMentions": true,
+    "hideCommands": {
+      "twitch": false,
+      "kick": false,
+      "youtube": false,
+      "tiktok": false
+    }
+  },
+
   "twitch": {
     "enabled": false,
     "channel": ""

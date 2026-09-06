@@ -141,7 +141,12 @@ A aplicação das chaves novas em todos os destinos nativos ainda precisa ser co
 - [x] Impedir inicialização do relay pelo plugin, inclusive com configuração antiga contendo `rtmp`.
 - [x] Criar formulário Qt de canais com Salvar e aplicar, sem edição manual de JSON.
 - [x] Reiniciar apenas o serviço de chat de forma assíncrona para aplicar mudanças, sem parar a transmissão.
-- [ ] Mostrar status de cada plataforma separado da conexão com Node.
+- [x] Mostrar status de cada plataforma separado da conexão com Node, no dock e no overlay.
+- [x] Servir `/overlay.html` pela DLL com fundo transparente, ícone/cor por plataforma, badges, destaque de menção e expiração configurável.
+- [x] Adicionar aba Overlay com URL pronta, prévia e filtros de comandos por plataforma.
+- [x] Travar o auto-scroll do dock quando o usuário rolar para mensagens antigas.
+- [x] Identificar docks do plugin com K4 no menu Painéis e ampliar o tema para Estatísticas/janelas Qt; documentado que páginas web da Twitch não recebem QSS.
+- [x] Permitir cor/ícone em RTMP personalizado e mostrar bitrate agregado das saídas adicionais.
 - [ ] Após as alterações, repetir os testes dos chats Twitch/Kick para confirmar que continuam funcionando.
 - [ ] Conferir destinos nativos, chaves atuais e compartilhamento dos encoders no perfil ativo.
 - [ ] Testar multistream nativo Twitch/Kick com imagem/áudio reais e medir estabilidade.
@@ -149,6 +154,8 @@ A aplicação das chaves novas em todos os destinos nativos ainda precisa ser co
 - [ ] Distinguir teste de cache de primeira execução sem Node: download portátil e instalação do zero não estão comprovados pelo funcionamento do chat da Twitch.
 - [ ] Recompilar em diretório novo: cache atual contém caminhos da pasta antiga em C:.
 - [ ] YouTube/TikTok somente se forem utilizados, em etapa posterior.
+- [ ] Validar TikTok ponta a ponta antes de anunciá-lo como suportado; o conector aparece como experimental.
+- [ ] Avaliar conector de chat do Facebook; hoje ele existe somente como modelo de destino RTMP.
 
 ## Informações para continuidade
 

@@ -147,6 +147,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     clock::time_point last_info_time_;
     uint64_t total_frames_ = 0;
     uint64_t total_bytes_ = 0;
+    double current_bps_ = 0.0;
     QTimer* timer_ = 0;
 
     QPushButton* edit_btn_ = 0;
@@ -566,6 +567,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             snprintf(strFps, sizeof(strFps), "%d FPS", static_cast<int>(std::round((new_frames - total_frames_) / interval)));
 
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
+            current_bps_ = bps;
             auto strBps = [&]()-> std::string {
                 if (bps > 0)
                 {
@@ -820,16 +822,18 @@ public:
     void ReloadConfig() override { LoadConfig(); }
 
     bool IsEnabledForAll() const override { return config_ && config_->syncStart; }
+    double CurrentBitrateBps() const override { return IsRunning() ? current_bps_ : 0.0; }
 
     void ResetInfo()
     {
         total_frames_ = 0;
         total_bytes_ = 0;
+        current_bps_ = 0.0;
         last_info_time_ = clock::now();
         msg_->setText("");
     }
 
-    bool IsRunning()
+    bool IsRunning() const
     {
         return output_ != nullptr && obs_output_active(output_); 
     }

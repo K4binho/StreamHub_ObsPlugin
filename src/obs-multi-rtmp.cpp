@@ -16,15 +16,20 @@
 #include "streamhub-paths.h"
 #include "streamhub-platforms.h"
 #include "streamhub-theme-installer.h"
+#include "streamhub-native-theme.h"
 #include <QCheckBox>
 #include <QClipboard>
+#include <QColorDialog>
+#include <QComboBox>
 #include <QApplication>
 #include <QDialog>
+#include <QDockWidget>
 #include <QFile>
 #include <QFormLayout>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLineEdit>
+#include <QLocale>
 #include <QPainter>
 
 #ifdef _WIN32
@@ -197,6 +202,25 @@ public:
         form->addRow(tr("Nome"), name_);
         form->addRow(tr("Servidor RTMP"), SecretField(server_, serverVisible_, this));
         form->addRow(tr("Stream key"), SecretField(key_, keyVisible_, this));
+        customIcon_ = new QComboBox(this);
+        customIcon_->addItem(QIcon(":/streamhub-ui/icons/settings.svg"), tr("RTMP"), "settings");
+        customIcon_->addItem(QIcon(":/streamhub-ui/icons/camera.svg"), tr("Câmera"), "camera");
+        customIcon_->addItem(QIcon(":/streamhub-ui/icons/twitch.svg"), tr("Twitch"), "twitch");
+        customIcon_->addItem(QIcon(":/streamhub-ui/icons/kick.svg"), tr("Kick"), "kick");
+        customIcon_->addItem(QIcon(":/streamhub-ui/icons/youtube.svg"), tr("YouTube"), "youtube");
+        customIcon_->addItem(QIcon(":/streamhub-ui/icons/tiktok.svg"), tr("TikTok"), "tiktok");
+        customColor_ = new QPushButton(tr("Escolher cor"), this);
+        connect(customColor_, &QPushButton::clicked, this, [this]() {
+            const QColor selected = QColorDialog::getColor(customAccent_, this, tr("Cor do destino RTMP"));
+            if (selected.isValid()) {
+                customAccent_ = selected;
+                UpdateCustomColorButton();
+            }
+        });
+        customIconLabel_ = new QLabel(tr("Ícone personalizado"), this);
+        customColorLabel_ = new QLabel(tr("Cor personalizada"), this);
+        form->addRow(customIconLabel_, customIcon_);
+        form->addRow(customColorLabel_, customColor_);
         layout->addLayout(form);
 
         syncStart_ = new QCheckBox(tr("Iniciar junto com a transmissão principal do OBS"), this);
@@ -253,6 +277,16 @@ public:
         HideSecret(key_, keyVisible_);
         syncStart_->setChecked(target->syncStart);
         syncStop_->setChecked(target->syncStop);
+        const bool custom = QString::fromStdString(target->platform).toLower() == "custom";
+        customIconLabel_->setVisible(custom);
+        customIcon_->setVisible(custom);
+        customColorLabel_->setVisible(custom);
+        customColor_->setVisible(custom);
+        const int iconIndex = customIcon_->findData(QString::fromStdString(target->customIcon));
+        customIcon_->setCurrentIndex(iconIndex >= 0 ? iconIndex : 0);
+        customAccent_ = QColor(QString::fromStdString(target->customAccent));
+        if (!customAccent_.isValid()) customAccent_ = QColor("#00C8FF");
+        UpdateCustomColorButton();
     }
 
 private:
@@ -266,6 +300,10 @@ private:
         target->serviceParam["key"] = key_->text().trimmed().toStdString();
         target->syncStart = syncStart_->isChecked();
         target->syncStop = syncStop_->isChecked();
+        if (QString::fromStdString(target->platform).toLower() == "custom") {
+            target->customIcon = customIcon_->currentData().toString().toStdString();
+            target->customAccent = customAccent_.name(QColor::HexRgb).toStdString();
+        }
         if (target->serviceParam.value("server", std::string{}).empty() ||
             target->serviceParam.value("key", std::string{}).empty()) {
             target->syncStart = false;
@@ -323,6 +361,15 @@ private:
             visibleButton->setText(tr("Ver"));
     }
 
+    void UpdateCustomColorButton()
+    {
+        if (!customColor_) return;
+        customColor_->setStyleSheet(QString("background:%1; color:%2; border:1px solid #f1faff; "
+                                            "border-radius:6px; padding:6px 10px; font-weight:700;")
+                                        .arg(customAccent_.name(), customAccent_.lightness() > 150 ? "#080d14" : "#f1faff"));
+        customColor_->setText(customAccent_.name(QColor::HexRgb).toUpper());
+    }
+
     std::string targetId_;
     PushWidget *pushWidget_;
     std::function<void()> onSaved_;
@@ -339,6 +386,11 @@ private:
     QTimer *saveNoticeTimer_ = nullptr;
     QCheckBox *syncStart_ = nullptr;
     QCheckBox *syncStop_ = nullptr;
+    QLabel *customIconLabel_ = nullptr;
+    QLabel *customColorLabel_ = nullptr;
+    QComboBox *customIcon_ = nullptr;
+    QPushButton *customColor_ = nullptr;
+    QColor customAccent_ = QColor("#00C8FF");
 };
 
 
@@ -472,6 +524,28 @@ public:
         allBtnLayout->addWidget(stopAllButton);
         allBtnContainer->setLayout(allBtnLayout);
         layout_->addWidget(allBtnContainer);
+
+        aggregateBitrate_ = new QLabel(tr("Banda das saídas: 0,00 Mbps"), container_);
+        aggregateBitrate_->setObjectName("aggregateBitrate");
+        layout_->addWidget(aggregateBitrate_, 0, Qt::AlignRight);
+        aggregateTimer_ = new QTimer(this);
+        aggregateTimer_->setInterval(1000);
+        QObject::connect(aggregateTimer_, &QTimer::timeout, this, [this]() {
+            double totalBps = 0.0;
+            int active = 0;
+            for (auto *output : GetAllPushWidgets()) {
+                const double bps = output->CurrentBitrateBps();
+                if (bps > 0.0) {
+                    totalBps += bps;
+                    ++active;
+                }
+            }
+            aggregateBitrate_->setText(
+                tr("Banda das saídas: %1 Mbps · %2 ativa(s)")
+                    .arg(QLocale().toString(totalBps / 1000000.0, 'f', 2))
+                    .arg(active));
+        });
+        aggregateTimer_->start();
 
         QObject::connect(startAllButton, &QPushButton::clicked, [this]() {
             if (!obs_frontend_streaming_active()) {
@@ -654,6 +728,7 @@ public:
             QLabel#outputStatus[ready="true"] { color: #16d86a; }
             QLabel#outputQuality { background:#101a2a; border:1px solid #29496f;
                 border-radius:6px; padding:5px 8px; color:#dbe8f8; }
+            QLabel#aggregateBitrate { color:#91b3c7; padding:0 4px 2px 4px; font-weight:600; }
             QPushButton#outputEdit { background: #101a2a; border: 1px solid #29496f;
                 border-radius: 7px; padding: 6px; color: #dbe4f5; }
             QPushButton#outputEdit:hover { border-color: #00c8ff; background:#15233a; }
@@ -804,6 +879,8 @@ private:
     QWidget* settingsPanelHost_ = nullptr;
     QVBoxLayout* settingsPanelLayout_ = nullptr;
     StreamHubInlineSettings* settingsPanel_ = nullptr;
+    QLabel *aggregateBitrate_ = nullptr;
+    QTimer *aggregateTimer_ = nullptr;
     std::string settingsTargetId_;
 
     void ShowSettingsFor(const std::string &targetId, PushWidget *pushWidget)
@@ -914,6 +991,7 @@ bool obs_module_load()
     QString serverDir = dataPath + "/streamhub-server";
     StreamHub_EnsureBundledData(dataPath);
     StreamHubInstallBundledTheme();
+    StreamHubInstallNativeThemeHook();
 
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
     if (mainwin == nullptr)
@@ -922,13 +1000,28 @@ bool obs_module_load()
         s_service.uiThread_ = QThread::currentThread();
     });
 
+    const auto brandDock = [mainwin](QWidget *content) {
+        QTimer::singleShot(0, mainwin, [content]() {
+            QWidget *parent = content ? content->parentWidget() : nullptr;
+            while (parent && !qobject_cast<QDockWidget *>(parent)) parent = parent->parentWidget();
+            if (auto *dockWidget = qobject_cast<QDockWidget *>(parent)) {
+                const QIcon k4(":/streamhub-ui/branding/k4-logo.png");
+                dockWidget->setWindowIcon(k4);
+                if (dockWidget->toggleViewAction()) dockWidget->toggleViewAction()->setIcon(k4);
+            }
+        });
+    };
+
     auto dock = new MultiOutputWidget();
     dock->setObjectName("obs-multi-rtmp-dock");
-    if (!obs_frontend_add_dock_by_id("obs-multi-rtmp-dock", obs_module_text("Title"), dock))
+    const QByteArray outputsDockTitle =
+        QString("%1  · K4").arg(QString::fromUtf8(obs_module_text("Title"))).toUtf8();
+    if (!obs_frontend_add_dock_by_id("obs-multi-rtmp-dock", outputsDockTitle.constData(), dock))
     {
         delete dock;
         return false;
     }
+    brandDock(dock);
 
     blog(LOG_INFO, TAG "version: %s by SoraYuki https://github.com/sorayuki/obs-multi-rtmp/", PLUGIN_VERSION);
 
@@ -952,7 +1045,8 @@ bool obs_module_load()
     auto *chatDock = new StreamHubChatDock();
     chatDock->setObjectName("streamhub-chat-dock");
     chatDock->SetConfigPath(serverDir + "/config.json");
-    if (obs_frontend_add_dock_by_id("streamhub-chat-dock", "StreamHub Chat", chatDock)) {
+    if (obs_frontend_add_dock_by_id("streamhub-chat-dock", "StreamHub Chat  · K4", chatDock)) {
+        brandDock(chatDock);
         // Conecta o status do launcher (baixando Node, instalando deps,
         // iniciando servidor...) na label da dock, pra o usuário ver
         // progresso em vez de uma dock em branco na primeira execução.

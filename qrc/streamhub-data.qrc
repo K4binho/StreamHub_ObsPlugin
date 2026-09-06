@@ -16,6 +16,7 @@
     <file alias="locale/pt-BR.ini">../data/locale/pt-BR.ini</file>
 
     <file alias="streamhub-server/package.json">../data/streamhub-server/package.json</file>
+    <file alias="streamhub-server/package-lock.json">../data/streamhub-server/package-lock.json</file>
     <file alias="streamhub-server/config.example.json">../data/streamhub-server/config.example.json</file>
 
     <file alias="streamhub-server/server/index.js">../data/streamhub-server/server/index.js</file>
@@ -32,6 +33,10 @@
     <file alias="streamhub-server/public/overlay.html">../data/streamhub-server/public/overlay.html</file>
     <file alias="streamhub-server/public/overlay.js">../data/streamhub-server/public/overlay.js</file>
     <file alias="streamhub-server/public/overlay.css">../data/streamhub-server/public/overlay.css</file>
+    <file alias="streamhub-server/public/icons/twitch.svg">../data/streamhub-server/public/icons/twitch.svg</file>
+    <file alias="streamhub-server/public/icons/kick.svg">../data/streamhub-server/public/icons/kick.svg</file>
+    <file alias="streamhub-server/public/icons/youtube.svg">../data/streamhub-server/public/icons/youtube.svg</file>
+    <file alias="streamhub-server/public/icons/tiktok.svg">../data/streamhub-server/public/icons/tiktok.svg</file>
   </qresource>
   <qresource prefix="/streamhub-ui">
     <file alias="icons/twitch.svg">../assets/icons/twitch.svg</file>

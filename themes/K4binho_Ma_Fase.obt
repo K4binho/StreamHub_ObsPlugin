@@ -2910,3 +2910,35 @@ QScrollBar::handle:hover {
     background-color: #087EBA;
     border-color: #00C8FF;
 }
+
+
+/* StreamHub: painéis nativos e janelas auxiliares */
+BrowserDock,
+OBSBasicStats,
+QDialog#streamHubSettings {
+    background-color: #080D14;
+    color: #F1FAFF;
+}
+
+BrowserDock QToolBar,
+OBSBasicStats QFrame,
+QDialog#streamHubSettings QTabWidget::pane {
+    background-color: #101A26;
+    border: 1px solid #27465A;
+}
+
+OBSBasicStats QLabel,
+QDialog#streamHubSettings QLabel {
+    color: #F1FAFF;
+}
+
+QDialog#streamHubSettings QLabel#overlaySectionTitle {
+    color: #00C8FF;
+    font-weight: 700;
+    padding-top: 6px;
+}
+
+QDialog#streamHubSettings QTabBar::tab:selected {
+    background-color: #075579;
+    border-bottom: 2px solid #00C8FF;
+}

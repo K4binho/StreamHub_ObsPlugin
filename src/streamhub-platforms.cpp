@@ -1,6 +1,7 @@
 #include "streamhub-platforms.h"
 
 #include <algorithm>
+#include <QColor>
 
 namespace {
 const QList<StreamHubPlatformPreset> kPresets = {
@@ -18,7 +19,7 @@ const QList<StreamHubPlatformPreset> &StreamHubPlatformPresets()
     return kPresets;
 }
 
-const StreamHubPlatformPreset &StreamHubPlatformForTarget(const OutputTargetConfig &target)
+StreamHubPlatformPreset StreamHubPlatformForTarget(const OutputTargetConfig &target)
 {
     QString platform = QString::fromStdString(target.platform).toLower();
     const QString name = QString::fromStdString(target.name).toLower();
@@ -39,8 +40,20 @@ const StreamHubPlatformPreset &StreamHubPlatformForTarget(const OutputTargetConf
     }
 
     for (const auto &preset : kPresets) {
-        if (preset.id == platform)
-            return preset;
+        if (preset.id == platform) {
+            if (platform != "custom")
+                return preset;
+            StreamHubPlatformPreset customized = preset;
+            const QString icon = QString::fromStdString(target.customIcon);
+            const QString accent = QString::fromStdString(target.customAccent);
+            if (!icon.isEmpty())
+                customized.iconPath = QString(":/streamhub-ui/icons/%1.svg").arg(icon);
+            if (QColor::isValidColorName(accent))
+                customized.accent = accent;
+            customized.name = QString::fromStdString(target.name).trimmed();
+            if (customized.name.isEmpty()) customized.name = preset.name;
+            return customized;
+        }
     }
     return kPresets.back();
 }
@@ -53,6 +66,8 @@ void StreamHubApplyPlatformPreset(OutputTargetConfig &target, const QString &pla
     const auto &preset = it == kPresets.cend() ? kPresets.back() : *it;
 
     target.platform = preset.id.toStdString();
+    target.customIcon = "settings";
+    target.customAccent = preset.accent.toStdString();
     target.name = preset.name.toStdString();
     target.protocol = "RTMP";
     target.serviceParam = nlohmann::json::object();

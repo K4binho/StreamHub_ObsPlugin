@@ -6,15 +6,19 @@ const tmi = require('tmi.js');
  *
  * @param {object} cfg - config.twitch do config.json
  * @param {(msg: object) => void} onMessage - callback chamado a cada mensagem
+ * @param {(state: string, detail?: string) => void} onStatus
  * @returns {tmi.Client}
  */
-function startTwitch(cfg, onMessage) {
+function startTwitch(cfg, onMessage, onStatus = () => {}) {
+  onStatus('connecting', 'Twitch conectando...');
   const client = new tmi.Client({
+    connection: { reconnect: true, secure: true },
     channels: [cfg.channel],
   });
 
   client.connect().catch((err) => {
     console.error('[twitch] erro ao conectar:', err.message);
+    onStatus('reconnecting', 'Twitch desconectado — reconectando');
   });
 
   client.on('message', (channel, tags, message, self) => {
@@ -33,7 +37,11 @@ function startTwitch(cfg, onMessage) {
 
   client.on('connected', () => {
     console.log(`[twitch] conectado ao canal #${cfg.channel}`);
+    onStatus('connected', 'Twitch conectado');
   });
+
+  client.on('disconnected', () => onStatus('reconnecting', 'Twitch desconectado — reconectando'));
+  client.on('reconnect', () => onStatus('reconnecting', 'Twitch desconectado — reconectando'));
 
   return client;
 }

@@ -71,6 +71,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/streamhub-platforms.cpp
   ./src/streamhub-theme-installer.h
   ./src/streamhub-theme-installer.cpp
+  ./src/streamhub-native-theme.h
+  ./src/streamhub-native-theme.cpp
   ./src/streamhub-bundle.h
   ./src/streamhub-bundle.cpp
   ./qrc/streamhub-data.qrc

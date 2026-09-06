@@ -1,11 +1,14 @@
 #include "streamhub-chat-dock.h"
 
+#include <algorithm>
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QButtonGroup>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QFile>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -13,6 +16,7 @@
 #include <QNetworkRequest>
 #include <QPushButton>
 #include <QPainter>
+#include <QScrollBar>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -241,6 +245,25 @@ void StreamHubChatDock::ConnectTo(int port)
     PollOnce();
 }
 
+void StreamHubChatDock::SetConfigPath(const QString &configPath)
+{
+    configPath_ = configPath;
+    highlightTerms_ = {"k4binho"};
+    QFile input(configPath_);
+    if (!input.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject config = QJsonDocument::fromJson(input.readAll()).object();
+    const auto addTerm = [this](QString value) {
+        value = value.trimmed().toLower();
+        while (value.startsWith('@') || value.startsWith('#')) value.remove(0, 1);
+        if (!value.isEmpty() && !highlightTerms_.contains(value)) highlightTerms_.append(value);
+    };
+    addTerm(config.value("overlay").toObject().value("channelName").toString());
+    addTerm(config.value("twitch").toObject().value("channel").toString());
+    addTerm(config.value("kick").toObject().value("channel").toString());
+    addTerm(config.value("tiktok").toObject().value("username").toString());
+}
+
 void StreamHubChatDock::PrepareForRestart()
 {
     connected_ = false;
@@ -254,6 +277,7 @@ void StreamHubChatDock::OnConfigureClicked()
 {
     QString error;
     if (StreamHubChatSettings::Edit(this, configPath_, &error)) {
+        SetConfigPath(configPath_);
         PrepareForRestart();
         emit SettingsSaved();
     } else if (!error.isEmpty()) {
@@ -306,8 +330,16 @@ void StreamHubChatDock::OnPollFinished(QNetworkReply *reply)
 
         for (const auto &v : obj.value("messages").toArray()) {
             auto m = v.toObject();
-            AppendChatLine(m.value("platform").toString(), m.value("user").toString(),
-                           m.value("message").toString(),
+            const QString platform = m.value("platform").toString();
+            if (m.value("kind").toString() == "status") {
+                AppendConnectionNotice(platform, m.value("message").toString(),
+                                       m.value("connected").toBool(false));
+                continue;
+            }
+            QStringList badges;
+            for (const auto &badge : m.value("badges").toArray())
+                badges.append(badge.toString());
+            AppendChatLine(platform, m.value("user").toString(), m.value("message").toString(), badges,
                            static_cast<qint64>(m.value("timestamp").toDouble()));
         }
     }
@@ -344,8 +376,10 @@ void StreamHubChatDock::ApplyFilter()
 }
 
 void StreamHubChatDock::AppendChatLine(const QString &platform, const QString &user,
-                                       const QString &text, qint64 timestamp)
+                                       const QString &text, const QStringList &badges, qint64 timestamp)
 {
+    const bool followLatest = list_->verticalScrollBar()->value() >=
+                              list_->verticalScrollBar()->maximum() - 2;
     auto *item = new QListWidgetItem();
     item->setData(Qt::UserRole, platform);
 
@@ -365,14 +399,26 @@ void StreamHubChatDock::AppendChatLine(const QString &platform, const QString &u
     badge->setAlignment(Qt::AlignCenter);
     badge->setFixedSize(28, 24);
     badge->setPixmap(IconForPlatform(platform).pixmap(20, 20));
-    badge->setToolTip(platform.at(0).toUpper() + platform.mid(1));
+    badge->setToolTip(platform.isEmpty() ? tr("Desconhecido") : platform.at(0).toUpper() + platform.mid(1));
     rowLayout->addWidget(badge, 0, Qt::AlignTop);
 
     auto *message = new QLabel(row);
     message->setTextFormat(Qt::RichText);
     message->setWordWrap(true);
-    message->setText(QString("<b style='color:%1'>%2</b>&nbsp;&nbsp;<span style='color:#f2f7ff'>%3</span>")
-                         .arg(ColorForPlatform(platform), user.toHtmlEscaped(), text.toHtmlEscaped()));
+    QString badgeMarkup;
+    for (QString badgeName : badges) {
+        badgeName = badgeName.toLower();
+        QString shortName;
+        if (badgeName == "moderator" || badgeName == "mod") shortName = "MOD";
+        else if (badgeName == "subscriber" || badgeName == "sub") shortName = "SUB";
+        else if (badgeName == "vip") shortName = "VIP";
+        else if (badgeName == "broadcaster") shortName = "LIVE";
+        if (!shortName.isEmpty())
+            badgeMarkup += QString("&nbsp;<small style='color:%1'>[%2]</small>")
+                               .arg(ColorForPlatform(platform), shortName);
+    }
+    message->setText(QString("<b style='color:%1'>%2</b>%3&nbsp;&nbsp;<span style='color:#f2f7ff'>%4</span>")
+                         .arg(ColorForPlatform(platform), user.toHtmlEscaped(), badgeMarkup, text.toHtmlEscaped()));
     rowLayout->addWidget(message, 1);
 
     item->setSizeHint(row->sizeHint());
@@ -380,9 +426,39 @@ void StreamHubChatDock::AppendChatLine(const QString &platform, const QString &u
     list_->setItemWidget(item, row);
     item->setHidden(activeFilter_ != "all" && activeFilter_ != platform);
 
+    const QString lowered = text.toLower();
+    const bool mentioned = std::any_of(highlightTerms_.cbegin(), highlightTerms_.cend(),
+                                       [&lowered](const QString &term) {
+                                           return !term.isEmpty() && lowered.contains(term);
+                                       });
+    if (mentioned)
+        row->setStyleSheet("background:rgba(0,200,255,35); border-left:3px solid #00c8ff; border-radius:5px;");
+
     while (list_->count() > kMaxItems) {
         delete list_->takeItem(0);
     }
 
-    list_->scrollToBottom();
+    if (followLatest)
+        list_->scrollToBottom();
+}
+
+void StreamHubChatDock::AppendConnectionNotice(const QString &platform, const QString &message,
+                                                bool connected)
+{
+    if (connected)
+        return;
+    auto *item = new QListWidgetItem();
+    item->setData(Qt::UserRole, platform);
+    auto *label = new QLabel(QString("%1  %2")
+                                 .arg(platform.isEmpty() ? QString() : QString::fromUtf8(u8"↻"),
+                                      message), list_);
+    label->setTextFormat(Qt::PlainText);
+    label->setWordWrap(true);
+    label->setStyleSheet(QString("color:#f6bd3a; background:rgba(246,189,58,18); "
+                                 "border-left:3px solid %1; border-radius:5px; padding:7px;")
+                             .arg(ColorForPlatform(platform)));
+    item->setSizeHint(label->sizeHint());
+    list_->addItem(item);
+    list_->setItemWidget(item, label);
+    item->setHidden(activeFilter_ != "all" && activeFilter_ != platform);
 }

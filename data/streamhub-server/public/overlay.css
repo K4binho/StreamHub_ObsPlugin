@@ -1,58 +1,174 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+:root {
+  color-scheme: dark;
+  --text: #f1faff;
+  --muted: #91b3c7;
+  --surface: rgb(8 13 20 / 82%);
+  --border: rgb(39 70 90 / 84%);
+  --cyan: #00c8ff;
 }
 
+* { box-sizing: border-box; }
+
 html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
   background: transparent;
-  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
   overflow: hidden;
+  font-family: "Segoe UI", Inter, system-ui, sans-serif;
 }
 
 #chat-box {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 6px;
-  width: 420px;
-  height: 100vh;
-  padding: 12px;
+  width: min(100%, 34rem);
+  height: 100%;
+  padding: 0.75rem;
 }
 
-.msg {
+.messages {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 16px;
-  color: #fff;
-  animation: fade-in 0.2s ease-out;
-  word-break: break-word;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.platform-tag {
-  font-size: 11px;
+.message {
+  --platform: var(--cyan);
+  display: grid;
+  grid-template-columns: 1.45rem auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.42rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.48rem 0.68rem;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.35;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 90%);
+  background: rgb(8 13 20 / 82%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--platform) 10%, var(--surface)), var(--surface) 24%);
+  border: 1px solid var(--border);
+  border-left: 0.2rem solid var(--platform);
+  border-radius: 0.55rem;
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 28%);
+  animation: message-in 180ms ease-out both;
+}
+
+.message.is-leaving { animation: message-out 260ms ease-in both; }
+
+.message.is-mentioned {
+  background: linear-gradient(90deg, rgb(0 200 255 / 25%), rgb(8 13 20 / 92%) 34%);
+  border-color: rgb(0 200 255 / 78%);
+  box-shadow: 0 0 0 1px rgb(0 200 255 / 24%), 0 0.45rem 1.2rem rgb(0 0 0 / 35%);
+}
+
+.message[data-platform="twitch"] { --platform: #9146ff; }
+.message[data-platform="kick"] { --platform: #53fc18; }
+.message[data-platform="youtube"] { --platform: #ff0033; }
+.message[data-platform="tiktok"] { --platform: #ff2d8d; }
+
+.platform-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.08rem;
+  object-fit: contain;
+}
+
+.identity {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.username {
+  color: var(--platform);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  padding: 0.05rem 0.25rem;
+  color: #080d14;
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: 0.03em;
+  text-shadow: none;
+  background: var(--platform);
+  border-radius: 0.2rem;
+}
+
+.message-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.connection-status {
+  align-self: flex-start;
+  max-width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.status-pill {
+  --platform: var(--cyan);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  margin-right: 0.35rem;
+  padding: 0.32rem 0.55rem;
+  color: var(--muted);
+  font-size: 0.78rem;
   font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: #fff;
-  flex-shrink: 0;
+  background: rgb(8 13 20 / 86%);
+  border: 1px solid color-mix(in srgb, var(--platform) 55%, var(--border));
+  border-radius: 999px;
 }
 
-.platform-tag.twitch   { background: #9146FF; }
-.platform-tag.youtube  { background: #FF0000; }
-.platform-tag.kick     { background: #53FC18; color: #000; }
-.platform-tag.tiktok   { background: #000; border: 1px solid #fff; }
-
-.user {
-  font-weight: 700;
+.status-pill::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  background: #f6bd3a;
+  border-radius: 50%;
+  box-shadow: 0 0 0.5rem rgb(246 189 58 / 55%);
 }
 
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+.status-pill[data-platform="twitch"] { --platform: #9146ff; }
+.status-pill[data-platform="kick"] { --platform: #53fc18; }
+.status-pill[data-platform="youtube"] { --platform: #ff0033; }
+.status-pill[data-platform="tiktok"] { --platform: #ff2d8d; }
+
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
+@keyframes message-in {
+  from { opacity: 0; transform: translateY(0.55rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes message-out {
+  to { opacity: 0; transform: translateX(-0.8rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message, .message.is-leaving { animation-duration: 1ms; }
 }

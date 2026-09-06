@@ -7,6 +7,7 @@
 #include <QNetworkReply>
 #include <QTimer>
 #include <QPixmap>
+#include <QStringList>
 
 class QButtonGroup;
 
@@ -28,7 +29,7 @@ public:
     explicit StreamHubChatDock(QWidget *parent = nullptr);
 
     void ConnectTo(int port);
-    void SetConfigPath(const QString &configPath) { configPath_ = configPath; }
+    void SetConfigPath(const QString &configPath);
     void PrepareForRestart();
 
 signals:
@@ -50,7 +51,8 @@ protected:
 
 private:
     void AppendChatLine(const QString &platform, const QString &user, const QString &text,
-                        qint64 timestamp);
+                        const QStringList &badges, qint64 timestamp);
+    void AppendConnectionNotice(const QString &platform, const QString &message, bool connected);
     void ApplyFilter();
     void SetConnected(bool connected);
 
@@ -67,6 +69,7 @@ private:
     bool pollInFlight_ = false;
     QString configPath_;
     QString activeFilter_ = "all";
+    QStringList highlightTerms_;
     QPixmap background_;
     QPixmap crown_;
 

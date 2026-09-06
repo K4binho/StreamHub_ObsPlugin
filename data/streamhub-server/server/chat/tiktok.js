@@ -1,37 +1,59 @@
 const { WebcastPushConnection } = require('tiktok-live-connector');
 
-// ATENÇÃO: o TikTok também não tem API pública de chat. A lib abaixo é
-// mantida pela comunidade e conecta ao mesmo protocolo interno que o app
-// TikTok usa. Só funciona enquanto a live estiver realmente ao vivo.
-async function startTiktok(cfg, onMessage) {
-  const connection = new WebcastPushConnection(cfg.username);
+// Integração experimental baseada no protocolo usado pelo TikTok. Precisa
+// ser validada ponta a ponta em uma live real antes de ser anunciada como
+// suporte estável.
+async function startTiktok(cfg, onMessage, onStatus = () => {}) {
+  let connection = null;
+  let retryTimer = null;
+  let stopped = false;
 
-  try {
-    await connection.connect();
-    console.log(`[tiktok] conectado à live de @${cfg.username}`);
-  } catch (err) {
-    console.error('[tiktok] não consegui conectar (a live está no ar?):', err.message);
-    return null;
-  }
+  const scheduleReconnect = () => {
+    if (stopped || retryTimer) return;
+    onStatus('reconnecting', 'TikTok desconectado — reconectando');
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      connect().catch(() => {});
+    }, 10000);
+  };
 
-  connection.on('chat', (data) => {
-    onMessage({
-      platform: 'tiktok',
-      id: data.msgId,
-      user: data.nickname || data.uniqueId,
-      color: '#000000',
-      message: data.comment,
-      badges: data.isModerator ? ['moderator'] : [],
-      timestamp: Date.now(),
+  const connect = async () => {
+    if (stopped) return;
+    onStatus('connecting', 'TikTok conectando...');
+    const current = new WebcastPushConnection(cfg.username);
+    connection = current;
+
+    current.on('chat', (data) => {
+      onMessage({
+        platform: 'tiktok',
+        id: data.msgId,
+        user: data.nickname || data.uniqueId,
+        color: '#FF2D8D',
+        message: data.comment,
+        badges: data.isModerator ? ['moderator'] : [],
+        timestamp: Date.now(),
+      });
     });
-  });
+    current.on('disconnected', scheduleReconnect);
+    current.on('streamEnd', scheduleReconnect);
 
-  connection.on('disconnected', () => {
-    console.log('[tiktok] desconectado');
-  });
+    try {
+      await current.connect();
+      console.log(`[tiktok] conectado à live de @${cfg.username}`);
+      onStatus('connected', 'TikTok conectado');
+    } catch (err) {
+      console.error('[tiktok] não consegui conectar (a live está no ar?):', err.message);
+      scheduleReconnect();
+    }
+  };
 
+  await connect();
   return {
-    stop: () => connection.disconnect(),
+    stop: () => {
+      stopped = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      if (connection) connection.disconnect();
+    },
   };
 }
 
