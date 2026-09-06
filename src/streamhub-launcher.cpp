@@ -36,6 +36,7 @@ void StreamHubLauncher::Start(const QString &pluginDataDir, const QString &serve
 
     serverDir_ = StreamHubAbsolutePath(serverDir);
     port_ = port;
+    stopping_ = false;
 
     // Tudo a partir daqui é assíncrono (sinais/slots) — esta função sempre
     // retorna na hora, então o OBS nunca fica travado esperando isso,
@@ -46,6 +47,7 @@ void StreamHubLauncher::Start(const QString &pluginDataDir, const QString &serve
 
 void StreamHubLauncher::OnNodeReady(const QString &nodePath, const QString &npmCliPath)
 {
+    nodePath_ = nodePath;
     QDir nodeModules(QDir(serverDir_).filePath("node_modules"));
     if (nodeModules.exists() && DependenciesAreComplete()) {
         // Dependências já instaladas (aberturas anteriores do OBS já
@@ -58,6 +60,25 @@ void StreamHubLauncher::OnNodeReady(const QString &nodePath, const QString &npmC
         blog(LOG_WARNING, "[streamhub] dependências incompletas ou desatualizadas; executando npm install para reparar");
     }
     RunNpmInstallThenStart(nodePath, npmCliPath);
+}
+
+void StreamHubLauncher::Restart()
+{
+    if (nodePath_.isEmpty()) {
+        emit statusChanged(tr("O serviço ainda está sendo preparado; tente aplicar novamente em instantes."));
+        return;
+    }
+
+    restartPending_ = true;
+    stopping_ = false;
+    emit statusChanged(tr("Reiniciando chats do StreamHub..."));
+    if (process_ && process_->state() != QProcess::NotRunning) {
+        process_->terminate();
+        return;
+    }
+
+    restartPending_ = false;
+    StartServerProcess(nodePath_);
 }
 
 bool StreamHubLauncher::DependenciesAreComplete() const
@@ -145,31 +166,47 @@ void StreamHubLauncher::RunNpmInstallThenStart(const QString &nodePath, const QS
 
 void StreamHubLauncher::StartServerProcess(const QString &nodePath)
 {
-    process_ = new QProcess(this);
-    process_->setWorkingDirectory(serverDir_);
+    auto *serverProcess = new QProcess(this);
+    process_ = serverProcess;
+    serverProcess->setWorkingDirectory(serverDir_);
 
     auto env = QProcessEnvironment::systemEnvironment();
     env.insert("PORT", QString::number(port_));
-    process_->setProcessEnvironment(env);
+    serverProcess->setProcessEnvironment(env);
 
-    connect(process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError err) {
+    connect(serverProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError err) {
         blog(LOG_WARNING, "[streamhub] não consegui iniciar o servidor Node (código %d).", (int)err);
         emit statusChanged(tr("Não consegui iniciar o servidor do StreamHub."));
     });
 
-    connect(process_, &QProcess::readyReadStandardError, this, [this]() {
-        blog(LOG_INFO, "[streamhub-node] %s", process_->readAllStandardError().constData());
+    connect(serverProcess, &QProcess::readyReadStandardError, this, [serverProcess]() {
+        blog(LOG_INFO, "[streamhub-node] %s", serverProcess->readAllStandardError().constData());
     });
+
+    connect(serverProcess, &QProcess::finished, this,
+            [this, serverProcess](int exitCode, QProcess::ExitStatus) {
+                if (process_ == serverProcess)
+                    process_ = nullptr;
+                serverProcess->deleteLater();
+                if (restartPending_ && !stopping_) {
+                    restartPending_ = false;
+                    StartServerProcess(nodePath_);
+                } else if (!stopping_ && exitCode != 0) {
+                    emit statusChanged(tr("O serviço de chat encerrou com erro (código %1).").arg(exitCode));
+                }
+            });
 
     const QString scriptPath = QDir(serverDir_).absoluteFilePath("server/index.js");
     blog(LOG_INFO, "[streamhub] iniciando Node: diretório=%s; script=%s",
          serverDir_.toUtf8().constData(), scriptPath.toUtf8().constData());
-    process_->start(nodePath, {scriptPath});
+    serverProcess->start(nodePath, {scriptPath});
     emit statusChanged(tr("StreamHub rodando (porta %1).").arg(port_));
 }
 
 void StreamHubLauncher::Stop()
 {
+    stopping_ = true;
+    restartPending_ = false;
     if (npmInstallProcess_ != nullptr) {
         npmInstallProcess_->kill();
         npmInstallProcess_->deleteLater();
@@ -185,6 +222,7 @@ void StreamHubLauncher::Stop()
         process_->kill();
     }
 
+    disconnect(process_, nullptr, this, nullptr);
     process_->deleteLater();
     process_ = nullptr;
 }

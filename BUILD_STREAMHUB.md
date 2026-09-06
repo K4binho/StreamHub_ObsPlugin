@@ -17,6 +17,12 @@ ctest --test-dir build_path_tests -C Release --output-on-failure
 
 O teste passou nesta sessão. As referências históricas abaixo a VS2022, WebSocket e impossibilidade de compilar neste ambiente estão superadas: o dock atual usa long-poll HTTP e a compilação funciona. Veja [STATUS.md](STATUS.md) para o estado consolidado.
 
+## Interface nativa e configuração — 06/09/2026
+
+O dock de chat possui filtros por plataforma, mensagens estruturadas e botão de configuração. Esse formulário edita Twitch/Kick, salva `config.json` de forma atômica e reinicia somente o servidor Node. O dock Múltiplas saídas continua sendo a autoridade das transmissões e agora apresenta os controles existentes em cabeçalho e cartões com o tema StreamHub.
+
+A build com essa interface foi instalada no OBS portátil e o log `2026-09-06 00-35-36.txt` confirmou o carregamento e a conexão local. O envio pelo campo do chat não foi implementado: os conectores atuais apenas leem mensagens públicas, e enviar exige autenticação OAuth por plataforma. A transmissão real ainda não foi testada.
+
 Se o OBS for fechado durante a primeira instalação dos pacotes Node, a pasta `node_modules` pode existir incompleta. O launcher atual só reutiliza a pasta quando também encontra `.dependencies-sha256` com o hash do `package.json`. Sem esse marcador, ele roda `npm install` novamente e se repara sozinho. Deixe o OBS aberto até o dock conectar na primeira execução; se for interrompido, basta abrir novamente.
 
 Este é o fork do [obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp)
@@ -26,8 +32,8 @@ com duas coisas a mais:
    StreamHub que já tínhamos) como processo filho, assim que o OBS carrega o
    plugin. Instala as dependências (`npm install`) sozinho na primeira vez.
 2. `src/streamhub-chat-dock.*` — um dock nativo em Qt (não é navegador/CEF)
-   que conecta via WebSocket simples (`ws://localhost:PORT/ws-chat`) nesse
-   servidor e mostra o chat unificado dentro do próprio OBS.
+   que consulta o servidor por long-poll HTTP e mostra o chat unificado
+   dentro do próprio OBS.
 
 O resto (todas as saídas RTMP, a UI de "Adicionar Saída" etc.) é o
 obs-multi-rtmp original, sem modificação.
@@ -65,11 +71,9 @@ As duas limitações da v1 foram resolvidas com `src/streamhub-node-provision.*`
   `streamhub-node-provision.h` (hoje `20.11.1`, LTS "Iron"). Vale revisar essa
   constante de tempos em tempos.
 
-**Ainda vale testar na sua máquina:** não tem como compilar/rodar isso aqui
-no sandbox (sem OBS, sem Qt, sem GPU), então o fluxo de download+extração
-está escrito com cuidado mas nunca rodou de ponta a ponta de verdade. Ao
-testar num PC sem Node.js instalado, watch os logs do OBS (linhas
-`[streamhub]`) pra confirmar que o download/extração terminaram OK.
+O fluxo foi compilado e executado nesta máquina. Ainda falta o teste em um
+Windows limpo, sem Node instalado, copiando somente a DLL. Nesse cenário,
+acompanhar as linhas `[streamhub]` no log até o dock conectar.
 
 Nome do dock/arquivo de config ainda estão em inglês/genérico
 (`obs-multi-rtmp`) por baixo dos panos — não precisa mudar isso pra
@@ -85,7 +89,7 @@ testar) — mas o fluxo abaixo funciona numa máquina Windows normal.
 
 ### Pré-requisitos (Windows)
 
-1. [Visual Studio 2022](https://visualstudio.microsoft.com/) com a carga de
+1. Visual Studio Community 2026 com a carga de
    trabalho "Desenvolvimento para desktop com C++"
 2. [CMake](https://cmake.org/download/) 3.28+
 3. [Git](https://git-scm.com/)
@@ -125,10 +129,10 @@ Isso gera o plugin em algo como
 
 ### Configurando o chat e as saídas
 
-Enquanto não fazemos uma UI nativa pra isso, edite direto:
-`%ProgramData%\obs-studio\plugins\<nome-do-plugin>\data\streamhub-server\config.json`
-(copie de `config.example.json` na primeira vez). Depois de editar, feche e
-abra o OBS de novo pra aplicar (o servidor só lê o config uma vez, ao subir).
+Use a engrenagem no cabeçalho do dock **StreamHub Chat** para ativar e
+informar os canais Twitch/Kick; **Salvar e aplicar** reinicia somente o
+serviço de chat. Use **Múltiplas saídas → Adicionar destino** para URL,
+stream key e encoder das transmissões.
 
 ## Próximos passos possíveis
 

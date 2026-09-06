@@ -1,11 +1,13 @@
 #pragma once
 
-#include <QDockWidget>
+#include <QWidget>
 #include <QLabel>
 #include <QListWidget>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
+
+class QButtonGroup;
 
 // Dock nativo (Qt puro, sem CEF) que consulta o endpoint HTTP
 // /api/chat/poll do servidor StreamHub e mostra as mensagens do chat
@@ -18,13 +20,18 @@
 // parte). O servidor segura cada requisição até ~25s ou até ter mensagem
 // nova pra mandar, então a latência percebida é praticamente a mesma de
 // um WebSocket de verdade.
-class StreamHubChatDock : public QDockWidget {
+class StreamHubChatDock : public QWidget {
     Q_OBJECT
 
 public:
     explicit StreamHubChatDock(QWidget *parent = nullptr);
 
     void ConnectTo(int port);
+    void SetConfigPath(const QString &configPath) { configPath_ = configPath; }
+    void PrepareForRestart();
+
+signals:
+    void SettingsSaved();
 
 public slots:
     // Mostra o progresso de preparação (baixando Node, instalando deps,
@@ -35,12 +42,18 @@ public slots:
 private slots:
     void PollOnce();
     void OnPollFinished(QNetworkReply *reply);
+    void OnConfigureClicked();
 
 private:
-    void AppendChatLine(const QString &platform, const QString &user, const QString &text);
+    void AppendChatLine(const QString &platform, const QString &user, const QString &text,
+                        qint64 timestamp);
+    void ApplyFilter();
+    void SetConnected(bool connected);
 
     QLabel *statusLabel_ = nullptr;
+    QLabel *connectionLabel_ = nullptr;
     QListWidget *list_ = nullptr;
+    QButtonGroup *filterGroup_ = nullptr;
     QNetworkAccessManager *net_ = nullptr;
     QTimer *retryTimer_ = nullptr;
 
@@ -48,6 +61,8 @@ private:
     qint64 since_ = 0;
     bool connected_ = false;
     bool pollInFlight_ = false;
+    QString configPath_;
+    QString activeFilter_ = "all";
 
     static constexpr int kMaxItems = 200;
 };

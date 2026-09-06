@@ -1,8 +1,8 @@
 # Plano de execução — StreamHub nativo + chats
 
-Data: 2026-09-05. Status: planejamento; nenhuma alteração funcional executada.
+Data: 2026-09-05. Status: em execução; DLL autocontida, separação do relay e primeira interface nativa implementadas.
 
-Atualização de execução (06/09/2026): DLL autocontida instalada; extração, reparação do npm e caminho absoluto validados. Os chats Twitch e Kick foram repetidos com sucesso no dock usando esta compilação. Referências abaixo à implementação anterior devem ser lidas como histórico do plano. Próxima etapa: frontend nativo de configuração; transmissão ainda não testada. Detalhes em [STATUS.md](STATUS.md).
+Atualização de execução (06/09/2026): DLL autocontida instalada; extração, reparação do npm, caminho absoluto e chats Twitch/Kick validados. O frontend nativo inicial de chat/configuração e o novo visual de Múltiplas saídas foram compilados e instalados; o log confirma nova conexão com o Node. Falta validação visual/regressão dos chats e a transmissão continua sem teste. Detalhes em [STATUS.md](STATUS.md).
 
 Histórico consolidado em [STATUS.md](STATUS.md) e instruções corrigidas em [BUILD_STREAMHUB.md](BUILD_STREAMHUB.md). OBS portátil confirmado pelo usuário em `E:\obs-studio`; VS Community 2026, CMake 4.4.3 e QtWebSockets 6.11.1 compilado manualmente. Os chats da Twitch e do Kick já foram testados; a transmissão ainda não foi testada, inclusive na Twitch e a rotação das chaves já foi relatada como concluída. Falta verificar as chaves atuais nos destinos nativos, sem duplicá-las no chat.
 
@@ -10,9 +10,9 @@ Histórico consolidado em [STATUS.md](STATUS.md) e instruções corrigidas em [B
 
 Transmitir para Twitch e Kick pelas saídas nativas do OBS, compartilhando o encoder quando compatível. Configurar os chats pelo dock StreamHub, sem editar JSON e sem cadastrar chaves RTMP no servidor de chat. Salvar e aplicar canais sem fechar o OBS ou interromper a transmissão.
 
-YouTube/TikTok, instalador e mudanças visuais amplas ficam para outra etapa. Preservar suas configurações existentes.
+YouTube/TikTok completos e envio de mensagens exigem uma etapa posterior de autenticação. Preservar suas configurações existentes.
 
-## Fase -1 — DLL autocontida (feita nesta sessão, falta compilar/testar)
+## Fase -1 — DLL autocontida
 
 Pedido do usuário: só precisar copiar `obs-multi-rtmp.dll` após formatar o PC.
 
@@ -21,9 +21,9 @@ Pedido do usuário: só precisar copiar `obs-multi-rtmp.dll` após formatar o PC
 - [x] Chamada inserida no início de `obs_module_load()`, antes do primeiro `obs_module_text()`.
 - [x] Dock de chat trocado de `QWebSocket` para long-polling HTTP (`QNetworkAccessManager` + novo endpoint `GET /api/chat/poll` no `index.js`), eliminando a dependência do módulo Qt6 WebSockets.
 - [x] `CMakeLists.txt` atualizado: sem `Qt6::WebSockets`, com os novos arquivos fonte.
-- [ ] Compilar (ambiente sem Windows/VS/Qt não permite validar aqui).
+- [x] Compilar com VS Community 2026 e Qt do pacote do OBS.
 - [ ] Testar em instalação nova do OBS, copiando só a DLL.
-- [ ] Repetir testes de chat Twitch/Kick com o long-poll.
+- [x] Repetir testes de chat Twitch/Kick com o long-poll.
 
 Detalhes: [STATUS.md](STATUS.md) e [BUILD_STREAMHUB.md](BUILD_STREAMHUB.md).
 
@@ -32,8 +32,8 @@ Detalhes: [STATUS.md](STATUS.md) e [BUILD_STREAMHUB.md](BUILD_STREAMHUB.md).
 - `BUILD_STREAMHUB.md`: arquitetura, build e proposta original de formulário Qt.
 - `src/obs-multi-rtmp.cpp:474`: integração do launcher/dock e resolução do diretório absoluto. Preservar a correção de caminhos.
 - `src/streamhub-chat-dock.cpp:29`: widgets nativos existentes; `ConnectTo(int)` e `SetStatus(const QString&)` são pontos atuais de integração.
-- `src/streamhub-launcher.cpp:26`: `Start(...)`; linha 125: `Stop()`. Ainda não existe reinício assíncrono. O encerramento atual espera até três segundos.
-- `data/streamhub-server/server/index.js:68`: inicia conectores e relay; a presença de `config.rtmp` basta para iniciar RTMP. O servidor HTTP só começa depois dos conectores.
+- `src/streamhub-launcher.cpp`: `Start(...)`, `Restart()` e `Stop()` controlam o processo Node. O reinício usado pelo formulário é assíncrono.
+- `data/streamhub-server/server/index.js`: inicia somente os conectores de chat e o servidor HTTP; o relay não faz mais parte da inicialização.
 - `data/streamhub-server/server/chat/twitch.js`: `startTwitch(cfg, onMessage)` usa canal público, sem chave RTMP.
 - `data/streamhub-server/server/chat/kick.js`: `startKick(cfg, onMessage)` usa canal e `chatroomId` opcional, com integração Pusher. O usuário confirmou o teste do chat Kick; repetir como teste de regressão após as alterações. Os comentários antigos não são documentação atual da plataforma.
 - `data/streamhub-server/server/config-store.js:6`: `readConfig()` / `writeConfig(config)`; gravação atual substitui o arquivo sem validação suficiente ou troca atômica.
@@ -80,7 +80,7 @@ Verificar: alterar canal aplica sem fechar OBS; salvar repetidamente mantém um 
 
 1. Conferir SDK, Qt e ferramentas disponíveis; gerar build novo apontando para a pasta atual em E:.
 2. Usar as opções do preset `windows-x64` e compilação `RelWithDebInfo` documentadas em `BUILD_STREAMHUB.md`, com diretório novo para evitar o cache antigo.
-   O gerador atual é `Visual Studio 18 2026`. Resolver também os caminhos Qt antigos; preservar/reconstruir QtWebSockets 6.11.1 no pacote Qt correspondente e instalar a DLL exigida (`Qt6WebSockets_relwithdebinfo.dll` no build anterior) junto ao plugin.
+   O gerador atual é `Visual Studio 18 2026`. O dock usa `Qt6::Network`, já incluído no pacote Qt do OBS; não reconstruir nem instalar QtWebSockets.
 3. Copiar DLL e dados correspondentes para a instalação de OBS identificada, com OBS fechado e backups. Não sobrescrever a configuração do usuário ao copiar dados.
 4. Reabrir e confirmar pelo caminho/versão carregada que o plugin testado é o recém-compilado.
 

@@ -27,6 +27,7 @@ public:
     // pluginDataDir = pasta de dados do plugin (raiz), usada pra guardar o
     // runtime portátil do Node.js caso precise ser baixado.
     void Start(const QString &pluginDataDir, const QString &serverDir, int port);
+    void Restart();
     void Stop();
 
     int Port() const { return port_; }
@@ -49,5 +50,8 @@ private:
     QProcess *process_ = nullptr;
 
     QString serverDir_;
+    QString nodePath_;
     int port_ = 3000;
+    bool restartPending_ = false;
+    bool stopping_ = false;
 };

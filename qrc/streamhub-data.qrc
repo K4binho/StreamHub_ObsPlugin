@@ -33,4 +33,11 @@
     <file alias="streamhub-server/public/overlay.js">../data/streamhub-server/public/overlay.js</file>
     <file alias="streamhub-server/public/overlay.css">../data/streamhub-server/public/overlay.css</file>
   </qresource>
+  <qresource prefix="/streamhub-ui">
+    <file alias="icons/twitch.svg">../assets/icons/twitch.svg</file>
+    <file alias="icons/kick.svg">../assets/icons/kick.svg</file>
+    <file alias="icons/youtube.svg">../assets/icons/youtube.svg</file>
+    <file alias="icons/tiktok.svg">../assets/icons/tiktok.svg</file>
+    <file alias="icons/settings.svg">../assets/icons/settings.svg</file>
+  </qresource>
 </RCC>

@@ -1,5 +1,7 @@
 # StreamHub
 
+Integração e melhorias por **K4binho**, construída sobre o plugin de múltiplas saídas de **SoraYuki**. O projeto é gratuito. Apoio opcional: [LivePix do K4binho](https://livepix.gg/k4binho) e [PayPal do SoraYuki](https://paypal.me/sorayuki0).
+
 Chat unificado (Twitch + YouTube + Kick + TikTok) e multistream, pra usar com o OBS.
 É um ponto de partida — funcional, mas simples — não uma cópia do Aitum.
 

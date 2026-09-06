@@ -2,6 +2,32 @@
 
 Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico posterior e leitura do código. Testes em OBS aqui registrados foram relatados no histórico; não foram repetidos nesta atualização documental.
 
+## Frontend nativo inicial — 06/09/2026
+
+- O dock **StreamHub Chat** ganhou cabeçalho com estado Online/Offline, botão de configuração, filtros Todos/Twitch/Kick/YouTube/TikTok, mensagens estruturadas com hora, selo da plataforma, usuário colorido e indicação de modo leitura.
+- O botão de configuração abre um formulário Qt para ativar e informar os canais da Twitch e Kick. O salvamento é atômico, preserva as demais seções do JSON e reinicia somente o Node para aplicar, sem reiniciar o OBS nem interferir nas saídas nativas.
+- O dock **Múltiplas saídas** recebeu o mesmo tema escuro, cabeçalho, botão Adicionar destino, ações globais destacadas e cartões visuais para os destinos. As ações continuam ligadas ao código nativo já existente do `obs-multi-rtmp`.
+- Build `RelWithDebInfo` concluído e DLL instalada em `E:\obs-studio\obs-plugins\64bit\obs-multi-rtmp.dll`, com backup da versão anterior. O hash da origem e do arquivo instalado é idêntico.
+- O log `2026-09-06 00-35-36.txt` confirma plugin carregado, Node iniciado pelo caminho absoluto e dock conectado à porta 3000 às 00:36:04.
+- [ ] Fazer validação visual dos docks e do formulário no OBS.
+- [ ] Repetir mensagens Twitch/Kick após esta mudança de interface.
+- [ ] Criar/configurar os destinos do perfil ativo e testar transmissão real; o log desta abertura mostra zero destinos nativos carregados.
+
+### Refinamento visual instalado — 06/09/2026
+
+- Corrigida a barra duplicada: `obs_frontend_add_dock_by_id()` já cria o `QDockWidget`, então `StreamHubChatDock` passou a ser apenas um `QWidget` de conteúdo.
+- Letras provisórias foram substituídas por SVGs das plataformas nos filtros e nas mensagens; a engrenagem também passou a usar SVG embutido na DLL.
+- O formulário agora cobre todos os conectores existentes: Twitch, Kick, YouTube (API key + ID da live) e TikTok (usuário). Facebook continua sem conector e não é anunciado como funcional.
+- DLL instalada e OBS reaberto. O log `2026-09-06 00-48-46.txt` confirma Node iniciado pelo caminho absoluto e dock conectado à porta 3000 às 00:49:15.
+
+## Correção de salvamento e créditos — 06/09/2026
+
+- A janela de configuração mantinha `config.json` aberto para leitura durante todo o diálogo. No Windows, esse handle impedia o `QSaveFile` de substituir o arquivo no commit atômico. A leitura agora é encerrada antes da janela ser exibida.
+- Se `config.json` não existir, a própria interface cria a pasta e copia `config.example.json` antes de abrir os campos. Erros de gravação agora mostram o motivo retornado pelo sistema.
+- O painel Múltiplas saídas identifica o projeto como gratuito e credita SoraYuki pelo projeto original e K4binho pelas melhorias StreamHub, com links de apoio para PayPal e LivePix respectivamente.
+- O README principal registra as alterações do fork: visual, chat unificado, configuração nativa, DLL autocontida e correções de instalação/inicialização.
+- Correção compilada e instalada no OBS portátil. O arquivo instalado tem o mesmo SHA-256 da DLL gerada; falta somente confirmar o botão **Salvar e aplicar** pela interface.
+
 ## Correção do caminho — 06/09/2026
 
 - O log `2026-09-06 00-00-08.txt` confirma a extração de **18 arquivos embutidos**. Essa etapa está validada.
@@ -26,7 +52,7 @@ Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico
 - [x] Fluxo confirmado nesta máquina: DLL autocontida → extração do bundle → reparação automática do npm → Node com caminhos absolutos → long-poll HTTP → chats Twitch/Kick no dock.
 - Transmissão continua não testada.
 
-## DLL autocontida (compilada; extração validada; chats após correção pendentes)
+## DLL autocontida (compilada; extração e chats validados)
 
 Implementado o que você pediu: só copiar `obs-multi-rtmp.dll` depois de formatar, sem passos manuais.
 
@@ -41,12 +67,12 @@ Consequência prática: **não é mais preciso** compilar QtWebSockets nem copia
 - [x] Compilação com `Qt6::Network` e recursos embutidos concluída em 06/09/2026.
 - [x] Extração de 18 arquivos confirmada no log fornecido pelo usuário.
 - [ ] Validar o fluxo completo em instalação limpa (incluindo preparação automática e chats).
-- [ ] Repetir os testes de chat Twitch/Kick com o novo mecanismo de long-poll.
+- [x] Repetir os testes de chat Twitch/Kick com o novo mecanismo de long-poll.
 - [ ] Confirmar que reabrir o OBS não perde `config.json` (o marcador de versão do bundle, `.streamhub-bundle-version`, deve impedir reextração desnecessária).
 
 ## Decisão vigente
 
-Transmissão pelo painel **Múltiplas saídas nativo**, compartilhando encoder quando compatível; **Node para chats/overlay**. Usuário confirmou essa direção. Desativação do relay e formulário ainda pendentes: [PLANO_STREAMHUB.md](PLANO_STREAMHUB.md).
+Transmissão pelo painel **Múltiplas saídas nativo**, compartilhando encoder quando compatível; **Node para chats/overlay**. Usuário confirmou essa direção. O relay foi retirado da inicialização e o primeiro formulário nativo de chat já está implementado: [PLANO_STREAMHUB.md](PLANO_STREAMHUB.md).
 
 Não duplicar chaves RTMP no chat. A explicação anterior de que relay local economizaria upload estava incorreta: ambos enviam uma cópia pela internet por destino.
 
@@ -56,8 +82,8 @@ Não duplicar chaves RTMP no chat. A explicação anterior de que relay local ec
 - Projeto do build bem-sucedido: `C:\Users\heinr\Downloads\Streaming\Config OBS + PLugins\streamhub-obs-plugin`.
 - Projeto atual: `E:\Streaming\Config OBS + PLugins\streamhub-obs-plugin`.
 - Visual Studio Community 2026; CMake 4.4.3; VS Code com C/C++ e CMake Tools (Microsoft).
-- Qt 6.11.1 do pacote `obs-deps-qt6-2026-07-15-x64`; QtWebSockets 6.11.1 compilado manualmente dentro desse pacote.
-- DLLs em `E:\obs-studio\obs-plugins\64bit\`: `obs-multi-rtmp.dll` e `Qt6WebSockets_relwithdebinfo.dll`.
+- Qt 6.11.1 do pacote `obs-deps-qt6-2026-07-15-x64`. QtWebSockets foi compilado manualmente no histórico, mas o plugin atual não depende mais dele.
+- DLL necessária em `E:\obs-studio\obs-plugins\64bit\`: `obs-multi-rtmp.dll`. A antiga `Qt6WebSockets_relwithdebinfo.dll` pode permanecer no disco, mas não é carregada pelo StreamHub atual.
 - Dados em `E:\obs-studio\data\obs-plugins\obs-multi-rtmp\`, com `streamhub-server` embutido.
 - Chat configurado no histórico: Twitch e Kick habilitados, canal `K4binho`; YouTube e TikTok desabilitados. Nenhuma credencial deve ser registrada neste diário.
 
@@ -89,9 +115,9 @@ A aplicação das chaves novas em todos os destinos nativos ainda precisa ser co
 
 **A transmissão não foi testada, inclusive na Twitch. Somente os chats da Twitch e do Kick foram testados.**
 
-- [ ] Impedir inicialização do relay pelo plugin, inclusive com configuração antiga contendo `rtmp`.
-- [ ] Criar formulário Qt de canais com Salvar e aplicar, sem edição manual de JSON.
-- [ ] Reiniciar apenas o serviço de chat de forma assíncrona para aplicar mudanças, sem parar a transmissão.
+- [x] Impedir inicialização do relay pelo plugin, inclusive com configuração antiga contendo `rtmp`.
+- [x] Criar formulário Qt de canais com Salvar e aplicar, sem edição manual de JSON.
+- [x] Reiniciar apenas o serviço de chat de forma assíncrona para aplicar mudanças, sem parar a transmissão.
 - [ ] Mostrar status de cada plataforma separado da conexão com Node.
 - [ ] Após as alterações, repetir os testes dos chats Twitch/Kick para confirmar que continuam funcionando.
 - [ ] Conferir destinos nativos, chaves atuais e compartilhamento dos encoders no perfil ativo.
@@ -105,11 +131,11 @@ A aplicação das chaves novas em todos os destinos nativos ainda precisa ser co
 
 Chat salva em `E:\obs-studio\data\obs-plugins\obs-multi-rtmp\streamhub-server\config.json`. As saídas nativas salvam em `obs-multi-rtmp.json` no **perfil ativo** retornado pelo OBS. O caminho AppData citado em sessão anterior não foi reconfirmado; não é correto dizer que todas as configurações estão só no config.json.
 
-O config histórico também tinha chaves/destinos do relay; isso não comprova transmissão funcionando. O código atual inicia relay quando existe `config.rtmp`; a separação escolhida ainda será implementada.
+O config histórico também tinha chaves/destinos do relay; isso não comprova transmissão funcionando. O código atual ignora essa seção antiga e não inicia relay/FFmpeg.
 
-Até implementar Salvar e aplicar, o servidor lê configuração apenas ao iniciar; o fluxo atual exige fechar/abrir OBS para mudanças de chat. Não apresentar o botão como existente.
+O servidor lê configuração ao iniciar. O botão **Salvar e aplicar** agora grava o arquivo e reinicia somente o processo Node de forma assíncrona.
 
-Se `.deps` for removida/recriada ou Qt atualizado, reconstruir QtWebSockets compatível e instalar a DLL exigida. Um configure comum não significa apagar sempre as dependências. Preservar o necessário antes de limpar builds.
+Se `.deps` for removida/recriada ou Qt atualizado, o build atual baixa as dependências Qt do OBS; não é necessário reconstruir QtWebSockets. Um configure comum não significa apagar sempre as dependências.
 
 As orientações antigas de usar VS2022, instalar por padrão em ProgramData, testar `rtmp.destinations` como fluxo principal e trocar novamente as chaves estão superadas neste trabalho. Detalhes operacionais: [BUILD_STREAMHUB.md](BUILD_STREAMHUB.md).
 

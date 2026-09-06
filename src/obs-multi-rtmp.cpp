@@ -110,14 +110,26 @@ public:
         : QWidget(parent)
     {
         setWindowTitle(obs_module_text("Title"));
+        setObjectName("streamHubOutputs");
 
         container_ = new QWidget(&scroll_);
+        container_->setObjectName("outputsPage");
         layout_ = new QVBoxLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
         layout_->setSizeConstraint(QLayout::SetMinAndMaxSize);
+        layout_->setContentsMargins(12, 12, 12, 12);
+        layout_->setSpacing(10);
 
-        // init widget
-        auto addButton = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
+        auto header = new QWidget(container_);
+        auto headerLayout = new QHBoxLayout(header);
+        headerLayout->setContentsMargins(0, 0, 0, 0);
+        auto headerLabel = new QLabel(QString::fromUtf8(u8"◉  ") + obs_module_text("Title"), header);
+        headerLabel->setObjectName("outputsTitle");
+        headerLayout->addWidget(headerLabel);
+        headerLayout->addStretch();
+
+        auto addButton = new QPushButton(QString::fromUtf8(u8"＋  ") + obs_module_text("Btn.NewTarget"), header);
+        addButton->setObjectName("addDestination");
         QObject::connect(addButton, &QPushButton::clicked, [this]() {
             auto& global = GlobalMultiOutputConfig();
             auto newId = GenerateId(global);
@@ -131,14 +143,21 @@ public:
                 DeletePushWidget(newId);
             }
         });
-        layout_->addWidget(addButton);
+        headerLayout->addWidget(addButton);
+        layout_->addWidget(header);
 
         // start all, stop all
-        auto allBtnContainer = new QWidget(this);
+        auto allBtnContainer = new QWidget(container_);
         auto allBtnLayout = new QHBoxLayout();
-        auto startAllButton = new QPushButton(obs_module_text("Btn.StartAll"), allBtnContainer);
+        allBtnLayout->setContentsMargins(0, 0, 0, 0);
+        allBtnLayout->setSpacing(9);
+        auto startAllButton = new QPushButton(QString::fromUtf8(u8"▶  ") + obs_module_text("Btn.StartAll"), allBtnContainer);
+        startAllButton->setObjectName("startAll");
+        startAllButton->setMinimumHeight(42);
         allBtnLayout->addWidget(startAllButton);
-        auto stopAllButton = new QPushButton(obs_module_text("Btn.StopAll"), allBtnContainer);
+        auto stopAllButton = new QPushButton(QString::fromUtf8(u8"■  ") + obs_module_text("Btn.StopAll"), allBtnContainer);
+        stopAllButton->setObjectName("stopAll");
+        stopAllButton->setMinimumHeight(42);
         allBtnLayout->addWidget(stopAllButton);
         allBtnContainer->setLayout(allBtnLayout);
         layout_->addWidget(allBtnContainer);
@@ -161,6 +180,7 @@ public:
         outputsContainer_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
         outputsContainer_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         outputsContainer_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        outputsContainer_->setSpacing(8);
         outputsContainer_->setStyleSheet(
             "QListWidget {"
             "   padding: 0px;"
@@ -263,15 +283,48 @@ public:
         }
         else
         {
-            auto label = new QLabel(u8"<p>This plugin is provided for free. <br>Author: SoraYuki (<a href=\"https://paypal.me/sorayuki0\">donate</a>) </p>", container_);
+            auto label = new QLabel(
+                u8"<p><b>Este plugin é fornecido gratuitamente.</b><br>"
+                u8"Projeto original: SoraYuki — <a href=\"https://paypal.me/sorayuki0\">doar via PayPal</a><br>"
+                u8"Melhorias StreamHub: K4binho — <a href=\"https://livepix.gg/k4binho\">apoiar via LivePix</a></p>",
+                container_);
             label->setTextFormat(Qt::RichText);
             label->setTextInteractionFlags(Qt::TextBrowserInteraction);
             label->setOpenExternalLinks(true);
+            label->setWordWrap(true);
             layout_->addWidget(label);
         }
 
         scroll_.setWidgetResizable(true);
         scroll_.setWidget(container_);
+        scroll_.setObjectName("outputsScroll");
+        scroll_.setFrameShape(QFrame::NoFrame);
+
+        setStyleSheet(R"(
+            QWidget#streamHubOutputs, QWidget#outputsPage { background: #101622; color: #edf1fb; }
+            QScrollArea#outputsScroll { background: #101622; border: none; }
+            QLabel#outputsTitle { color: #f5f2ff; font-size: 17px; font-weight: 700; }
+            QPushButton#addDestination { background: #1a2436; border: 1px solid #3b4a66;
+                border-radius: 8px; padding: 8px 14px; color: #edf1fb; font-weight: 600; }
+            QPushButton#addDestination:hover { border-color: #8257ff; background: #243149; }
+            QPushButton#startAll { background: #087c43; border: 1px solid #21d77c;
+                border-radius: 8px; color: white; font-weight: 700; }
+            QPushButton#startAll:hover { background: #0a9651; }
+            QPushButton#stopAll { background: #50202c; border: 1px solid #dc3656;
+                border-radius: 8px; color: #ffdce3; font-weight: 700; }
+            QPushButton#stopAll:hover { background: #672637; }
+            QWidget#outputCard { background: #151e2e; border: 1px solid #2b3952;
+                border-radius: 9px; }
+            QLabel#outputName { color: #f3f5fb; font-size: 14px; font-weight: 700; }
+            QLabel#outputStatus { color: #8fa0ba; }
+            QPushButton#outputStart { background: #263551; border: 1px solid #425474;
+                border-radius: 7px; padding: 6px 12px; color: white; font-weight: 600; }
+            QPushButton#outputStart:hover { background: #334667; border-color: #8257ff; }
+            QPushButton#outputEdit, QPushButton#outputDelete { background: #1c273a;
+                border: 1px solid #35455f; border-radius: 7px; padding: 6px 10px; color: #dbe4f5; }
+            QPushButton#outputEdit:hover { border-color: #8257ff; }
+            QPushButton#outputDelete:hover { border-color: #dc3656; color: #ff9caf; }
+        )");
 
         auto fullLayout = new QGridLayout(this);
         fullLayout->setContentsMargins(0, 0, 0, 0);
@@ -450,7 +503,7 @@ private:
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-multi-rtmp", "en-US")
-OBS_MODULE_AUTHOR("雷鳴 (@sorayukinoyume)")
+OBS_MODULE_AUTHOR("SoraYuki (@sorayukinoyume); melhorias StreamHub por K4binho")
 
 bool obs_module_load()
 {
@@ -502,11 +555,13 @@ bool obs_module_load()
 
     auto *chatDock = new StreamHubChatDock();
     chatDock->setObjectName("streamhub-chat-dock");
+    chatDock->SetConfigPath(serverDir + "/config.json");
     if (obs_frontend_add_dock_by_id("streamhub-chat-dock", "StreamHub Chat", chatDock)) {
         // Conecta o status do launcher (baixando Node, instalando deps,
         // iniciando servidor...) na label da dock, pra o usuário ver
         // progresso em vez de uma dock em branco na primeira execução.
         QObject::connect(s_launcher, &StreamHubLauncher::statusChanged, chatDock, &StreamHubChatDock::SetStatus);
+        QObject::connect(chatDock, &StreamHubChatDock::SettingsSaved, s_launcher, &StreamHubLauncher::Restart);
         chatDock->ConnectTo(chatPort);
     } else {
         delete chatDock;

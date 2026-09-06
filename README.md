@@ -1,4 +1,20 @@
-# [Homepage / 主页](https://sorayuki.github.io/obs-multi-rtmp)
+# StreamHub OBS Plugin
+
+Este projeto é uma modificação do [obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp), criado por **SoraYuki**. O trabalho original das múltiplas saídas foi preservado e recebeu melhorias de **K4binho** para formar o StreamHub:
+
+- visual escuro integrado ao OBS para chat e múltiplas saídas;
+- chat unificado de Twitch, Kick, YouTube e TikTok;
+- configuração dos chats dentro do próprio dock;
+- servidor de chat e recursos embutidos na DLL;
+- instalação autorreparável, sem a antiga dependência manual do QtWebSockets;
+- correções de inicialização, caminhos e dependências no Windows/OBS portátil.
+
+Este plugin é fornecido gratuitamente. Se quiser apoiar o trabalho:
+
+- **StreamHub e melhorias de K4binho:** [LivePix](https://livepix.gg/k4binho)
+- **Projeto original de SoraYuki:** [PayPal](https://paypal.me/sorayuki0)
+
+## [Homepage original / 主页](https://sorayuki.github.io/obs-multi-rtmp)
 
 ## 为什么首页是日语？ / Why is the homepage in Japanese?
 
