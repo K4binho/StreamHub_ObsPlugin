@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<title>StreamHub - Configurações</title>
+<link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+  <div class="app">
+    <nav class="sidebar">
+      <div class="brand">StreamHub</div>
+      <button class="nav-item active" data-tab="chat">💬 Chat</button>
+      <button class="nav-item" data-tab="outputs">📡 Saídas</button>
+      <div class="version">v0.1.0 — feito por você</div>
+    </nav>
+
+    <main class="content">
+      <!-- ABA CHAT -->
+      <section id="tab-chat" class="tab">
+        <h1>Chat unificado</h1>
+        <p class="hint">Ative as plataformas que você usa. Depois de salvar, reinicie o servidor (<code>npm start</code>) pra aplicar.</p>
+
+        <div class="platform-card">
+          <div class="platform-head">
+            <span class="dot twitch"></span>
+            <strong>Twitch</strong>
+            <label class="switch"><input type="checkbox" id="twitch-enabled"><span></span></label>
+          </div>
+          <label>Canal</label>
+          <input type="text" id="twitch-channel" placeholder="seucanal">
+        </div>
+
+        <div class="platform-card">
+          <div class="platform-head">
+            <span class="dot youtube"></span>
+            <strong>YouTube</strong>
+            <label class="switch"><input type="checkbox" id="youtube-enabled"><span></span></label>
+          </div>
+          <label>API Key</label>
+          <input type="text" id="youtube-apikey" placeholder="chave do Google Cloud">
+          <label>Video ID da live</label>
+          <input type="text" id="youtube-videoid" placeholder="ex: dQw4w9WgXcQ">
+        </div>
+
+        <div class="platform-card">
+          <div class="platform-head">
+            <span class="dot kick"></span>
+            <strong>Kick</strong>
+            <label class="switch"><input type="checkbox" id="kick-enabled"><span></span></label>
+          </div>
+          <label>Canal</label>
+          <input type="text" id="kick-channel" placeholder="seucanal">
+          <label>Chatroom ID (opcional, só se a busca automática falhar)</label>
+          <input type="text" id="kick-chatroomid" placeholder="deixe em branco pra tentar automático">
+        </div>
+
+        <div class="platform-card">
+          <div class="platform-head">
+            <span class="dot tiktok"></span>
+            <strong>TikTok</strong>
+            <label class="switch"><input type="checkbox" id="tiktok-enabled"><span></span></label>
+          </div>
+          <label>Usuário (sem @)</label>
+          <input type="text" id="tiktok-username" placeholder="seuusuario">
+        </div>
+      </section>
+
+      <!-- ABA SAÍDAS -->
+      <section id="tab-outputs" class="tab hidden">
+        <div class="outputs-header">
+          <h1>Saídas (multistream)</h1>
+          <button class="btn-primary" id="add-output-btn">+ Adicionar Saída</button>
+        </div>
+        <p class="hint">
+          O OBS transmite pro servidor RTMP local, e cada saída daqui reenvia pra uma plataforma.
+          No OBS: Servidor <code>rtmp://localhost:<span id="rtmp-port-hint">1935</span>/live</code>,
+          Chave <code id="rtmp-key-hint">obs</code>.
+        </p>
+
+        <label>Porta do servidor RTMP local</label>
+        <input type="number" id="rtmp-port" style="max-width:120px">
+        <label>Chave de stream (a que você configura no OBS)</label>
+        <input type="text" id="rtmp-streamkey" style="max-width:220px">
+
+        <div id="outputs-list"></div>
+      </section>
+
+      <button class="save-btn" id="save-btn">Salvar</button>
+      <span id="save-status"></span>
+    </main>
+  </div>
+
+  <!-- Modal de editar/adicionar saída -->
+  <div id="output-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span id="modal-title">Editar Saída</span>
+        <button id="modal-close">✕</button>
+      </div>
+      <label>Nome da Saída</label>
+      <input type="text" id="modal-name">
+      <label>Servidor</label>
+      <input type="text" id="modal-url" placeholder="rtmp://...">
+      <label>Chave de Transmissão</label>
+      <input type="password" id="modal-key">
+      <label class="modal-enabled-row">
+        <input type="checkbox" id="modal-enabled" checked> Ativada
+      </label>
+      <button class="btn-primary" id="modal-save">Salvar Saída</button>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

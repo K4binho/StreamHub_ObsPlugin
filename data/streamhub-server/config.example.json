@@ -1,0 +1,57 @@
+{
+  "server": {
+    "port": 3000
+  },
+
+  "twitch": {
+    "enabled": true,
+    "channel": "seu_canal_twitch"
+  },
+
+  "youtube": {
+    "enabled": true,
+    "apiKey": "SUA_API_KEY_DO_GOOGLE_CLOUD",
+    "videoId": "ID_DA_LIVE_ATUAL"
+  },
+
+  "kick": {
+    "enabled": true,
+    "channel": "seu_canal_kick"
+  },
+
+  "tiktok": {
+    "enabled": true,
+    "username": "seu_usuario_tiktok"
+  },
+
+  "rtmp": {
+    "port": 1935,
+    "streamKey": "obs",
+    "destinations": [
+      {
+        "name": "Twitch",
+        "enabled": true,
+        "url": "rtmp://live.twitch.tv/app",
+        "key": "SUA_STREAM_KEY_TWITCH"
+      },
+      {
+        "name": "YouTube",
+        "enabled": true,
+        "url": "rtmp://a.rtmp.youtube.com/live2",
+        "key": "SUA_STREAM_KEY_YOUTUBE"
+      },
+      {
+        "name": "Kick",
+        "enabled": true,
+        "url": "rtmps://fa723fc1b171.global-contribute.live-video.net",
+        "key": "SUA_STREAM_KEY_KICK"
+      },
+      {
+        "name": "TikTok",
+        "enabled": true,
+        "url": "rtmp://push-rtmp-l1.tiktokcdn.com/live",
+        "key": "SUA_STREAM_KEY_TIKTOK"
+      }
+    ]
+  }
+}

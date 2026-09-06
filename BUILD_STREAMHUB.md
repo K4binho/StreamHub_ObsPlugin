@@ -1,0 +1,120 @@
+# StreamHub OBS Plugin (fork do obs-multi-rtmp)
+
+Este é o fork do [obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp)
+com duas coisas a mais:
+
+1. `src/streamhub-launcher.*` — sobe o servidor Node.js (o mesmo projeto
+   StreamHub que já tínhamos) como processo filho, assim que o OBS carrega o
+   plugin. Instala as dependências (`npm install`) sozinho na primeira vez.
+2. `src/streamhub-chat-dock.*` — um dock nativo em Qt (não é navegador/CEF)
+   que conecta via WebSocket simples (`ws://localhost:PORT/ws-chat`) nesse
+   servidor e mostra o chat unificado dentro do próprio OBS.
+
+O resto (todas as saídas RTMP, a UI de "Adicionar Saída" etc.) é o
+obs-multi-rtmp original, sem modificação.
+
+## Por que não incorporamos a UI de configuração (dashboard.html) direto no OBS?
+
+Dava pra fazer isso embutindo um painel CEF (o mesmo motor de navegador que
+o OBS usa pras Fontes de Navegador), só que essa é uma API interna do
+obs-browser, não documentada nem recomendada pra plugins de terceiros — os
+próprios mantenedores do obs-browser dizem isso literalmente no repositório.
+Ela pode quebrar a qualquer atualização do OBS sem aviso. Preferi manter o
+dashboard como página web separada (acessada por fora, ou via Custom Browser
+Dock manual, como já configuramos antes) e deixar o plugin C++ só com a
+parte que realmente precisa ser nativa: as saídas RTMP e o chat ao vivo
+dentro do OBS.
+
+## Como o Node.js é resolvido (v2 — corrigido)
+
+As duas limitações da v1 foram resolvidas com `src/streamhub-node-provision.*`:
+
+- **Não trava mais o OBS.** Todo o fluxo (resolver/baixar Node, `npm
+  install`) usa `QProcess`/`QNetworkAccessManager` assíncronos — `Start()`
+  retorna na hora. A dock "StreamHub Chat" mostra uma label de status
+  ("Baixando runtime... 42%", "Instalando dependências...", etc.) enquanto
+  isso roda em segundo plano; o resto do OBS fica 100% liberado.
+- **Não precisa mais de Node.js instalado na máquina.** Ordem de resolução:
+  1. Já resolvido antes (`data/node-runtime/resolved-node-path.txt`) → usa
+     na hora, sem rede.
+  2. Node.js do sistema (PATH) → usa esse, se existir.
+  3. Nenhum dos dois → baixa automaticamente o runtime portátil oficial de
+     nodejs.org (~30 MB) pra `data/node-runtime/`, extrai com a ferramenta
+     nativa do SO (`Expand-Archive` no Windows, `tar` no mac/Linux — nenhuma
+     dependência nova) e usa esse dali em diante.
+- A versão do Node baixada é fixada em `kNodeVersion` dentro de
+  `streamhub-node-provision.h` (hoje `20.11.1`, LTS "Iron"). Vale revisar essa
+  constante de tempos em tempos.
+
+**Ainda vale testar na sua máquina:** não tem como compilar/rodar isso aqui
+no sandbox (sem OBS, sem Qt, sem GPU), então o fluxo de download+extração
+está escrito com cuidado mas nunca rodou de ponta a ponta de verdade. Ao
+testar num PC sem Node.js instalado, watch os logs do OBS (linhas
+`[streamhub]`) pra confirmar que o download/extração terminaram OK.
+
+Nome do dock/arquivo de config ainda estão em inglês/genérico
+(`obs-multi-rtmp`) por baixo dos panos — não precisa mudar isso pra
+funcionar, é só cosmético.
+
+## Build
+
+Isso usa o **obs-plugintemplate** (o mesmo sistema de build do
+obs-multi-rtmp original), que baixa e configura o SDK do OBS, Qt6 e
+dependências automaticamente via CMake Presets. Não dá pra compilar isso
+aqui no sandbox (não tem OBS instalado, nem Qt, nem interface gráfica pra
+testar) — mas o fluxo abaixo funciona numa máquina Windows normal.
+
+### Pré-requisitos (Windows)
+
+1. [Visual Studio 2022](https://visualstudio.microsoft.com/) com a carga de
+   trabalho "Desenvolvimento para desktop com C++"
+2. [CMake](https://cmake.org/download/) 3.28+
+3. [Git](https://git-scm.com/)
+
+Node.js **não é mais pré-requisito** — se não estiver instalado, o próprio
+plugin baixa um runtime portátil sozinho na primeira abertura do OBS (ver
+seção acima). Se você já tem Node.js instalado, ele é reaproveitado direto,
+sem download nenhum.
+
+### Passos
+
+```powershell
+cd streamhub-obs-plugin
+
+# Baixa OBS Studio + Qt6 + dependências pré-compiladas automaticamente
+# (config vem do buildspec.json, já ajustado pra OBS 32.2.1)
+cmake --preset windows-x64
+
+# Compila
+cmake --build --preset windows-x64 --config RelWithDebInfo
+```
+
+Isso gera o plugin em algo como
+`build_x64\RelWithDebInfo\streamhub-obs-plugin.dll` (o nome exato do
+`.dll`/pasta de dados segue o que está no `buildspec.json`, campo `name`).
+
+### Instalando pra testar
+
+1. Copie o `.dll` gerado para
+   `%ProgramData%\obs-studio\plugins\<nome-do-plugin>\bin\64bit\`
+2. Copie a pasta `data/` (que já inclui nosso `data/streamhub-server/`) para
+   `%ProgramData%\obs-studio\plugins\<nome-do-plugin>\data\`
+3. Abra o OBS. Nos logs (Help → Log Files → Ver Log Atual), procure por
+   linhas com `[streamhub]` pra confirmar que o servidor Node subiu.
+4. Dois docks novos devem aparecer em **View → Docks**: "Outputs" (do
+   obs-multi-rtmp original) e "StreamHub Chat" (o nosso).
+
+### Configurando o chat e as saídas
+
+Enquanto não fazemos uma UI nativa pra isso, edite direto:
+`%ProgramData%\obs-studio\plugins\<nome-do-plugin>\data\streamhub-server\config.json`
+(copie de `config.example.json` na primeira vez). Depois de editar, feche e
+abra o OBS de novo pra aplicar (o servidor só lê o config uma vez, ao subir).
+
+## Próximos passos possíveis
+
+- Trocar a edição manual do `config.json` por uma aba de configuração
+  dentro do próprio dock nativo (mais Qt widgets, reaproveitando os campos
+  que já existem no dashboard.html)
+- Assinar/instalador (.exe via NSIS, o `installer.nsi` original já dá a
+  base) incluindo tudo isso num único instalador clicável

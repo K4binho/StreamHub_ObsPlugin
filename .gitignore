@@ -1,0 +1,40 @@
+# --- Builds (CMake presets) ---
+/build_x64/
+/build_x86_64/
+/build_aarch64/
+/build_macos/
+/build_single_dll/
+/out/
+
+# --- Dependências baixadas/compiladas localmente ---
+/.deps/
+/qtwebsockets/
+# (não é mais usada pelo projeto — long-poll HTTP substituiu o WebSocket —
+# mas se a pasta ainda existir no seu disco, não precisa versionar)
+
+# --- Node (servidor StreamHub embutido) ---
+data/streamhub-server/node_modules/
+data/streamhub-server/npm-debug.log*
+
+# --- Configuração e credenciais do usuário: NUNCA commitar ---
+data/streamhub-server/config.json
+
+# --- Artefatos de release/instalador ---
+/release/
+*.flatpak
+obs-multi-rtmp-setup.exe
+
+# --- Flatpak ---
+.flatpak-builder/
+.flatpak-build/
+.tmp-upgrade/
+
+# --- IDE / ferramentas locais ---
+.vs/
+.vscode/
+CMakeUserPresets.json
+*.user
+
+# --- Diversos de SO ---
+Thumbs.db
+.DS_Store

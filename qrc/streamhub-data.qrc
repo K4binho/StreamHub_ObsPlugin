@@ -1,0 +1,37 @@
+<RCC>
+  <!--
+    Tudo aqui é compilado direto para dentro da obs-multi-rtmp.dll pelo
+    AUTORCC do Qt (já habilitado no CMakeLists.txt). Em tempo de execução,
+    StreamHub_EnsureBundledData() (streamhub-bundle.cpp) extrai essas
+    cópias para a pasta de dados do plugin na primeira vez que a versão
+    embutida mudar — não é mais preciso distribuir a pasta data/ à parte.
+
+    Locale: só en-US (padrão/fallback do OBS_MODULE_USE_DEFAULT_LOCALE) e
+    pt-BR (idioma do usuário) foram mantidos aqui para não inchar a DLL.
+    Para repor os outros idiomas do obs-multi-rtmp original, basta
+    acrescentar as linhas <file> correspondentes e recompilar.
+  -->
+  <qresource prefix="/streamhub-data">
+    <file alias="locale/en-US.ini">../data/locale/en-US.ini</file>
+    <file alias="locale/pt-BR.ini">../data/locale/pt-BR.ini</file>
+
+    <file alias="streamhub-server/package.json">../data/streamhub-server/package.json</file>
+    <file alias="streamhub-server/config.example.json">../data/streamhub-server/config.example.json</file>
+
+    <file alias="streamhub-server/server/index.js">../data/streamhub-server/server/index.js</file>
+    <file alias="streamhub-server/server/relay.js">../data/streamhub-server/server/relay.js</file>
+    <file alias="streamhub-server/server/config-store.js">../data/streamhub-server/server/config-store.js</file>
+    <file alias="streamhub-server/server/routes/api.js">../data/streamhub-server/server/routes/api.js</file>
+    <file alias="streamhub-server/server/chat/twitch.js">../data/streamhub-server/server/chat/twitch.js</file>
+    <file alias="streamhub-server/server/chat/kick.js">../data/streamhub-server/server/chat/kick.js</file>
+    <file alias="streamhub-server/server/chat/youtube.js">../data/streamhub-server/server/chat/youtube.js</file>
+    <file alias="streamhub-server/server/chat/tiktok.js">../data/streamhub-server/server/chat/tiktok.js</file>
+
+    <file alias="streamhub-server/public/dashboard.html">../data/streamhub-server/public/dashboard.html</file>
+    <file alias="streamhub-server/public/dashboard.js">../data/streamhub-server/public/dashboard.js</file>
+    <file alias="streamhub-server/public/dashboard.css">../data/streamhub-server/public/dashboard.css</file>
+    <file alias="streamhub-server/public/overlay.html">../data/streamhub-server/public/overlay.html</file>
+    <file alias="streamhub-server/public/overlay.js">../data/streamhub-server/public/overlay.js</file>
+    <file alias="streamhub-server/public/overlay.css">../data/streamhub-server/public/overlay.css</file>
+  </qresource>
+</RCC>
