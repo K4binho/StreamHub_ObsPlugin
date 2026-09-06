@@ -39,7 +39,7 @@ Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico
 - A textura enviada pelo usuário é usada no fundo do painel; a coroa K4binho aparece com baixa opacidade no canto. As imagens ficam embutidas na DLL e em cache durante a pintura.
 - O aviso gratuito e os links de apoio a SoraYuki e K4binho permanecem no rodapé.
 - Build `RelWithDebInfo` concluído, DLL instalada com SHA-256 conferido e OBS carregado. O log `2026-09-06 10-20-20.txt` confirma dois destinos nativos carregados e nenhum erro do módulo.
-- Após o primeiro teste visual, a altura calculada da lista ganhou folga para preservar a borda inferior do último cartão. Estados longos foram reduzidos para **Pendente/Pronto**, mantendo a explicação completa no tooltip, para não cortar letras no dock estreito.
+- Após o primeiro teste visual, a altura calculada da lista ganhou folga para preservar a borda inferior do último cartão. Estados longos foram reduzidos para **Pendente/Pronto**, mantendo a explicação completa no tooltip, para não cortar letras no dock estreito. A DLL com esse ajuste foi instalada no OBS portátil e conferida pelo SHA-256 `98572B9C9854EC54911A595EC743E5DD5788DEF5F7C79179D3EE5CEB92279CC7`.
 - [ ] Validar visualmente seletor, cartões, painel expansível e janela avançada na largura usada pelo usuário.
 - [ ] Testar iniciar/parar de verdade; transmissão continua sem validação real.
 
@@ -50,8 +50,8 @@ Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico
 - Correção em `src/streamhub-paths.h`, `src/obs-multi-rtmp.cpp` e `src/streamhub-launcher.cpp`: converter dados/servidor para caminhos absolutos no diretório de trabalho do OBS, antes da extração e da criação dos processos. Passar `server/index.js` como caminho absoluto. Não usar a pasta da DLL como base para o caminho relativo informado pelo OBS.
 - Compilação `RelWithDebInfo` concluída neste Windows com VS2026/Qt. DLL gerada em `build_x64/RelWithDebInfo/obs-multi-rtmp.dll`.
 - Teste `tests/paths` passou: reproduz a falha antiga e valida caminhos relativos/absolutos, espaços e mudança de diretório do processo filho.
-- Preservados os `#include "obs.h"` já presentes localmente no bundle, dock e launcher. Esses arquivos também precisam entrar no próximo commit, junto ao novo header e testes. Nenhum commit/push foi feito nesta correção.
-- Ainda falta substituir a DLL instalada com OBS fechado e repetir o teste dos chats. Transmissão continua não testada.
+- Preservados os `#include "obs.h"` no bundle, dock e launcher. A correção, o novo header e os testes foram incorporados aos commits posteriores da `main`.
+- A DLL atual foi instalada com o OBS fechado. Os chats Twitch/Kick já foram validados em execução; a transmissão continua não testada.
 
 ## Reparação de instalação interrompida — 06/09/2026
 
