@@ -104,7 +104,13 @@ public:
         setCheckable(true);
         setCursor(Qt::PointingHandCursor);
         setFixedSize(50, 28);
-        setToolTip(QObject::tr("Ligar ou desligar esta transmissão"));
+        setToolTip(QObject::tr("Incluir ou remover esta plataforma de Iniciar tudo"));
+    }
+
+    void SetAccentColor(const QColor &color)
+    {
+        accent_ = color;
+        update();
     }
 
 protected:
@@ -113,13 +119,16 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
         const QColor track = !isEnabled() ? QColor("#253348")
-                             : isChecked() ? QColor("#16D86A") : QColor("#3A4A62");
+                             : isChecked() ? accent_ : QColor("#3A4A62");
         painter.setPen(Qt::NoPen);
         painter.setBrush(track);
         painter.drawRoundedRect(rect().adjusted(1, 3, -1, -3), 11, 11);
         painter.setBrush(QColor("#F2F7FF"));
         painter.drawEllipse(QRect(isChecked() ? width() - 23 : 5, 6, 17, 17));
     }
+
+private:
+    QColor accent_ = QColor("#16D86A");
 };
 
 class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
@@ -633,9 +642,17 @@ public:
                     tr("Transmissão não configurada"),
                     tr("Configure o servidor RTMP e a stream key antes de ativar esta transmissão."));
             } else if (checked) {
-                StartStreaming();
+                config_->syncStart = true;
+                config_->syncStop = true;
+                SaveMultiOutputConfig();
+                if (obs_frontend_streaming_active())
+                    StartStreaming();
             } else {
-                StopStreaming();
+                config_->syncStart = false;
+                config_->syncStop = false;
+                SaveMultiOutputConfig();
+                if (IsRunning())
+                    StopStreaming();
             }
         });
 
@@ -665,7 +682,6 @@ public:
             return;
 
         if (!HasStreamConfig()) {
-            btn_->setChecked(false);
             SetMsg(tr("● Pendente"));
             msg_->setToolTip(tr("Informe o servidor RTMP e a stream key nas configurações."));
             return;
@@ -730,7 +746,6 @@ public:
 
         if (!obs_output_start(output_))
         {
-            btn_->setChecked(false);
             SetMsg(obs_module_text("Error.StartOutput"));
         }
     }
@@ -764,7 +779,7 @@ public:
             || ev == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_LIST_CHANGED
         ) {
             Stop();
-        } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STARTING) {
+        } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STARTED) {
             if (!IsRunning() && config_->syncStart) {
                 StartStop();
             }
@@ -779,6 +794,8 @@ public:
     {
         name_->setText(QString::fromUtf8(config_->name));
         const auto &platform = StreamHubPlatformForTarget(*config_);
+        static_cast<StreamToggleButton *>(btn_)->SetAccentColor(QColor(platform.accent));
+        btn_->setChecked(config_->syncStart);
         icon_->setPixmap(QIcon(platform.iconPath).pixmap(30, 30));
         icon_->setStyleSheet(QString("background:#080c14; border:1px solid %1; border-radius:8px;")
                                  .arg(platform.accent));
@@ -801,6 +818,8 @@ public:
     }
 
     void ReloadConfig() override { LoadConfig(); }
+
+    bool IsEnabledForAll() const override { return config_ && config_->syncStart; }
 
     void ResetInfo()
     {
@@ -860,7 +879,6 @@ public:
         GetGlobalService().RunInUIThread([this]() {
             begin_time_ = clock::now();
             remove_btn_->setEnabled(false);
-            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Connecting"));
             remove_btn_->setEnabled(false);
@@ -871,7 +889,6 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
-            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
 
@@ -886,7 +903,6 @@ public:
             timer_->stop();
 
             remove_btn_->setEnabled(false);
-            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Reconnecting"));
         });
@@ -896,7 +912,6 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
-            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
 
@@ -911,7 +926,6 @@ public:
             timer_->stop();
 
             remove_btn_->setEnabled(false);
-            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Stopping"));
         });
@@ -924,7 +938,6 @@ public:
             timer_->stop();
 
             remove_btn_->setEnabled(true);
-            btn_->setChecked(false);
             btn_->setEnabled(true);
             SetMsg(u8"");
 

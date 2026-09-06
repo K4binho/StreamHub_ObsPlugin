@@ -10,6 +10,7 @@ public:
     virtual QPushButton* GetDeleteButton() = 0;
     virtual QPushButton* GetEditButton() = 0;
     virtual void ReloadConfig() = 0;
+    virtual bool IsEnabledForAll() const = 0;
 };
 
 PushWidget* createPushWidget(const std::string& targetId, QWidget* parent = 0);

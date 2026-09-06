@@ -166,9 +166,8 @@ public:
         header->addWidget(icon_);
         title_ = new QLabel(this);
         title_->setObjectName("inlineTitle");
-        title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        title_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         header->addWidget(title_);
-        header->addStretch();
         auto *close = new QPushButton(QString::fromUtf8(u8"×"), this);
         close->setObjectName("inlineClose");
         close->setFixedSize(28, 28);
@@ -226,6 +225,15 @@ public:
         actions->setColumnStretch(0, 1);
         actions->setColumnStretch(1, 1);
         layout->addLayout(actions);
+
+        savedNotice_ = new QLabel(tr("✓ Alterações salvas"), this);
+        savedNotice_->setObjectName("savedNotice");
+        savedNotice_->setAlignment(Qt::AlignCenter);
+        savedNotice_->hide();
+        layout->addWidget(savedNotice_);
+        saveNoticeTimer_ = new QTimer(this);
+        saveNoticeTimer_->setSingleShot(true);
+        connect(saveNoticeTimer_, &QTimer::timeout, savedNotice_, &QWidget::hide);
         Reload();
     }
 
@@ -257,17 +265,26 @@ private:
         target->serviceParam["key"] = key_->text().trimmed().toStdString();
         target->syncStart = syncStart_->isChecked();
         target->syncStop = syncStop_->isChecked();
+        if (target->serviceParam.value("server", std::string{}).empty() ||
+            target->serviceParam.value("key", std::string{}).empty()) {
+            target->syncStart = false;
+            target->syncStop = false;
+            syncStart_->setChecked(false);
+            syncStop_->setChecked(false);
+        }
         SaveMultiOutputConfig();
         pushWidget_->ReloadConfig();
         if (onSaved_)
             onSaved_();
-        QMessageBox::information(this, tr("StreamHub"), tr("Configurações salvas com sucesso."));
+        savedNotice_->show();
+        saveNoticeTimer_->start(2800);
     }
 
     QWidget *SecretField(QLineEdit *field, QPushButton *&visibleButton, QWidget *parent)
     {
         auto *holder = new QWidget(parent);
         holder->setObjectName("secretField");
+        holder->setMinimumHeight(42);
         auto *row = new QHBoxLayout(holder);
         row->setContentsMargins(0, 0, 0, 0);
         row->setSpacing(6);
@@ -277,6 +294,7 @@ private:
         visibleButton->setObjectName("secretAction");
         visibleButton->setToolTip(tr("Mostrar ou ocultar"));
         visibleButton->setMinimumWidth(48);
+        visibleButton->setFixedHeight(40);
         connect(visibleButton, &QPushButton::clicked, this, [field, visibleButton]() {
             const bool show = field->echoMode() == QLineEdit::Password;
             field->setEchoMode(show ? QLineEdit::Normal : QLineEdit::Password);
@@ -287,10 +305,13 @@ private:
         auto *copy = new QPushButton(tr("Copiar"), holder);
         copy->setObjectName("secretAction");
         copy->setToolTip(tr("Copiar sem exibir"));
+        copy->setMinimumWidth(58);
+        copy->setFixedHeight(40);
         connect(copy, &QPushButton::clicked, this, [field]() {
             QApplication::clipboard()->setText(field->text());
         });
         row->addWidget(copy);
+        field->setMinimumHeight(40);
         return holder;
     }
 
@@ -313,6 +334,8 @@ private:
     QLineEdit *key_ = nullptr;
     QPushButton *serverVisible_ = nullptr;
     QPushButton *keyVisible_ = nullptr;
+    QLabel *savedNotice_ = nullptr;
+    QTimer *saveNoticeTimer_ = nullptr;
     QCheckBox *syncStart_ = nullptr;
     QCheckBox *syncStop_ = nullptr;
 };
@@ -439,12 +462,21 @@ public:
         layout_->addWidget(allBtnContainer);
 
         QObject::connect(startAllButton, &QPushButton::clicked, [this]() {
-            for (auto x : GetAllPushWidgets())
-                x->StartStreaming();
+            if (!obs_frontend_streaming_active()) {
+                obs_frontend_streaming_start();
+                return;
+            }
+
+            for (auto x : GetAllPushWidgets()) {
+                if (x->IsEnabledForAll())
+                    x->StartStreaming();
+            }
         });
         QObject::connect(stopAllButton, &QPushButton::clicked, [this]() {
             for (auto x : GetAllPushWidgets())
                 x->StopStreaming();
+            if (obs_frontend_streaming_active())
+                obs_frontend_streaming_stop();
         });
  
         // load and show outputs
@@ -616,7 +648,7 @@ public:
             QPushButton#inlineClose { background:transparent; border:none; color:#9eb2cb; font-size:20px; }
             QWidget#secretField { background:transparent; border:none; }
             QPushButton#secretAction { background:#101a2a; border:1px solid #29496f; border-radius:6px;
-                min-height:30px; padding:3px 7px; color:#dbe8f8; }
+                padding:3px 7px; color:#dbe8f8; }
             QPushButton#secretAction:hover { border-color:#00c8ff; background:#15233a; }
             QLineEdit { background:#080c14; border:1px solid #29496f; border-radius:7px;
                 min-height:30px; padding:3px 8px; color:#f2f7ff; }
@@ -627,6 +659,8 @@ public:
                 padding:7px 11px; color:#f2f7ff; }
             QPushButton#inlineDanger { background:#351924; border:1px solid #d94155; border-radius:7px;
                 padding:7px 11px; color:#ffb9c2; }
+            QLabel#savedNotice { background:rgba(22,216,106,28); border:1px solid #16d86a;
+                border-radius:7px; padding:7px 10px; color:#16d86a; font-weight:700; }
             QLabel#outputsFooter { background:rgba(8,12,20,245); border-top:1px solid #29496f;
                 padding:7px 12px 9px 12px; color:#f2f7ff; }
         )");

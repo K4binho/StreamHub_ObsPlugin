@@ -8,9 +8,10 @@ Este projeto é uma modificação do [obs-multi-rtmp](https://github.com/sorayuk
 - servidor de chat e recursos embutidos na DLL;
 - instalação autorreparável, sem a antiga dependência manual do QtWebSockets;
 - correções de inicialização, caminhos e dependências no Windows/OBS portátil.
-- painel de saídas redesenhado com paleta StreamHub, cartões por plataforma, interruptores e configuração expansível;
+- painel de saídas redesenhado com paleta StreamHub, cartões por plataforma, interruptores coloridos por serviço e configuração expansível;
 - servidor RTMP e stream key protegidos por padrão, com controles para visualizar/copiar e validação antes de iniciar;
 - modelos de destino para Twitch, Kick, YouTube, TikTok, Facebook e RTMP personalizado;
+- **Iniciar tudo** aciona primeiro a transmissão principal do OBS e, depois que ela estiver ativa, inicia somente os destinos marcados;
 - textura StreamHub no fundo e coroa K4binho usada somente como marca d'água discreta.
 
 Este plugin é fornecido gratuitamente. Se quiser apoiar o trabalho:

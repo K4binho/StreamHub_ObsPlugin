@@ -72,7 +72,7 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
     connect(configureButton, &QPushButton::clicked, this, &StreamHubChatDock::OnConfigureClicked);
     headerActionsLayout->addWidget(configureButton, 0, Qt::AlignHCenter);
     auto *donateLink = new QLabel(
-        "<a style=\"color:#a779ff;text-decoration:none\" href=\"https://livepix.gg/k4binho\">Donate</a>",
+        "<a style=\"color:#00c8ff;text-decoration:none\" href=\"https://livepix.gg/k4binho\">Donate</a>",
         headerActions);
     donateLink->setObjectName("donateLink");
     donateLink->setTextFormat(Qt::RichText);
@@ -159,32 +159,32 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
     layout->addWidget(readOnly);
 
     container->setStyleSheet(R"(
-        QWidget#streamHubChat { background: #101622; color: #edf1fb; }
-        QLabel#chatBrand { font-size: 17px; font-weight: 700; color: #f6f3ff; }
-        QLabel#connectionState { color: #9daac0; padding-right: 5px; }
-        QLabel#connectionState[connected="true"] { color: #2ee68a; }
-        QPushButton#iconButton { background: #182235; border: 1px solid #33415c;
-            border-radius: 7px; color: #dce5f7; font-size: 15px; }
-        QPushButton#iconButton:hover { background: #243149; border-color: #8257ff; }
+        QWidget#streamHubChat { background: #080c14; color: #f2f7ff; }
+        QLabel#chatBrand { font-size: 17px; font-weight: 700; color: #f2f7ff; }
+        QLabel#connectionState { color: #9eb2cb; padding-right: 5px; }
+        QLabel#connectionState[connected="true"] { color: #16d86a; }
+        QPushButton#iconButton { background: #101a2a; border: 1px solid #29496f;
+            border-radius: 7px; color: #f2f7ff; font-size: 15px; }
+        QPushButton#iconButton:hover { background: #15233a; border-color: #00c8ff; }
         QLabel#donateLink { font-size: 10px; }
-        QLabel#donateLink a { color: #a779ff; text-decoration: none; }
-        QPushButton#filterChip { background: #182235; border: 1px solid #283651;
-            border-radius: 14px; padding: 5px 11px; color: #b8c3d8; }
-        QPushButton#filterChip:hover { border-color: #6e4be8; color: white; }
-        QPushButton#filterChip:checked { background: #2b1b58; border: 1px solid #8a52ff;
-            color: white; font-weight: 600; }
-        QLabel#chatStatus { color: #93a1b8; font-style: italic; padding: 2px 5px; }
-        QListWidget#chatMessages { background: #0d131e; border: 1px solid #27334a;
+        QLabel#donateLink a { color: #00c8ff; text-decoration: none; }
+        QPushButton#filterChip { background: #101a2a; border: 1px solid #29496f;
+            border-radius: 14px; padding: 5px 11px; color: #9eb2cb; }
+        QPushButton#filterChip:hover { border-color: #00c8ff; color: #f2f7ff; }
+        QPushButton#filterChip:checked { background: #0077ff; border: 1px solid #00c8ff;
+            color: #f2f7ff; font-weight: 600; }
+        QLabel#chatStatus { color: #9eb2cb; font-style: italic; padding: 2px 5px; }
+        QListWidget#chatMessages { background: #080c14; border: 1px solid #29496f;
             border-radius: 9px; padding: 8px; outline: none; }
         QListWidget#chatMessages::item { border: none; background: transparent; }
-        QWidget#socialLinks { background: #121b2a; border: 1px solid #293750;
+        QWidget#socialLinks { background: #101a2a; border: 1px solid #29496f;
             border-radius: 8px; }
-        QLabel#socialsLabel { color: #aab6ca; font-weight: 600; }
+        QLabel#socialsLabel { color: #9eb2cb; font-weight: 600; }
         QPushButton#socialButton { background: transparent; border: 1px solid transparent;
             border-radius: 6px; padding: 4px; }
-        QPushButton#socialButton:hover { background: #202d43; border-color: #5f4ab0; }
-        QLabel#readOnlyState { background: #151e2e; border: 1px solid #293750;
-            border-radius: 8px; color: #8492aa; padding: 9px 12px; }
+        QPushButton#socialButton:hover { background: #15233a; border-color: #00c8ff; }
+        QLabel#readOnlyState { background: #101a2a; border: 1px solid #29496f;
+            border-radius: 8px; color: #9eb2cb; padding: 9px 12px; }
     )");
 
     net_ = new QNetworkAccessManager(this);
@@ -325,7 +325,7 @@ void StreamHubChatDock::AppendChatLine(const QString &platform, const QString &u
                                    : QDateTime::currentDateTime();
     auto *timeLabel = new QLabel(when.toString("HH:mm"), row);
     timeLabel->setFixedWidth(38);
-    timeLabel->setStyleSheet("color: #8592a8;");
+    timeLabel->setStyleSheet("color: #9eb2cb;");
     rowLayout->addWidget(timeLabel, 0, Qt::AlignTop);
 
     auto *badge = new QLabel(row);
@@ -338,7 +338,7 @@ void StreamHubChatDock::AppendChatLine(const QString &platform, const QString &u
     auto *message = new QLabel(row);
     message->setTextFormat(Qt::RichText);
     message->setWordWrap(true);
-    message->setText(QString("<b style='color:%1'>%2</b>&nbsp;&nbsp;<span style='color:#edf1fb'>%3</span>")
+    message->setText(QString("<b style='color:%1'>%2</b>&nbsp;&nbsp;<span style='color:#f2f7ff'>%3</span>")
                          .arg(ColorForPlatform(platform), user.toHtmlEscaped(), text.toHtmlEscaped()));
     rowLayout->addWidget(message, 1);
 
