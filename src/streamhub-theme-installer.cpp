@@ -46,13 +46,30 @@ bool WriteResource(const ThemeFile &entry, const QString &themesDirectory)
         return false;
 
     QFile current(destination);
-    if (current.open(QIODevice::ReadOnly) && current.readAll() == content)
-        return true;
+    if (current.open(QIODevice::ReadOnly)) {
+        const bool unchanged = current.readAll() == content;
+        current.close();
+        if (unchanged)
+            return true;
+    }
 
     QSaveFile output(destination);
-    if (!output.open(QIODevice::WriteOnly) || output.write(content) != content.size())
+    if (!output.open(QIODevice::WriteOnly)) {
+        blog(LOG_WARNING, TAG "Nao foi possivel abrir o tema para gravacao: %s (%s)",
+             destination.toUtf8().constData(), output.errorString().toUtf8().constData());
         return false;
-    return output.commit();
+    }
+    if (output.write(content) != content.size()) {
+        blog(LOG_WARNING, TAG "Falha ao gravar o tema: %s (%s)",
+             destination.toUtf8().constData(), output.errorString().toUtf8().constData());
+        return false;
+    }
+    if (!output.commit()) {
+        blog(LOG_WARNING, TAG "Falha ao substituir o tema: %s (%s)",
+             destination.toUtf8().constData(), output.errorString().toUtf8().constData());
+        return false;
+    }
+    return true;
 }
 
 bool InstallTo(const QString &themesDirectory)
