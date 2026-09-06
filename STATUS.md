@@ -44,6 +44,10 @@ Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico
 - Os interruptores passaram a selecionar persistentemente quais destinos estão ativos, usando a cor de cada plataforma. Eles não tentam mais iniciar um codificador com a live principal parada. **Iniciar tudo** solicita primeiro o início da transmissão padrão do OBS; as saídas marcadas começam somente após o evento `STREAMING_STARTED`. **Parar tudo** encerra as saídas auxiliares e a transmissão principal.
 - A confirmação de salvamento deixou de bloquear o OBS: agora aparece dentro do painel por 2,8 segundos. O dock de chat foi alinhado à mesma paleta azul do painel de saídas.
 - A identidade visual foi reforçada com os azuis elétricos das artes enviadas: textura mais visível nos dois docks, coroa ainda em baixa opacidade, logotipo K4 no cabeçalho do chat e ícone de câmera em Múltiplas saídas. Os botões globais passaram a usar ícones próprios e altura fixa de 48 px para impedir o corte causado pelo tema do OBS.
+- Criado o tema completo **K4binho — Má Fase**, baseado na compatibilidade estrutural do Yami e refeito com a paleta/identidade K4. Inclui `.obt`, `.qss`, cabeçalhos com coroa discreta, estados de botões, listas, abas, menus, campos, barras, controles e medidores de áudio.
+- A DLL passou a extrair e atualizar o tema automaticamente em `data\obs-studio\themes` (com fallback para a pasta de temas do usuário). Como o OBS descobre temas antes de carregar plugins, uma instalação feita apenas pela DLL exige reiniciar o OBS uma vez para o tema aparecer em Aparência.
+- A textura de cena foi produzida em 1920×1080 com centro escuro e grafite concentrado nas bordas. O pacote manual está em `dist/K4binho-Ma-Fase-OBS.zip` e o guia em `themes/INSTALACAO.md`.
+- Os botões **Iniciar tudo/Parar tudo** receberam uma área externa com 8 px de folga inferior além da altura fixa, evitando que a borda seja cortada pelo layout do dock.
 - [ ] Validar visualmente seletor, cartões, painel expansível e janela avançada na largura usada pelo usuário.
 - [ ] Testar iniciar/parar de verdade; transmissão continua sem validação real.
 

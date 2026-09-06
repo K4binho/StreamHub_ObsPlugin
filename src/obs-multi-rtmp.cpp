@@ -15,6 +15,7 @@
 #include "streamhub-launcher.h"
 #include "streamhub-paths.h"
 #include "streamhub-platforms.h"
+#include "streamhub-theme-installer.h"
 #include <QCheckBox>
 #include <QClipboard>
 #include <QApplication>
@@ -453,8 +454,9 @@ public:
 
         // start all, stop all
         auto allBtnContainer = new QWidget(container_);
+        allBtnContainer->setMinimumHeight(58);
         auto allBtnLayout = new QHBoxLayout();
-        allBtnLayout->setContentsMargins(0, 0, 0, 0);
+        allBtnLayout->setContentsMargins(0, 2, 0, 8);
         allBtnLayout->setSpacing(9);
         auto startAllButton = new QPushButton(obs_module_text("Btn.StartAll"), allBtnContainer);
         startAllButton->setObjectName("startAll");
@@ -911,6 +913,7 @@ bool obs_module_load()
         QString::fromUtf8(obs_get_module_data_path(obs_current_module())));
     QString serverDir = dataPath + "/streamhub-server";
     StreamHub_EnsureBundledData(dataPath);
+    StreamHubInstallBundledTheme();
 
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
     if (mainwin == nullptr)

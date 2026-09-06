@@ -14,6 +14,7 @@ Este projeto é uma modificação do [obs-multi-rtmp](https://github.com/sorayuk
 - **Iniciar tudo** aciona primeiro a transmissão principal do OBS e, depois que ela estiver ativa, inicia somente os destinos marcados;
 - textura StreamHub no fundo e coroa K4binho usada somente como marca d'água discreta.
 - identidade visual inspirada nas artes K4binho, com textura mais visível, logotipo K4 no chat e câmera no cabeçalho das saídas;
+- tema completo **K4binho — Má Fase** embutido na DLL, com instalação automática, versão `.qss`, pacote `.obt` para OBS 32 e fundo de cena 1920×1080;
 
 Este plugin é fornecido gratuitamente. Se quiser apoiar o trabalho:
 

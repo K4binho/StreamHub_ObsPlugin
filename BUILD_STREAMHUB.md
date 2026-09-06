@@ -4,6 +4,8 @@
 
 O build atual foi compilado com sucesso no Windows, VS Community 2026 e CMake 4.4.3. A DLL está em `build_x64/RelWithDebInfo/obs-multi-rtmp.dll` e foi instalada no OBS portátil em `E:\obs-studio`. A extração inicial de 18 arquivos foi validada no log de 00:00:08. Depois da remoção do relay do bundle, a versão 2 extrai 17 arquivos. O log de 00:24:35 confirma a DLL corrigida, reparação automática dos pacotes, Node iniciado e dock conectado à porta 3000. O usuário confirmou em seguida mensagens `oi` da Twitch e da Kick aparecendo no dock. Transmissão não foi testada.
 
+O tema **K4binho — Má Fase** também faz parte dos recursos Qt da DLL. No carregamento, `StreamHubInstallBundledTheme()` grava/atualiza o `.obt`, o `.qss`, a marca d'água, os checkboxes e a textura 1920×1080 na pasta de temas do OBS. A primeira instalação exige uma segunda abertura do OBS para o tema aparecer na lista.
+
 O caminho retornado pelo OBS é resolvido com `QDir::absolutePath()` no diretório de trabalho do OBS, antes de qualquer mudança de diretório do Node. Tanto o diretório do processo quanto o script precisam ser absolutos. Não voltar a concatenar `../../data/...` ao diretório do servidor nem usar a pasta da DLL como base. Código compartilhado em `src/streamhub-paths.h`; teste de regressão em `tests/paths`.
 
 Teste isolado (Qt disponível no pacote `.deps`):

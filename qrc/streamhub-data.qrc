@@ -47,4 +47,17 @@
     <file alias="branding/k4-crown.png">../assets/branding/k4-crown.png</file>
     <file alias="branding/k4-logo.png">../assets/branding/k4-logo.png</file>
   </qresource>
+  <qresource prefix="/streamhub-theme">
+    <file alias="K4binho_Ma_Fase.obt">../themes/K4binho_Ma_Fase.obt</file>
+    <file alias="K4binho_Ma_Fase.qss">../themes/K4binho_Ma_Fase.qss</file>
+    <file alias="INSTALACAO.md">../themes/INSTALACAO.md</file>
+    <file alias="backgrounds/ma-fase-background-1920x1080.png">../themes/K4binho-Ma-Fase/backgrounds/ma-fase-background-1920x1080.png</file>
+    <file alias="assets/crown-watermark.png">../themes/K4binho-Ma-Fase/crown-watermark.png</file>
+    <file alias="assets/checkbox_checked.svg">../themes/K4binho-Ma-Fase/checkbox_checked.svg</file>
+    <file alias="assets/checkbox_checked_disabled.svg">../themes/K4binho-Ma-Fase/checkbox_checked_disabled.svg</file>
+    <file alias="assets/checkbox_checked_focus.svg">../themes/K4binho-Ma-Fase/checkbox_checked_focus.svg</file>
+    <file alias="assets/checkbox_unchecked.svg">../themes/K4binho-Ma-Fase/checkbox_unchecked.svg</file>
+    <file alias="assets/checkbox_unchecked_disabled.svg">../themes/K4binho-Ma-Fase/checkbox_unchecked_disabled.svg</file>
+    <file alias="assets/checkbox_unchecked_focus.svg">../themes/K4binho-Ma-Fase/checkbox_unchecked_focus.svg</file>
+  </qresource>
 </RCC>

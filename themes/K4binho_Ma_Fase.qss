@@ -1,0 +1,347 @@
+/*
+ * K4binho — Má Fase
+ * QSS clássico para OBS Studio / Qt.
+ * No OBS 32, prefira K4binho_Ma_Fase.obt.
+ */
+
+QWidget {
+    background-color: #080D14;
+    color: #F1FAFF;
+    selection-background-color: #075579;
+    selection-color: #F1FAFF;
+}
+
+QMainWindow, OBSBasic {
+    background-color: #080D14;
+    border-top: 2px solid #00C8FF;
+}
+
+QMenuBar {
+    background-color: #080D14;
+    color: #F1FAFF;
+    border-bottom: 1px solid #087EBA;
+    padding: 3px;
+}
+
+QMenuBar::item {
+    background: transparent;
+    padding: 6px 10px;
+}
+
+QMenuBar::item:selected, QMenuBar::item:pressed {
+    background-color: #162738;
+    color: #00C8FF;
+}
+
+QMenu {
+    background-color: #101A26;
+    color: #F1FAFF;
+    border: 1px solid #27465A;
+    padding: 5px;
+}
+
+QMenu::item {
+    padding: 7px 28px 7px 12px;
+    border-radius: 3px;
+}
+
+QMenu::item:selected {
+    background-color: #075579;
+    border-left: 3px solid #00C8FF;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #27465A;
+    margin: 5px 8px;
+}
+
+QDockWidget {
+    background-color: #101A26;
+    color: #F1FAFF;
+    font-weight: 600;
+}
+
+QDockWidget::title {
+    background-color: #162738;
+    color: #F1FAFF;
+    border-top: 1px solid #27465A;
+    border-bottom: 2px solid #087EBA;
+    padding: 7px 12px;
+    text-align: left;
+    background-image: url(./K4binho-Ma-Fase/crown-watermark.png);
+    background-position: right center;
+    background-repeat: no-repeat;
+}
+
+QDockWidget::close-button, QDockWidget::float-button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 3px;
+}
+
+QDockWidget::close-button:hover, QDockWidget::float-button:hover {
+    background-color: #075579;
+    border-color: #00C8FF;
+}
+
+QTabWidget::pane {
+    border: 1px solid #27465A;
+    background-color: #101A26;
+}
+
+QTabBar::tab {
+    background-color: #101A26;
+    color: #91B3C7;
+    border: 1px solid #27465A;
+    padding: 7px 13px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:hover {
+    background-color: #162738;
+    color: #F1FAFF;
+    border-color: #087EBA;
+}
+
+QTabBar::tab:selected {
+    background-color: #075579;
+    color: #F1FAFF;
+    border-color: #087EBA;
+    border-bottom: 2px solid #00C8FF;
+}
+
+QListView, QListWidget, QTreeView, QTreeWidget, QTableView {
+    background-color: #101A26;
+    alternate-background-color: #0C1520;
+    color: #F1FAFF;
+    border: 1px solid #27465A;
+    border-radius: 4px;
+    outline: none;
+}
+
+QListView::item, QListWidget::item, QTreeView::item, QTreeWidget::item {
+    padding: 5px 7px;
+    border-left: 3px solid transparent;
+}
+
+QListView::item:hover, QListWidget::item:hover,
+QTreeView::item:hover, QTreeWidget::item:hover {
+    background-color: #162738;
+    border-left-color: #087EBA;
+}
+
+QListView::item:selected, QListWidget::item:selected,
+QTreeView::item:selected, QTreeWidget::item:selected,
+QTableView::item:selected, SceneTree::item:selected, SourceTree::item:selected {
+    background-color: #075579;
+    color: #F1FAFF;
+    border-left: 3px solid #00C8FF;
+}
+
+QHeaderView::section {
+    background-color: #162738;
+    color: #F1FAFF;
+    border: 0;
+    border-right: 1px solid #27465A;
+    border-bottom: 1px solid #087EBA;
+    padding: 6px;
+}
+
+QPushButton, QToolButton {
+    background-color: #075579;
+    color: #F1FAFF;
+    border: 1px solid #087EBA;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover, QToolButton:hover {
+    background-color: #087EBA;
+    border-color: #00C8FF;
+}
+
+QPushButton:pressed, QToolButton:pressed, QPushButton:checked, QToolButton:checked {
+    background-color: #00C8FF;
+    color: #080D14;
+    border-color: #75E8FF;
+}
+
+QPushButton:disabled, QToolButton:disabled {
+    background-color: #101A26;
+    color: #567387;
+    border-color: #27465A;
+}
+
+#streamButton {
+    background-color: #12855F;
+    border-color: #25D99A;
+    color: #F1FAFF;
+    font-weight: 700;
+}
+
+#streamButton:hover {
+    background-color: #18B77F;
+    border-color: #77F0C5;
+}
+
+#streamButton.state-active, #recordButton.state-active,
+#broadcastButton.state-active, #replayBufferButton.state-active {
+    background-color: #762531;
+    border-color: #D94B59;
+    color: #F1FAFF;
+}
+
+#streamButton.state-active:hover, #recordButton.state-active:hover,
+#broadcastButton.state-active:hover, #replayBufferButton.state-active:hover {
+    background-color: #A93342;
+    border-color: #FF7A86;
+}
+
+QLineEdit, QTextEdit, QPlainTextEdit, QComboBox,
+QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit {
+    background-color: #101A26;
+    color: #F1FAFF;
+    border: 1px solid #27465A;
+    border-radius: 4px;
+    padding: 5px 8px;
+}
+
+QLineEdit:hover, QTextEdit:hover, QPlainTextEdit:hover, QComboBox:hover,
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border-color: #087EBA;
+}
+
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus,
+QSpinBox:focus, QDoubleSpinBox:focus {
+    background-color: #162738;
+    border-color: #00C8FF;
+}
+
+QComboBox::drop-down {
+    border: 0;
+    border-left: 1px solid #27465A;
+    width: 24px;
+}
+
+QGroupBox {
+    background-color: #101A26;
+    border: 1px solid #27465A;
+    border-radius: 5px;
+    margin-top: 10px;
+    padding-top: 10px;
+    font-weight: 600;
+}
+
+QGroupBox::title {
+    color: #00C8FF;
+    subcontrol-origin: margin;
+    left: 9px;
+    padding: 0 5px;
+}
+
+QScrollBar:vertical {
+    background-color: #080D14;
+    width: 12px;
+    margin: 0;
+}
+
+QScrollBar:horizontal {
+    background-color: #080D14;
+    height: 12px;
+    margin: 0;
+}
+
+QScrollBar::handle {
+    background-color: #27465A;
+    border: 1px solid #087EBA;
+    border-radius: 5px;
+    min-height: 28px;
+    min-width: 28px;
+}
+
+QScrollBar::handle:hover {
+    background-color: #087EBA;
+    border-color: #00C8FF;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line,
+QScrollBar::add-page, QScrollBar::sub-page {
+    background: transparent;
+    border: 0;
+}
+
+QSlider::groove:horizontal {
+    height: 5px;
+    background-color: #162738;
+    border: 1px solid #27465A;
+    border-radius: 2px;
+}
+
+QSlider::sub-page:horizontal {
+    background-color: #087EBA;
+    border-radius: 2px;
+}
+
+QSlider::handle:horizontal {
+    background-color: #00C8FF;
+    border: 1px solid #75E8FF;
+    width: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+}
+
+QProgressBar {
+    background-color: #101A26;
+    border: 1px solid #27465A;
+    border-radius: 4px;
+    color: #F1FAFF;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    background-color: #087EBA;
+    border-radius: 3px;
+}
+
+QToolTip {
+    background-color: #162738;
+    color: #F1FAFF;
+    border: 1px solid #00C8FF;
+    padding: 5px;
+}
+
+QStatusBar {
+    background-color: #101A26;
+    color: #91B3C7;
+    border-top: 1px solid #27465A;
+}
+
+VolumeControl, VolumeMeter {
+    background-color: #101A26;
+}
+
+VolumeMeter {
+    qproperty-backgroundNominalColor: #053B57;
+    qproperty-backgroundWarningColor: #6B4A0C;
+    qproperty-backgroundErrorColor: #762531;
+    qproperty-foregroundNominalColor: #25D99A;
+    qproperty-foregroundWarningColor: #F6BD3A;
+    qproperty-foregroundErrorColor: #D94B59;
+    qproperty-magnitudeColor: #00C8FF;
+    qproperty-majorTickColor: #91B3C7;
+    qproperty-minorTickColor: #567387;
+}
+
+/*
+ * Fundo opcional para a janela principal. Descomente para usar a arte
+ * também atrás dos docks; a imagem separada é mais indicada como fonte
+ * de imagem dentro das cenas.
+ *
+ * OBSBasic {
+ *     background-image: url(./K4binho-Ma-Fase/backgrounds/ma-fase-background-1920x1080.png);
+ *     background-position: center;
+ *     background-repeat: no-repeat;
+ * }
+ */
