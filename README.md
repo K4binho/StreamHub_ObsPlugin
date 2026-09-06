@@ -53,3 +53,4 @@ If you find this tool useful and want to doante, here is the link. (Please do no
 This project uses obs-plugintemplate.   
 Please refer to obs-plugintemplate to understand how it works.
 # StreamHub_ObsPlugin
+# StreamHub_ObsPlugin
