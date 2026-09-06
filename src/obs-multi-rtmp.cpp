@@ -16,6 +16,8 @@
 #include "streamhub-paths.h"
 #include "streamhub-platforms.h"
 #include <QCheckBox>
+#include <QClipboard>
+#include <QApplication>
 #include <QDialog>
 #include <QFile>
 #include <QFormLayout>
@@ -147,9 +149,10 @@ class StreamHubInlineSettings : public QWidget
 public:
     StreamHubInlineSettings(const std::string &targetId, PushWidget *pushWidget,
                             std::function<void()> onSaved, std::function<void()> onDelete,
+                            std::function<void()> onClose,
                             QWidget *parent = nullptr)
         : QWidget(parent), targetId_(targetId), pushWidget_(pushWidget), onSaved_(std::move(onSaved)),
-          onDelete_(std::move(onDelete))
+          onDelete_(std::move(onDelete)), onClose_(std::move(onClose))
     {
         setObjectName("inlineSettings");
         auto *layout = new QVBoxLayout(this);
@@ -163,26 +166,37 @@ public:
         header->addWidget(icon_);
         title_ = new QLabel(this);
         title_->setObjectName("inlineTitle");
+        title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         header->addWidget(title_);
         header->addStretch();
         auto *close = new QPushButton(QString::fromUtf8(u8"×"), this);
         close->setObjectName("inlineClose");
         close->setFixedSize(28, 28);
-        connect(close, &QPushButton::clicked, this, &QWidget::hide);
+        close->setToolTip(tr("Fechar configurações"));
+        connect(close, &QPushButton::clicked, this, [this]() {
+            if (onClose_)
+                onClose_();
+            else
+                hide();
+        });
         header->addWidget(close);
         layout->addLayout(header);
 
         auto *form = new QFormLayout();
         form->setHorizontalSpacing(12);
         form->setVerticalSpacing(8);
+        form->setRowWrapPolicy(QFormLayout::WrapAllRows);
+        form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
         name_ = new QLineEdit(this);
         server_ = new QLineEdit(this);
         key_ = new QLineEdit(this);
+        server_->setEchoMode(QLineEdit::Password);
         key_->setEchoMode(QLineEdit::Password);
+        server_->setPlaceholderText(tr("Servidor RTMP da plataforma"));
         key_->setPlaceholderText(tr("Cole a chave de transmissão"));
         form->addRow(tr("Nome"), name_);
-        form->addRow(tr("Servidor RTMP"), server_);
-        form->addRow(tr("Stream key"), key_);
+        form->addRow(tr("Servidor RTMP"), SecretField(server_, serverVisible_, this));
+        form->addRow(tr("Stream key"), SecretField(key_, keyVisible_, this));
         layout->addLayout(form);
 
         syncStart_ = new QCheckBox(tr("Iniciar junto com a transmissão principal do OBS"), this);
@@ -222,10 +236,12 @@ public:
             return;
         const auto &platform = StreamHubPlatformForTarget(*target);
         icon_->setPixmap(QIcon(platform.iconPath).pixmap(24, 24));
-        title_->setText(tr("Configurações de destino — %1").arg(platform.name));
+        title_->setText(tr("Configurações — %1").arg(platform.name));
         name_->setText(QString::fromStdString(target->name));
         server_->setText(QString::fromStdString(target->serviceParam.value("server", std::string{})));
         key_->setText(QString::fromStdString(target->serviceParam.value("key", std::string{})));
+        HideSecret(server_, serverVisible_);
+        HideSecret(key_, keyVisible_);
         syncStart_->setChecked(target->syncStart);
         syncStop_->setChecked(target->syncStop);
     }
@@ -245,17 +261,58 @@ private:
         pushWidget_->ReloadConfig();
         if (onSaved_)
             onSaved_();
+        QMessageBox::information(this, tr("StreamHub"), tr("Configurações salvas com sucesso."));
+    }
+
+    QWidget *SecretField(QLineEdit *field, QPushButton *&visibleButton, QWidget *parent)
+    {
+        auto *holder = new QWidget(parent);
+        holder->setObjectName("secretField");
+        auto *row = new QHBoxLayout(holder);
+        row->setContentsMargins(0, 0, 0, 0);
+        row->setSpacing(6);
+        row->addWidget(field, 1);
+
+        visibleButton = new QPushButton(tr("Ver"), holder);
+        visibleButton->setObjectName("secretAction");
+        visibleButton->setToolTip(tr("Mostrar ou ocultar"));
+        visibleButton->setMinimumWidth(48);
+        connect(visibleButton, &QPushButton::clicked, this, [field, visibleButton]() {
+            const bool show = field->echoMode() == QLineEdit::Password;
+            field->setEchoMode(show ? QLineEdit::Normal : QLineEdit::Password);
+            visibleButton->setText(show ? QObject::tr("Ocultar") : QObject::tr("Ver"));
+        });
+        row->addWidget(visibleButton);
+
+        auto *copy = new QPushButton(tr("Copiar"), holder);
+        copy->setObjectName("secretAction");
+        copy->setToolTip(tr("Copiar sem exibir"));
+        connect(copy, &QPushButton::clicked, this, [field]() {
+            QApplication::clipboard()->setText(field->text());
+        });
+        row->addWidget(copy);
+        return holder;
+    }
+
+    void HideSecret(QLineEdit *field, QPushButton *visibleButton)
+    {
+        field->setEchoMode(QLineEdit::Password);
+        if (visibleButton)
+            visibleButton->setText(tr("Ver"));
     }
 
     std::string targetId_;
     PushWidget *pushWidget_;
     std::function<void()> onSaved_;
     std::function<void()> onDelete_;
+    std::function<void()> onClose_;
     QLabel *icon_ = nullptr;
     QLabel *title_ = nullptr;
     QLineEdit *name_ = nullptr;
     QLineEdit *server_ = nullptr;
     QLineEdit *key_ = nullptr;
+    QPushButton *serverVisible_ = nullptr;
+    QPushButton *keyVisible_ = nullptr;
     QCheckBox *syncStart_ = nullptr;
     QCheckBox *syncStop_ = nullptr;
 };
@@ -306,7 +363,7 @@ private:
 
         // Reserva espaço real para a borda/sombra do último cartão. Sem
         // essa folga, o QListWidget arredonda a altura e corta a base.
-        int totalHeight = frameWidth() * 2 + 14;
+        int totalHeight = frameWidth() * 2 + 28;
         const int itemCount = count();
         for (int i = 0; i < itemCount; ++i) {
             totalHeight += sizeHintForRow(i);
@@ -372,11 +429,11 @@ public:
         allBtnLayout->setSpacing(9);
         auto startAllButton = new QPushButton(QString::fromUtf8(u8"▶  ") + obs_module_text("Btn.StartAll"), allBtnContainer);
         startAllButton->setObjectName("startAll");
-        startAllButton->setMinimumHeight(42);
+        startAllButton->setMinimumHeight(46);
         allBtnLayout->addWidget(startAllButton);
         auto stopAllButton = new QPushButton(QString::fromUtf8(u8"■  ") + obs_module_text("Btn.StopAll"), allBtnContainer);
         stopAllButton->setObjectName("stopAll");
-        stopAllButton->setMinimumHeight(42);
+        stopAllButton->setMinimumHeight(46);
         allBtnLayout->addWidget(stopAllButton);
         allBtnContainer->setLayout(allBtnLayout);
         layout_->addWidget(allBtnContainer);
@@ -432,6 +489,8 @@ public:
         settingsPanelLayout_->setContentsMargins(0, 0, 0, 0);
         settingsPanelHost_->hide();
         layout_->addWidget(settingsPanelHost_);
+
+        QWidget *footer = nullptr;
 
         // donate
         if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
@@ -513,12 +572,13 @@ public:
                 u8"<p><b>Este plugin é fornecido gratuitamente.</b><br>"
                 u8"Projeto original: SoraYuki — <a href=\"https://paypal.me/sorayuki0\">doar via PayPal</a><br>"
                 u8"Melhorias StreamHub: K4binho — <a href=\"https://livepix.gg/k4binho\">apoiar via LivePix</a></p>",
-                container_);
+                this);
+            label->setObjectName("outputsFooter");
             label->setTextFormat(Qt::RichText);
             label->setTextInteractionFlags(Qt::TextBrowserInteraction);
             label->setOpenExternalLinks(true);
             label->setWordWrap(true);
-            layout_->addWidget(label);
+            footer = label;
         }
 
         scroll_.setWidgetResizable(true);
@@ -535,10 +595,10 @@ public:
                 border-radius: 8px; padding: 8px 14px; color: #edf1fb; font-weight: 600; }
             QPushButton#addDestination:hover { border-color: #00c8ff; background: #15233a; }
             QPushButton#startAll { background: #087d42; border: 1px solid #16d86a;
-                border-radius: 8px; color: white; font-weight: 700; }
+                border-radius: 8px; padding:5px 8px 7px 8px; color: white; font-weight: 700; }
             QPushButton#startAll:hover { background: #0a9651; border-color:#3cff91; }
             QPushButton#stopAll { background: #431c29; border: 1px solid #d94155;
-                border-radius: 8px; color: #ffdce3; font-weight: 700; }
+                border-radius: 8px; padding:5px 8px 7px 8px; color: #ffdce3; font-weight: 700; }
             QPushButton#stopAll:hover { background: #5b2231; }
             QWidget#outputCard { background: rgba(16,26,42,235); border: 1px solid #29496f;
                 border-radius: 9px; }
@@ -554,6 +614,10 @@ public:
                 border-radius:10px; color:#f2f7ff; }
             QLabel#inlineTitle { font-size:16px; font-weight:700; color:#f2f7ff; }
             QPushButton#inlineClose { background:transparent; border:none; color:#9eb2cb; font-size:20px; }
+            QWidget#secretField { background:transparent; border:none; }
+            QPushButton#secretAction { background:#101a2a; border:1px solid #29496f; border-radius:6px;
+                min-height:30px; padding:3px 7px; color:#dbe8f8; }
+            QPushButton#secretAction:hover { border-color:#00c8ff; background:#15233a; }
             QLineEdit { background:#080c14; border:1px solid #29496f; border-radius:7px;
                 min-height:30px; padding:3px 8px; color:#f2f7ff; }
             QLineEdit:focus { border-color:#00c8ff; }
@@ -563,6 +627,8 @@ public:
                 padding:7px 11px; color:#f2f7ff; }
             QPushButton#inlineDanger { background:#351924; border:1px solid #d94155; border-radius:7px;
                 padding:7px 11px; color:#ffb9c2; }
+            QLabel#outputsFooter { background:rgba(8,12,20,245); border-top:1px solid #29496f;
+                padding:7px 12px 9px 12px; color:#f2f7ff; }
         )");
 
         auto fullLayout = new QGridLayout(this);
@@ -570,6 +636,8 @@ public:
         fullLayout->setRowStretch(0, 1);
         fullLayout->setColumnStretch(0, 1);
         fullLayout->addWidget(&scroll_, 0, 0);
+        if (footer)
+            fullLayout->addWidget(footer, 1, 0);
     }
 
     std::list<PushWidget*> GetAllPushWidgets()
@@ -706,7 +774,8 @@ private:
                 pushWidget->ReloadConfig();
                 outputsContainer_->doItemsLayout();
             },
-            [pushWidget]() { pushWidget->GetDeleteButton()->click(); }, settingsPanelHost_);
+            [pushWidget]() { pushWidget->GetDeleteButton()->click(); },
+            [this]() { settingsPanelHost_->hide(); }, settingsPanelHost_);
         settingsPanelLayout_->addWidget(settingsPanel_);
         settingsPanelHost_->show();
     }
@@ -750,7 +819,9 @@ private:
 
         QListWidgetItem* listItem = new QListWidgetItem();
         listItem->setData(Qt::UserRole, QString::fromStdString(targetId));
-        listItem->setSizeHint(pushWidget->sizeHint());
+        QSize cardSize = pushWidget->sizeHint();
+        cardSize.setHeight((std::max)(cardSize.height(), 82));
+        listItem->setSizeHint(cardSize);
         outputsContainer_->addItem(listItem);
         outputsContainer_->setItemWidget(listItem, pushWidget);
 

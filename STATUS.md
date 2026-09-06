@@ -40,6 +40,7 @@ Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico
 - O aviso gratuito e os links de apoio a SoraYuki e K4binho permanecem no rodapé.
 - Build `RelWithDebInfo` concluído, DLL instalada com SHA-256 conferido e OBS carregado. O log `2026-09-06 10-20-20.txt` confirma dois destinos nativos carregados e nenhum erro do módulo.
 - Após o primeiro teste visual, a altura calculada da lista ganhou folga para preservar a borda inferior do último cartão. Estados longos foram reduzidos para **Pendente/Pronto**, mantendo a explicação completa no tooltip, para não cortar letras no dock estreito. A DLL com esse ajuste foi instalada no OBS portátil e conferida pelo SHA-256 `98572B9C9854EC54911A595EC743E5DD5788DEF5F7C79179D3EE5CEB92279CC7`.
+- O refinamento seguinte aumentou a altura reservada dos cartões e botões globais. O rodapé gratuito/doações ficou fixo fora da área rolável. O painel de destino ganhou botão de fechar, confirmação após salvar e servidor RTMP/stream key ocultos por padrão, cada um com ações **Ver/Ocultar** e **Copiar**. Ativar um destino incompleto agora mostra um alerta orientando a configurá-lo.
 - [ ] Validar visualmente seletor, cartões, painel expansível e janela avançada na largura usada pelo usuário.
 - [ ] Testar iniciar/parar de verdade; transmissão continua sem validação real.
 

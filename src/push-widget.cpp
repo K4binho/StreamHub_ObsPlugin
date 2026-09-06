@@ -157,6 +157,13 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return edit_btn_;
     }
 
+    bool HasStreamConfig() const
+    {
+        return config_ &&
+               !config_->serviceParam.value("server", std::string{}).empty() &&
+               !config_->serviceParam.value("key", std::string{}).empty();
+    }
+
     bool PrepareOutputService()
     {
         if (!output_) {
@@ -582,7 +589,7 @@ public:
         , targetid_(targetid)
     {
         QObject::setObjectName("outputCard");
-        setMinimumHeight(68);
+        setMinimumHeight(76);
 
         auto& global = GlobalMultiOutputConfig();
         config_ = FindById(global.targets, targetid_);
@@ -617,10 +624,19 @@ public:
         layout->addWidget(btn_ = new StreamToggleButton(this), 0, 3, 2, 1);
         btn_->setObjectName("outputToggle");
         QObject::connect(btn_, &QPushButton::clicked, [this](bool checked) {
-            if (checked)
+            if (checked && !HasStreamConfig()) {
+                btn_->setChecked(false);
+                SetMsg(tr("● Pendente"));
+                msg_->setToolTip(tr("Informe o servidor RTMP e a stream key nas configurações."));
+                QMessageBox::warning(
+                    this,
+                    tr("Transmissão não configurada"),
+                    tr("Configure o servidor RTMP e a stream key antes de ativar esta transmissão."));
+            } else if (checked) {
                 StartStreaming();
-            else
+            } else {
                 StopStreaming();
+            }
         });
 
         layout->addWidget(edit_btn_ = new QPushButton(this), 0, 4, 2, 1);
@@ -648,8 +664,7 @@ public:
         if (IsRunning())
             return;
 
-        if (config_->serviceParam.value("server", std::string{}).empty() ||
-            config_->serviceParam.value("key", std::string{}).empty()) {
+        if (!HasStreamConfig()) {
             btn_->setChecked(false);
             SetMsg(tr("● Pendente"));
             msg_->setToolTip(tr("Informe o servidor RTMP e a stream key nas configurações."));
@@ -775,8 +790,7 @@ public:
         }
         quality_->setText(quality);
         if (!IsRunning()) {
-            const bool configured = !config_->serviceParam.value("server", std::string{}).empty() &&
-                                    !config_->serviceParam.value("key", std::string{}).empty();
+            const bool configured = HasStreamConfig();
             msg_->setProperty("ready", configured);
             SetMsg(configured ? tr("● Pronto") : tr("● Pendente"));
             if (!configured)
