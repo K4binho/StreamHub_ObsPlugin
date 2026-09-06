@@ -9,6 +9,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include "obs.h"
+
 #include "plugin-support.h"
 
 namespace {

@@ -8,7 +8,6 @@ const { startTwitch } = require('./chat/twitch');
 const { startYoutube } = require('./chat/youtube');
 const { startKick } = require('./chat/kick');
 const { startTiktok } = require('./chat/tiktok');
-const { startRelay } = require('./relay');
 const apiRouter = require('./routes/api');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
@@ -107,10 +106,6 @@ async function main() {
 
   if (config.tiktok?.enabled) {
     await startTiktok(config.tiktok, broadcastMessage);
-  }
-
-  if (config.rtmp) {
-    startRelay(config.rtmp);
   }
 
   const port = config.server?.port || 3000;

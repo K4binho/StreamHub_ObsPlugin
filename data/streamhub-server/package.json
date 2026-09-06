@@ -15,7 +15,6 @@
     "googleapis": "^140.0.0",
     "pusher-js": "^8.4.0-rc2",
     "node-fetch": "^2.7.0",
-    "tiktok-live-connector": "^1.1.10",
-    "node-media-server": "^2.6.5"
+    "tiktok-live-connector": "^1.1.10"
   }
 }

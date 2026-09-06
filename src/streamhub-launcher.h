@@ -41,6 +41,8 @@ private:
     void OnNodeReady(const QString &nodePath, const QString &npmCliPath);
     void RunNpmInstallThenStart(const QString &nodePath, const QString &npmCliPath);
     void StartServerProcess(const QString &nodePath);
+    bool DependenciesAreComplete() const;
+    bool SaveDependencyMarker() const;
 
     StreamHubNodeProvision *provisioner_ = nullptr;
     QProcess *npmInstallProcess_ = nullptr;

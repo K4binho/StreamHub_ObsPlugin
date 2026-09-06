@@ -2,6 +2,8 @@
 
 Data: 2026-09-05. Status: planejamento; nenhuma alteração funcional executada.
 
+Atualização de execução (06/09/2026): DLL autocontida instalada; extração, reparação do npm e caminho absoluto validados. Os chats Twitch e Kick foram repetidos com sucesso no dock usando esta compilação. Referências abaixo à implementação anterior devem ser lidas como histórico do plano. Próxima etapa: frontend nativo de configuração; transmissão ainda não testada. Detalhes em [STATUS.md](STATUS.md).
+
 Histórico consolidado em [STATUS.md](STATUS.md) e instruções corrigidas em [BUILD_STREAMHUB.md](BUILD_STREAMHUB.md). OBS portátil confirmado pelo usuário em `E:\obs-studio`; VS Community 2026, CMake 4.4.3 e QtWebSockets 6.11.1 compilado manualmente. Os chats da Twitch e do Kick já foram testados; a transmissão ainda não foi testada, inclusive na Twitch e a rotação das chaves já foi relatada como concluída. Falta verificar as chaves atuais nos destinos nativos, sem duplicá-las no chat.
 
 ## Resultado esperado

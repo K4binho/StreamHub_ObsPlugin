@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.28)
+project(streamhub_path_regression LANGUAGES CXX)
+find_package(Qt6 REQUIRED COMPONENTS Core)
+add_executable(streamhub-path-test path-test.cpp)
+target_compile_features(streamhub-path-test PRIVATE cxx_std_17)
+target_link_libraries(streamhub-path-test PRIVATE Qt6::Core)
+enable_testing()
+add_test(NAME streamhub-path-regression COMMAND streamhub-path-test)

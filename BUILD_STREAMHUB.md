@@ -1,5 +1,24 @@
 # StreamHub OBS Plugin (fork do obs-multi-rtmp)
 
+## Atualização de 06/09/2026 — caminho corrigido
+
+O build atual foi compilado com sucesso no Windows, VS Community 2026 e CMake 4.4.3. A DLL está em `build_x64/RelWithDebInfo/obs-multi-rtmp.dll` e foi instalada no OBS portátil em `E:\obs-studio`. A extração inicial de 18 arquivos foi validada no log de 00:00:08. Depois da remoção do relay do bundle, a versão 2 extrai 17 arquivos. O log de 00:24:35 confirma a DLL corrigida, reparação automática dos pacotes, Node iniciado e dock conectado à porta 3000. O usuário confirmou em seguida mensagens `oi` da Twitch e da Kick aparecendo no dock. Transmissão não foi testada.
+
+O caminho retornado pelo OBS é resolvido com `QDir::absolutePath()` no diretório de trabalho do OBS, antes de qualquer mudança de diretório do Node. Tanto o diretório do processo quanto o script precisam ser absolutos. Não voltar a concatenar `../../data/...` ao diretório do servidor nem usar a pasta da DLL como base. Código compartilhado em `src/streamhub-paths.h`; teste de regressão em `tests/paths`.
+
+Teste isolado (Qt disponível no pacote `.deps`):
+
+```powershell
+cmake -S tests/paths -B build_path_tests -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD/.deps/obs-deps-qt6-2026-07-15-x64"
+cmake --build build_path_tests --config Release
+$env:PATH = "$PWD/.deps/obs-deps-qt6-2026-07-15-x64/bin;$env:PATH"
+ctest --test-dir build_path_tests -C Release --output-on-failure
+```
+
+O teste passou nesta sessão. As referências históricas abaixo a VS2022, WebSocket e impossibilidade de compilar neste ambiente estão superadas: o dock atual usa long-poll HTTP e a compilação funciona. Veja [STATUS.md](STATUS.md) para o estado consolidado.
+
+Se o OBS for fechado durante a primeira instalação dos pacotes Node, a pasta `node_modules` pode existir incompleta. O launcher atual só reutiliza a pasta quando também encontra `.dependencies-sha256` com o hash do `package.json`. Sem esse marcador, ele roda `npm install` novamente e se repara sozinho. Deixe o OBS aberto até o dock conectar na primeira execução; se for interrompido, basta abrir novamente.
+
 Este é o fork do [obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp)
 com duas coisas a mais:
 

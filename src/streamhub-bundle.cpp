@@ -5,6 +5,8 @@
 #include <QFile>
 #include <QFileInfo>
 
+#include "obs.h"
+
 #include "plugin-support.h"
 
 namespace {
@@ -12,7 +14,7 @@ namespace {
 // Suba este número sempre que qrc/streamhub-data.qrc mudar de conteúdo
 // (novo arquivo, JS corrigido, etc.) para forçar reextração na próxima
 // abertura do OBS. Não precisa acompanhar PLUGIN_VERSION.
-constexpr const char *kBundleVersion = "1";
+constexpr const char *kBundleVersion = "2";
 
 constexpr const char *kResourcePrefix = ":/streamhub-data";
 constexpr const char *kVersionMarkerName = ".streamhub-bundle-version";
@@ -67,6 +69,28 @@ bool ExtractResourceTree(const QString &destRoot)
     return ok;
 }
 
+bool EnsureUserConfig(const QString &dataPath)
+{
+    const QString serverDir = dataPath + "/streamhub-server";
+    const QString configPath = serverDir + "/config.json";
+    if (QFileInfo::exists(configPath))
+        return true;
+
+    const QString examplePath = serverDir + "/config.example.json";
+    if (!QFileInfo::exists(examplePath)) {
+        blog(LOG_WARNING, "[streamhub] não consegui criar config.json: config.example.json não existe");
+        return false;
+    }
+    if (!QFile::copy(examplePath, configPath)) {
+        blog(LOG_WARNING, "[streamhub] não consegui criar a configuração inicial em %s",
+             configPath.toUtf8().constData());
+        return false;
+    }
+    QFile::setPermissions(configPath, QFile::permissions(configPath) | QFileDevice::WriteOwner);
+    blog(LOG_INFO, "[streamhub] configuração inicial criada em %s", configPath.toUtf8().constData());
+    return true;
+}
+
 } // namespace
 
 bool StreamHub_EnsureBundledData(const QString &dataPath)
@@ -87,7 +111,7 @@ bool StreamHub_EnsureBundledData(const QString &dataPath)
     }
 
     if (onDiskVersion == QString::fromLatin1(kBundleVersion)) {
-        return true; // já extraído nesta versão do bundle — usa o que está em disco
+        return EnsureUserConfig(dataPath);
     }
 
     blog(LOG_INFO, "[streamhub] preparando dados embutidos (versão do bundle: %s -> %s) em %s",
@@ -103,5 +127,5 @@ bool StreamHub_EnsureBundledData(const QString &dataPath)
         versionFile.close();
     }
 
-    return ok;
+    return ok && EnsureUserConfig(dataPath);
 }

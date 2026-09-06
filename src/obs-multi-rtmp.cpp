@@ -13,6 +13,7 @@
 #include "streamhub-bundle.h"
 #include "streamhub-chat-dock.h"
 #include "streamhub-launcher.h"
+#include "streamhub-paths.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -458,7 +459,10 @@ bool obs_module_load()
     // obs_module_text() logo abaixo, que já lê locale/*.ini do disco — por
     // isso vem antes de qualquer outra coisa em obs_module_load(). É isso
     // que permite copiar só a .dll para uma instalação nova do OBS.
-    QString dataPath = QString::fromUtf8(obs_get_module_data_path(obs_current_module()));
+    // OBS paths are relative to its current working directory, not to the
+    // plugin DLL. Resolve once before extraction and before Node changes cwd.
+    const QString dataPath = StreamHubAbsolutePath(
+        QString::fromUtf8(obs_get_module_data_path(obs_current_module())));
     QString serverDir = dataPath + "/streamhub-server";
     StreamHub_EnsureBundledData(dataPath);
 

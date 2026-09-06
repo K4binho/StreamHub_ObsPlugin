@@ -1,8 +1,14 @@
 #include "streamhub-launcher.h"
 #include "streamhub-node-provision.h"
+#include "streamhub-paths.h"
 
+#include <QCryptographicHash>
 #include <QDir>
+#include <QFile>
 #include <QProcessEnvironment>
+#include <QSaveFile>
+
+#include "obs.h"
 
 #include "plugin-support.h"
 
@@ -28,27 +34,60 @@ void StreamHubLauncher::Start(const QString &pluginDataDir, const QString &serve
         return; // já está rodando ou já está sendo preparado
     }
 
-    serverDir_ = serverDir;
+    serverDir_ = StreamHubAbsolutePath(serverDir);
     port_ = port;
 
     // Tudo a partir daqui é assíncrono (sinais/slots) — esta função sempre
     // retorna na hora, então o OBS nunca fica travado esperando isso,
     // mesmo na primeiríssima execução numa máquina sem Node.js instalado.
     emit statusChanged(tr("Preparando StreamHub..."));
-    provisioner_->Ensure(pluginDataDir);
+    provisioner_->Ensure(StreamHubAbsolutePath(pluginDataDir));
 }
 
 void StreamHubLauncher::OnNodeReady(const QString &nodePath, const QString &npmCliPath)
 {
     QDir nodeModules(QDir(serverDir_).filePath("node_modules"));
-    if (nodeModules.exists()) {
+    if (nodeModules.exists() && DependenciesAreComplete()) {
         // Dependências já instaladas (aberturas anteriores do OBS já
         // resolveram isso) — pula direto pro servidor.
         StartServerProcess(nodePath);
         return;
     }
 
+    if (nodeModules.exists()) {
+        blog(LOG_WARNING, "[streamhub] dependências incompletas ou desatualizadas; executando npm install para reparar");
+    }
     RunNpmInstallThenStart(nodePath, npmCliPath);
+}
+
+bool StreamHubLauncher::DependenciesAreComplete() const
+{
+    QFile packageFile(QDir(serverDir_).filePath("package.json"));
+    QFile markerFile(QDir(serverDir_).filePath(".dependencies-sha256"));
+    if (!packageFile.open(QIODevice::ReadOnly) ||
+        !markerFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+
+    const QByteArray expected =
+        QCryptographicHash::hash(packageFile.readAll(), QCryptographicHash::Sha256).toHex();
+    return markerFile.readAll().trimmed() == expected;
+}
+
+bool StreamHubLauncher::SaveDependencyMarker() const
+{
+    QFile packageFile(QDir(serverDir_).filePath("package.json"));
+    if (!packageFile.open(QIODevice::ReadOnly))
+        return false;
+
+    const QByteArray digest =
+        QCryptographicHash::hash(packageFile.readAll(), QCryptographicHash::Sha256).toHex();
+    QSaveFile markerFile(QDir(serverDir_).filePath(".dependencies-sha256"));
+    if (!markerFile.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+    if (markerFile.write(digest + '\n') < 0)
+        return false;
+    return markerFile.commit();
 }
 
 void StreamHubLauncher::RunNpmInstallThenStart(const QString &nodePath, const QString &npmCliPath)
@@ -91,6 +130,9 @@ void StreamHubLauncher::RunNpmInstallThenStart(const QString &nodePath, const QS
                     return;
                 }
 
+                if (!SaveDependencyMarker()) {
+                    blog(LOG_WARNING, "[streamhub] dependências instaladas, mas não consegui salvar o marcador");
+                }
                 emit statusChanged(tr("Dependências instaladas — iniciando servidor..."));
                 StartServerProcess(nodePath);
             });
@@ -119,7 +161,10 @@ void StreamHubLauncher::StartServerProcess(const QString &nodePath)
         blog(LOG_INFO, "[streamhub-node] %s", process_->readAllStandardError().constData());
     });
 
-    process_->start(nodePath, {QDir(serverDir_).filePath("server/index.js")});
+    const QString scriptPath = QDir(serverDir_).absoluteFilePath("server/index.js");
+    blog(LOG_INFO, "[streamhub] iniciando Node: diretório=%s; script=%s",
+         serverDir_.toUtf8().constData(), scriptPath.toUtf8().constData());
+    process_->start(nodePath, {scriptPath});
     emit statusChanged(tr("StreamHub rodando (porta %1).").arg(port_));
 }
 

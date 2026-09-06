@@ -19,7 +19,6 @@
     <file alias="streamhub-server/config.example.json">../data/streamhub-server/config.example.json</file>
 
     <file alias="streamhub-server/server/index.js">../data/streamhub-server/server/index.js</file>
-    <file alias="streamhub-server/server/relay.js">../data/streamhub-server/server/relay.js</file>
     <file alias="streamhub-server/server/config-store.js">../data/streamhub-server/server/config-store.js</file>
     <file alias="streamhub-server/server/routes/api.js">../data/streamhub-server/server/routes/api.js</file>
     <file alias="streamhub-server/server/chat/twitch.js">../data/streamhub-server/server/chat/twitch.js</file>

@@ -4,6 +4,7 @@
 /build_aarch64/
 /build_macos/
 /build_single_dll/
+/build_path_tests/
 /out/
 
 # --- Dependências baixadas/compiladas localmente ---

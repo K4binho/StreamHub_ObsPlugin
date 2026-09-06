@@ -2,7 +2,31 @@
 
 Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico posterior e leitura do código. Testes em OBS aqui registrados foram relatados no histórico; não foram repetidos nesta atualização documental.
 
-## DLL autocontida (implementado nesta sessão, ainda não compilado/testado)
+## Correção do caminho — 06/09/2026
+
+- O log `2026-09-06 00-00-08.txt` confirma a extração de **18 arquivos embutidos**. Essa etapa está validada.
+- Os logs de 00:00:40, 00:01:35 e 00:03:19 mostram `MODULE_NOT_FOUND` com `data/obs-plugins/data/obs-plugins`: o script relativo era reinterpretado após o processo Node mudar de diretório.
+- Correção em `src/streamhub-paths.h`, `src/obs-multi-rtmp.cpp` e `src/streamhub-launcher.cpp`: converter dados/servidor para caminhos absolutos no diretório de trabalho do OBS, antes da extração e da criação dos processos. Passar `server/index.js` como caminho absoluto. Não usar a pasta da DLL como base para o caminho relativo informado pelo OBS.
+- Compilação `RelWithDebInfo` concluída neste Windows com VS2026/Qt. DLL gerada em `build_x64/RelWithDebInfo/obs-multi-rtmp.dll`.
+- Teste `tests/paths` passou: reproduz a falha antiga e valida caminhos relativos/absolutos, espaços e mudança de diretório do processo filho.
+- Preservados os `#include "obs.h"` já presentes localmente no bundle, dock e launcher. Esses arquivos também precisam entrar no próximo commit, junto ao novo header e testes. Nenhum commit/push foi feito nesta correção.
+- Ainda falta substituir a DLL instalada com OBS fechado e repetir o teste dos chats. Transmissão continua não testada.
+
+## Reparação de instalação interrompida — 06/09/2026
+
+- O log de 00:11:47 prova que o caminho absoluto já está correto.
+- A falha seguinte, `Cannot find module './writer'` dentro de `protobufjs`, veio de `node_modules` incompleto. O OBS de 00:00:08 foi fechado durante o primeiro `npm install`.
+- O launcher não considera mais apenas a existência de `node_modules`. Depois de um `npm install` concluído, grava `.dependencies-sha256` com o hash do `package.json`. Pasta sem marcador ou com versão diferente é reparada automaticamente por outro `npm install`.
+- O marcador usa gravação atômica, portanto um novo fechamento durante a instalação continuará sendo detectado na abertura seguinte.
+- DLL recompilada e instalada em `E:\obs-studio\obs-plugins\64bit\obs-multi-rtmp.dll`. Backup da anterior: `obs-multi-rtmp.dll.backup-20260906-002223`.
+- O log `2026-09-06 00-24-35.txt` confirma: bundle atualizado de 1 para 2, 17 arquivos atuais extraídos, dependências detectadas como incompletas/desatualizadas, `npm install` concluído, Node iniciado pelo caminho absoluto e dock conectado à porta 3000 às 00:24:57.
+- Os avisos `npm warn allow-scripts` não impediram a instalação nem a inicialização.
+- `config.json` foi restaurado com Twitch e Kick habilitados no canal `K4binho`; YouTube/TikTok desabilitados e sem seção de relay.
+- [x] Validação final da compilação corrigida: o usuário enviou `oi` na Twitch e na Kick, e ambas apareceram no dock como `[TWITCH] k4binho: oi` e `[KICK] K4binho: oi`.
+- [x] Fluxo confirmado nesta máquina: DLL autocontida → extração do bundle → reparação automática do npm → Node com caminhos absolutos → long-poll HTTP → chats Twitch/Kick no dock.
+- Transmissão continua não testada.
+
+## DLL autocontida (compilada; extração validada; chats após correção pendentes)
 
 Implementado o que você pediu: só copiar `obs-multi-rtmp.dll` depois de formatar, sem passos manuais.
 
@@ -13,10 +37,10 @@ Implementado o que você pediu: só copiar `obs-multi-rtmp.dll` depois de format
 
 Consequência prática: **não é mais preciso** compilar QtWebSockets nem copiar `Qt6WebSockets_relwithdebinfo.dll` para o OBS. Isso elimina os problemas #3 e #5 da lista abaixo para builds futuros.
 
-**Pendente de verificação (ainda não compilado neste ambiente, que não tem Windows/Visual Studio/Qt):**
-- [ ] Confirmar que `Qt6::Network` está de fato incluído no pacote `obs-deps-qt6-2026-07-15-x64` (é um módulo bem mais "core" que WebSockets, mas precisa compilar pra ter certeza).
-- [ ] Compilar com o CMakeLists.txt atualizado e checar se o AUTORCC gera o `.rcc` a partir de `qrc/streamhub-data.qrc` sem erro.
-- [ ] Testar em uma instalação de OBS **nova** (sem a pasta `data/obs-plugins/obs-multi-rtmp` pré-existente) copiando só a DLL, e confirmar que a pasta é recriada sozinha.
+**Verificação atual:**
+- [x] Compilação com `Qt6::Network` e recursos embutidos concluída em 06/09/2026.
+- [x] Extração de 18 arquivos confirmada no log fornecido pelo usuário.
+- [ ] Validar o fluxo completo em instalação limpa (incluindo preparação automática e chats).
 - [ ] Repetir os testes de chat Twitch/Kick com o novo mecanismo de long-poll.
 - [ ] Confirmar que reabrir o OBS não perde `config.json` (o marcador de versão do bundle, `.streamhub-bundle-version`, deve impedir reextração desnecessária).
 
