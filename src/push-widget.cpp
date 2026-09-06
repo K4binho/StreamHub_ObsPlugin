@@ -7,8 +7,10 @@
 #include "edit-widget.h"
 #include "output-config.h"
 #include "protocols.h"
+#include "streamhub-platforms.h"
 
 #include "obs.hpp"
+#include <QPainter>
 
 class IOBSOutputEventHanlder
 {
@@ -94,6 +96,32 @@ public:
 };
 
 
+class StreamToggleButton : public QPushButton
+{
+public:
+    explicit StreamToggleButton(QWidget *parent = nullptr) : QPushButton(parent)
+    {
+        setCheckable(true);
+        setCursor(Qt::PointingHandCursor);
+        setFixedSize(50, 28);
+        setToolTip(QObject::tr("Ligar ou desligar esta transmissão"));
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QColor track = !isEnabled() ? QColor("#253348")
+                             : isChecked() ? QColor("#16D86A") : QColor("#3A4A62");
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(track);
+        painter.drawRoundedRect(rect().adjusted(1, 3, -1, -3), 11, 11);
+        painter.setBrush(QColor("#F2F7FF"));
+        painter.drawEllipse(QRect(isChecked() ? width() - 23 : 5, 6, 17, 17));
+    }
+};
+
 class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 {
     std::string targetid_;
@@ -102,6 +130,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     QPushButton* btn_ = 0;
     QLabel* name_ = 0;
     QLabel* msg_ = 0;
+    QLabel* icon_ = 0;
+    QLabel* quality_ = 0;
 
     using clock = std::chrono::steady_clock;
     clock::time_point begin_time_;
@@ -121,6 +151,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
     QPushButton* GetDeleteButton() {
         return remove_btn_;
+    }
+
+    QPushButton* GetEditButton() override {
+        return edit_btn_;
     }
 
     bool PrepareOutputService()
@@ -548,6 +582,7 @@ public:
         , targetid_(targetid)
     {
         QObject::setObjectName("outputCard");
+        setMinimumHeight(68);
 
         auto& global = GlobalMultiOutputConfig();
         config_ = FindById(global.targets, targetid_);
@@ -561,29 +596,43 @@ public:
         });
 
         auto layout = new QGridLayout(this);
-        layout->setContentsMargins(13, 11, 13, 11);
-        layout->setHorizontalSpacing(8);
-        layout->setVerticalSpacing(5);
-        layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 0, 1, 3);
+        layout->setContentsMargins(13, 10, 13, 10);
+        layout->setHorizontalSpacing(10);
+        layout->setVerticalSpacing(2);
+        layout->addWidget(icon_ = new QLabel(this), 0, 0, 2, 1);
+        icon_->setObjectName("outputPlatformIcon");
+        icon_->setAlignment(Qt::AlignCenter);
+        icon_->setFixedSize(42, 42);
+        layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 1);
         name_->setObjectName("outputName");
-        layout->addWidget(btn_ = new QPushButton(obs_module_text("Btn.Start"), this), 1, 0);
-        btn_->setObjectName("outputStart");
-        QObject::connect(btn_, &QPushButton::clicked, [this]() {
-            StartStop();
-        });
-
-        layout->addWidget(edit_btn_ = new QPushButton(obs_module_text("Btn.Edit"), this), 1, 1);
-        edit_btn_->setObjectName("outputEdit");
-        QObject::connect(edit_btn_, &QPushButton::clicked, [this]() {
-            ShowEditDlg();
-        });
-
-        layout->addWidget(remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this), 1, 2);
-        remove_btn_->setObjectName("outputDelete");
-
-        layout->addWidget(msg_ = new QLabel(u8"", this), 2, 0, 1, 3);
+        layout->addWidget(msg_ = new QLabel(this), 1, 1);
         msg_->setObjectName("outputStatus");
-        msg_->setWordWrap(true);
+        msg_->setWordWrap(false);
+        layout->setColumnStretch(1, 1);
+
+        layout->addWidget(quality_ = new QLabel(tr("OBS"), this), 0, 2, 2, 1);
+        quality_->setObjectName("outputQuality");
+        quality_->setAlignment(Qt::AlignCenter);
+
+        layout->addWidget(btn_ = new StreamToggleButton(this), 0, 3, 2, 1);
+        btn_->setObjectName("outputToggle");
+        QObject::connect(btn_, &QPushButton::clicked, [this](bool checked) {
+            if (checked)
+                StartStreaming();
+            else
+                StopStreaming();
+        });
+
+        layout->addWidget(edit_btn_ = new QPushButton(this), 0, 4, 2, 1);
+        edit_btn_->setObjectName("outputEdit");
+        edit_btn_->setIcon(QIcon(":/streamhub-ui/icons/settings.svg"));
+        edit_btn_->setIconSize(QSize(18, 18));
+        edit_btn_->setToolTip(tr("Abrir configurações desta plataforma"));
+        edit_btn_->setFixedSize(36, 34);
+
+        remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this);
+        remove_btn_->setObjectName("outputDelete");
+        remove_btn_->hide();
         setLayout(layout);
 
         LoadConfig();
@@ -598,6 +647,14 @@ public:
     void StartStreaming() override {
         if (IsRunning())
             return;
+
+        if (config_->serviceParam.value("server", std::string{}).empty() ||
+            config_->serviceParam.value("key", std::string{}).empty()) {
+            btn_->setChecked(false);
+            SetMsg(tr("● Pendente"));
+            msg_->setToolTip(tr("Informe o servidor RTMP e a stream key nas configurações."));
+            return;
+        }
 
         // recreate output
         ReleaseOutput();
@@ -658,6 +715,7 @@ public:
 
         if (!obs_output_start(output_))
         {
+            btn_->setChecked(false);
             SetMsg(obs_module_text("Error.StartOutput"));
         }
     }
@@ -705,7 +763,30 @@ public:
     void LoadConfig()
     {
         name_->setText(QString::fromUtf8(config_->name));
+        const auto &platform = StreamHubPlatformForTarget(*config_);
+        icon_->setPixmap(QIcon(platform.iconPath).pixmap(30, 30));
+        icon_->setStyleSheet(QString("background:#080c14; border:1px solid %1; border-radius:8px;")
+                                 .arg(platform.accent));
+        QString quality = tr("OBS");
+        if (config_->videoConfig.has_value() && !IsSpecialEncoder(*config_->videoConfig)) {
+            auto video = FindById(GlobalMultiOutputConfig().videoConfig, *config_->videoConfig);
+            if (video && video->resolution.has_value())
+                quality = QString::fromStdString(*video->resolution);
+        }
+        quality_->setText(quality);
+        if (!IsRunning()) {
+            const bool configured = !config_->serviceParam.value("server", std::string{}).empty() &&
+                                    !config_->serviceParam.value("key", std::string{}).empty();
+            msg_->setProperty("ready", configured);
+            SetMsg(configured ? tr("● Pronto") : tr("● Pendente"));
+            if (!configured)
+                msg_->setToolTip(tr("Informe o servidor RTMP e a stream key nas configurações."));
+            msg_->style()->unpolish(msg_);
+            msg_->style()->polish(msg_);
+        }
     }
+
+    void ReloadConfig() override { LoadConfig(); }
 
     void ResetInfo()
     {
@@ -765,7 +846,7 @@ public:
         GetGlobalService().RunInUIThread([this]() {
             begin_time_ = clock::now();
             remove_btn_->setEnabled(false);
-            btn_->setText(obs_module_text("Status.Stop"));
+            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Connecting"));
             remove_btn_->setEnabled(false);
@@ -776,7 +857,7 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
-            btn_->setText(obs_module_text("Status.Stop"));
+            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
 
@@ -791,7 +872,7 @@ public:
             timer_->stop();
 
             remove_btn_->setEnabled(false);
-            btn_->setText(obs_module_text("Status.Stop"));
+            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Reconnecting"));
         });
@@ -801,7 +882,7 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
-            btn_->setText(obs_module_text("Status.Stop"));
+            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
 
@@ -816,7 +897,7 @@ public:
             timer_->stop();
 
             remove_btn_->setEnabled(false);
-            btn_->setText(obs_module_text("Status.Stop"));
+            btn_->setChecked(true);
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Stopping"));
         });
@@ -829,14 +910,14 @@ public:
             timer_->stop();
 
             remove_btn_->setEnabled(true);
-            btn_->setText(obs_module_text("Btn.Start"));
+            btn_->setChecked(false);
             btn_->setEnabled(true);
             SetMsg(u8"");
 
             switch(code)
             {
                 case 0:
-                    SetMsg(u8"");
+                    LoadConfig();
                     break;
                 case -1:
                     SetMsg(obs_module_text("Error.WrongRTMPUrl"));

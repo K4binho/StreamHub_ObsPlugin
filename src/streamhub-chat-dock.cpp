@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QButtonGroup>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -56,14 +57,30 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
     connectionLabel_ = new QLabel(tr("● Iniciando"), header);
     connectionLabel_->setObjectName("connectionState");
     headerLayout->addWidget(connectionLabel_);
-    auto *configureButton = new QPushButton(header);
+
+    auto *headerActions = new QWidget(header);
+    auto *headerActionsLayout = new QVBoxLayout(headerActions);
+    headerActionsLayout->setContentsMargins(0, 0, 0, 0);
+    headerActionsLayout->setSpacing(1);
+    headerActionsLayout->setAlignment(Qt::AlignHCenter);
+    auto *configureButton = new QPushButton(headerActions);
     configureButton->setObjectName("iconButton");
     configureButton->setIcon(QIcon(":/streamhub-ui/icons/settings.svg"));
     configureButton->setIconSize(QSize(18, 18));
     configureButton->setToolTip(tr("Configurar chats"));
     configureButton->setFixedSize(34, 30);
     connect(configureButton, &QPushButton::clicked, this, &StreamHubChatDock::OnConfigureClicked);
-    headerLayout->addWidget(configureButton);
+    headerActionsLayout->addWidget(configureButton, 0, Qt::AlignHCenter);
+    auto *donateLink = new QLabel(
+        "<a style=\"color:#a779ff;text-decoration:none\" href=\"https://livepix.gg/k4binho\">Donate</a>",
+        headerActions);
+    donateLink->setObjectName("donateLink");
+    donateLink->setTextFormat(Qt::RichText);
+    donateLink->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    donateLink->setOpenExternalLinks(true);
+    donateLink->setToolTip(tr("Apoiar K4binho pelo LivePix"));
+    headerActionsLayout->addWidget(donateLink, 0, Qt::AlignHCenter);
+    headerLayout->addWidget(headerActions, 0, Qt::AlignTop);
     layout->addWidget(header);
 
     auto *filters = new QWidget(container);
@@ -109,6 +126,34 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
     list_->setSpacing(3);
     layout->addWidget(list_);
 
+    auto *socials = new QWidget(container);
+    socials->setObjectName("socialLinks");
+    auto *socialsLayout = new QHBoxLayout(socials);
+    socialsLayout->setContentsMargins(9, 4, 7, 4);
+    socialsLayout->setSpacing(5);
+    auto *socialsLabel = new QLabel(tr("Siga K4binho"), socials);
+    socialsLabel->setObjectName("socialsLabel");
+    socialsLayout->addWidget(socialsLabel);
+    socialsLayout->addStretch();
+    const QList<QPair<QString, QString>> socialSpecs = {
+        {"twitch", "https://www.twitch.tv/k4binho"},
+        {"kick", "https://kick.com/k4binho"},
+        {"youtube", "https://www.youtube.com/@k4binho"}};
+    for (const auto &social : socialSpecs) {
+        auto *button = new QPushButton(socials);
+        button->setObjectName("socialButton");
+        button->setIcon(IconForPlatform(social.first));
+        button->setIconSize(QSize(17, 17));
+        button->setFixedSize(30, 28);
+        button->setToolTip(social.first.at(0).toUpper() + social.first.mid(1) + " — K4binho");
+        button->setAccessibleName(button->toolTip());
+        connect(button, &QPushButton::clicked, this, [url = social.second]() {
+            QDesktopServices::openUrl(QUrl(url));
+        });
+        socialsLayout->addWidget(button);
+    }
+    layout->addWidget(socials);
+
     auto *readOnly = new QLabel(tr("◉  Chat em modo leitura"), container);
     readOnly->setObjectName("readOnlyState");
     layout->addWidget(readOnly);
@@ -121,6 +166,8 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
         QPushButton#iconButton { background: #182235; border: 1px solid #33415c;
             border-radius: 7px; color: #dce5f7; font-size: 15px; }
         QPushButton#iconButton:hover { background: #243149; border-color: #8257ff; }
+        QLabel#donateLink { font-size: 10px; }
+        QLabel#donateLink a { color: #a779ff; text-decoration: none; }
         QPushButton#filterChip { background: #182235; border: 1px solid #283651;
             border-radius: 14px; padding: 5px 11px; color: #b8c3d8; }
         QPushButton#filterChip:hover { border-color: #6e4be8; color: white; }
@@ -130,6 +177,12 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent) : QWidget(parent)
         QListWidget#chatMessages { background: #0d131e; border: 1px solid #27334a;
             border-radius: 9px; padding: 8px; outline: none; }
         QListWidget#chatMessages::item { border: none; background: transparent; }
+        QWidget#socialLinks { background: #121b2a; border: 1px solid #293750;
+            border-radius: 8px; }
+        QLabel#socialsLabel { color: #aab6ca; font-weight: 600; }
+        QPushButton#socialButton { background: transparent; border: 1px solid transparent;
+            border-radius: 6px; padding: 4px; }
+        QPushButton#socialButton:hover { background: #202d43; border-color: #5f4ab0; }
         QLabel#readOnlyState { background: #151e2e; border: 1px solid #293750;
             border-radius: 8px; color: #8492aa; padding: 9px 12px; }
     )");

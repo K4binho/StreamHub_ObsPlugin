@@ -4,6 +4,8 @@ Data: 2026-09-05. Status: em execução; DLL autocontida, separação do relay e
 
 Atualização de execução (06/09/2026): DLL autocontida instalada; extração, reparação do npm, caminho absoluto e chats Twitch/Kick validados. O frontend nativo inicial de chat/configuração e o novo visual de Múltiplas saídas foram compilados e instalados; o log confirma nova conexão com o Node. Falta validação visual/regressão dos chats e a transmissão continua sem teste. Detalhes em [STATUS.md](STATUS.md).
 
+Atualização visual: Múltiplas saídas agora possui modelos por plataforma, cartões com ícones e interruptores, configuração básica expansível e janela avançada recolorida. Fundo e coroa usam os materiais enviados pelo usuário com opacidade reduzida. A transmissão real permanece pendente.
+
 Histórico consolidado em [STATUS.md](STATUS.md) e instruções corrigidas em [BUILD_STREAMHUB.md](BUILD_STREAMHUB.md). OBS portátil confirmado pelo usuário em `E:\obs-studio`; VS Community 2026, CMake 4.4.3 e QtWebSockets 6.11.1 compilado manualmente. Os chats da Twitch e do Kick já foram testados; a transmissão ainda não foi testada, inclusive na Twitch e a rotação das chaves já foi relatada como concluída. Falta verificar as chaves atuais nos destinos nativos, sem duplicá-las no chat.
 
 ## Resultado esperado

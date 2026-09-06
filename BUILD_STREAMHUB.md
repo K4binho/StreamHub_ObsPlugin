@@ -23,6 +23,8 @@ O dock de chat possui filtros por plataforma, mensagens estruturadas e botão de
 
 A build com essa interface foi instalada no OBS portátil e o log `2026-09-06 00-35-36.txt` confirmou o carregamento e a conexão local. O envio pelo campo do chat não foi implementado: os conectores atuais apenas leem mensagens públicas, e enviar exige autenticação OAuth por plataforma. A transmissão real ainda não foi testada.
 
+O painel Múltiplas saídas também oferece modelos de Twitch, Kick, YouTube, TikTok, Facebook e RTMP personalizado. O campo `platform` é persistido em `obs-multi-rtmp.json`; arquivos antigos continuam válidos. Servidor, stream key e sincronização são editados no painel inferior, enquanto encoder, resolução e áudio ficam em **Configurações avançadas**. Os recursos visuais ficam em `assets/branding` e são incorporados à DLL pelo arquivo QRC.
+
 Se o OBS for fechado durante a primeira instalação dos pacotes Node, a pasta `node_modules` pode existir incompleta. O launcher atual só reutiliza a pasta quando também encontra `.dependencies-sha256` com o hash do `package.json`. Sem esse marcador, ele roda `npm install` novamente e se repara sozinho. Deixe o OBS aberto até o dock conectar na primeira execução; se for interrompido, basta abrir novamente.
 
 Este é o fork do [obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp)

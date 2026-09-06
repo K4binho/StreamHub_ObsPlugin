@@ -14,9 +14,15 @@
 #include "streamhub-chat-dock.h"
 #include "streamhub-launcher.h"
 #include "streamhub-paths.h"
+#include "streamhub-platforms.h"
+#include <QCheckBox>
+#include <QDialog>
 #include <QFile>
+#include <QFormLayout>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLineEdit>
+#include <QPainter>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -43,6 +49,216 @@ public:
 GlobalService& GetGlobalService() {
     return s_service;
 }
+
+class StreamHubBackdrop : public QWidget
+{
+public:
+    explicit StreamHubBackdrop(QWidget *parent = nullptr)
+        : QWidget(parent), background_(":/streamhub-ui/branding/streamhub-background.png"),
+          crown_(":/streamhub-ui/branding/k4-crown.png")
+    {
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QWidget::paintEvent(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+
+        if (!background_.isNull()) {
+            const QPixmap scaled = background_.scaled(size(), Qt::KeepAspectRatioByExpanding,
+                                                      Qt::SmoothTransformation);
+            painter.setOpacity(0.28);
+            painter.drawPixmap((width() - scaled.width()) / 2,
+                               (height() - scaled.height()) / 2, scaled);
+        }
+
+        if (!crown_.isNull()) {
+            const QPixmap crown = crown_.scaled(150, 150, Qt::KeepAspectRatio,
+                                                Qt::SmoothTransformation);
+            painter.setOpacity(0.09);
+            painter.drawPixmap(width() - crown.width() - 18, 62, crown);
+        }
+    }
+
+private:
+    QPixmap background_;
+    QPixmap crown_;
+};
+
+class StreamHubPlatformDialog : public QDialog
+{
+public:
+    explicit StreamHubPlatformDialog(QWidget *parent = nullptr) : QDialog(parent)
+    {
+        setWindowTitle(tr("Adicionar destino"));
+        setMinimumWidth(520);
+        auto *layout = new QVBoxLayout(this);
+        auto *title = new QLabel(tr("Escolha a plataforma"), this);
+        title->setObjectName("presetTitle");
+        layout->addWidget(title);
+        auto *hint = new QLabel(tr("O destino será criado com nome, ícone, protocolo e servidor conhecidos."), this);
+        hint->setObjectName("presetHint");
+        hint->setWordWrap(true);
+        layout->addWidget(hint);
+
+        auto *grid = new QGridLayout();
+        int index = 0;
+        for (const auto &preset : StreamHubPlatformPresets()) {
+            auto *button = new QPushButton(preset.name, this);
+            button->setObjectName("presetButton");
+            button->setIcon(QIcon(preset.iconPath));
+            button->setIconSize(QSize(28, 28));
+            button->setMinimumSize(150, 52);
+            connect(button, &QPushButton::clicked, this, [this, id = preset.id]() {
+                selected_ = id;
+                accept();
+            });
+            grid->addWidget(button, index / 3, index % 3);
+            ++index;
+        }
+        layout->addLayout(grid);
+        auto *cancel = new QPushButton(tr("Cancelar"), this);
+        cancel->setObjectName("presetCancel");
+        connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+        layout->addWidget(cancel, 0, Qt::AlignRight);
+
+        setStyleSheet(R"(
+            QDialog { background:#080c14; color:#f2f7ff; }
+            QLabel#presetTitle { font-size:20px; font-weight:700; color:#f2f7ff; }
+            QLabel#presetHint { color:#9eb2cb; margin-bottom:8px; }
+            QPushButton#presetButton { background:#101a2a; border:1px solid #29496f;
+                border-radius:9px; padding:9px 14px; color:#f2f7ff; text-align:left; font-weight:600; }
+            QPushButton#presetButton:hover { background:#15233a; border:1px solid #00c8ff; }
+            QPushButton#presetCancel { background:#101a2a; border:1px solid #29496f;
+                border-radius:7px; padding:7px 18px; color:#9eb2cb; }
+        )");
+    }
+
+    QString selected() const { return selected_; }
+
+private:
+    QString selected_;
+};
+
+class StreamHubInlineSettings : public QWidget
+{
+public:
+    StreamHubInlineSettings(const std::string &targetId, PushWidget *pushWidget,
+                            std::function<void()> onSaved, std::function<void()> onDelete,
+                            QWidget *parent = nullptr)
+        : QWidget(parent), targetId_(targetId), pushWidget_(pushWidget), onSaved_(std::move(onSaved)),
+          onDelete_(std::move(onDelete))
+    {
+        setObjectName("inlineSettings");
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(14, 12, 14, 12);
+        layout->setSpacing(9);
+
+        auto *header = new QHBoxLayout();
+        icon_ = new QLabel(this);
+        icon_->setFixedSize(26, 26);
+        icon_->setAlignment(Qt::AlignCenter);
+        header->addWidget(icon_);
+        title_ = new QLabel(this);
+        title_->setObjectName("inlineTitle");
+        header->addWidget(title_);
+        header->addStretch();
+        auto *close = new QPushButton(QString::fromUtf8(u8"×"), this);
+        close->setObjectName("inlineClose");
+        close->setFixedSize(28, 28);
+        connect(close, &QPushButton::clicked, this, &QWidget::hide);
+        header->addWidget(close);
+        layout->addLayout(header);
+
+        auto *form = new QFormLayout();
+        form->setHorizontalSpacing(12);
+        form->setVerticalSpacing(8);
+        name_ = new QLineEdit(this);
+        server_ = new QLineEdit(this);
+        key_ = new QLineEdit(this);
+        key_->setEchoMode(QLineEdit::Password);
+        key_->setPlaceholderText(tr("Cole a chave de transmissão"));
+        form->addRow(tr("Nome"), name_);
+        form->addRow(tr("Servidor RTMP"), server_);
+        form->addRow(tr("Stream key"), key_);
+        layout->addLayout(form);
+
+        syncStart_ = new QCheckBox(tr("Iniciar junto com a transmissão principal do OBS"), this);
+        syncStop_ = new QCheckBox(tr("Parar junto com a transmissão principal do OBS"), this);
+        layout->addWidget(syncStart_);
+        layout->addWidget(syncStop_);
+
+        auto *actions = new QGridLayout();
+        auto *advanced = new QPushButton(tr("Configurações avançadas"), this);
+        advanced->setObjectName("inlineSecondary");
+        connect(advanced, &QPushButton::clicked, this, [this]() {
+            if (pushWidget_->ShowEditDlg()) {
+                Reload();
+                if (onSaved_)
+                    onSaved_();
+            }
+        });
+        actions->addWidget(advanced, 0, 0);
+        auto *remove = new QPushButton(tr("Excluir destino"), this);
+        remove->setObjectName("inlineDanger");
+        connect(remove, &QPushButton::clicked, this, [this]() { if (onDelete_) onDelete_(); });
+        actions->addWidget(remove, 0, 1);
+        auto *save = new QPushButton(tr("Salvar alterações"), this);
+        save->setObjectName("inlinePrimary");
+        connect(save, &QPushButton::clicked, this, [this]() { Save(); });
+        actions->addWidget(save, 1, 0, 1, 2);
+        actions->setColumnStretch(0, 1);
+        actions->setColumnStretch(1, 1);
+        layout->addLayout(actions);
+        Reload();
+    }
+
+    void Reload()
+    {
+        auto target = FindById(GlobalMultiOutputConfig().targets, targetId_);
+        if (!target)
+            return;
+        const auto &platform = StreamHubPlatformForTarget(*target);
+        icon_->setPixmap(QIcon(platform.iconPath).pixmap(24, 24));
+        title_->setText(tr("Configurações de destino — %1").arg(platform.name));
+        name_->setText(QString::fromStdString(target->name));
+        server_->setText(QString::fromStdString(target->serviceParam.value("server", std::string{})));
+        key_->setText(QString::fromStdString(target->serviceParam.value("key", std::string{})));
+        syncStart_->setChecked(target->syncStart);
+        syncStop_->setChecked(target->syncStop);
+    }
+
+private:
+    void Save()
+    {
+        auto target = FindById(GlobalMultiOutputConfig().targets, targetId_);
+        if (!target)
+            return;
+        target->name = name_->text().trimmed().toStdString();
+        target->serviceParam["server"] = server_->text().trimmed().toStdString();
+        target->serviceParam["key"] = key_->text().trimmed().toStdString();
+        target->syncStart = syncStart_->isChecked();
+        target->syncStop = syncStop_->isChecked();
+        SaveMultiOutputConfig();
+        pushWidget_->ReloadConfig();
+        if (onSaved_)
+            onSaved_();
+    }
+
+    std::string targetId_;
+    PushWidget *pushWidget_;
+    std::function<void()> onSaved_;
+    std::function<void()> onDelete_;
+    QLabel *icon_ = nullptr;
+    QLabel *title_ = nullptr;
+    QLineEdit *name_ = nullptr;
+    QLineEdit *server_ = nullptr;
+    QLineEdit *key_ = nullptr;
+    QCheckBox *syncStart_ = nullptr;
+    QCheckBox *syncStop_ = nullptr;
+};
 
 
 class OutputsListWidget : public QListWidget
@@ -88,7 +304,9 @@ private:
         auto *widget = const_cast<OutputsListWidget *>(this);
         widget->doItemsLayout();
 
-        int totalHeight = frameWidth() * 2;
+        // Reserva espaço real para a borda/sombra do último cartão. Sem
+        // essa folga, o QListWidget arredonda a altura e corta a base.
+        int totalHeight = frameWidth() * 2 + 14;
         const int itemCount = count();
         for (int i = 0; i < itemCount; ++i) {
             totalHeight += sizeHintForRow(i);
@@ -112,7 +330,7 @@ public:
         setWindowTitle(obs_module_text("Title"));
         setObjectName("streamHubOutputs");
 
-        container_ = new QWidget(&scroll_);
+        container_ = new StreamHubBackdrop(&scroll_);
         container_->setObjectName("outputsPage");
         layout_ = new QVBoxLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
@@ -131,17 +349,18 @@ public:
         auto addButton = new QPushButton(QString::fromUtf8(u8"＋  ") + obs_module_text("Btn.NewTarget"), header);
         addButton->setObjectName("addDestination");
         QObject::connect(addButton, &QPushButton::clicked, [this]() {
+            StreamHubPlatformDialog chooser(this);
+            if (chooser.exec() != QDialog::Accepted || chooser.selected().isEmpty())
+                return;
             auto& global = GlobalMultiOutputConfig();
             auto newId = GenerateId(global);
             auto target = std::make_shared<OutputTargetConfig>();
             target->id = newId;
+            StreamHubApplyPlatformPreset(*target, chooser.selected());
             global.targets.emplace_back(target);
             auto pushWidget = AddPushWidget(newId);
-            if (pushWidget->ShowEditDlg()) {
-                SaveConfig();
-            } else {
-                DeletePushWidget(newId);
-            }
+            SaveConfig();
+            ShowSettingsFor(newId, pushWidget);
         });
         headerLayout->addWidget(addButton);
         layout_->addWidget(header);
@@ -206,6 +425,13 @@ public:
             &MultiOutputWidget::OnOutputMoved
         );
         layout_->addWidget(outputsContainer_);
+
+        settingsPanelHost_ = new QWidget(container_);
+        settingsPanelHost_->setObjectName("settingsPanelHost");
+        settingsPanelLayout_ = new QVBoxLayout(settingsPanelHost_);
+        settingsPanelLayout_->setContentsMargins(0, 0, 0, 0);
+        settingsPanelHost_->hide();
+        layout_->addWidget(settingsPanelHost_);
 
         // donate
         if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
@@ -301,29 +527,42 @@ public:
         scroll_.setFrameShape(QFrame::NoFrame);
 
         setStyleSheet(R"(
-            QWidget#streamHubOutputs, QWidget#outputsPage { background: #101622; color: #edf1fb; }
-            QScrollArea#outputsScroll { background: #101622; border: none; }
-            QLabel#outputsTitle { color: #f5f2ff; font-size: 17px; font-weight: 700; }
-            QPushButton#addDestination { background: #1a2436; border: 1px solid #3b4a66;
+            QWidget#streamHubOutputs { background: #080c14; color: #f2f7ff; }
+            QWidget#outputsPage { background: transparent; color: #f2f7ff; }
+            QScrollArea#outputsScroll, QScrollArea#outputsScroll > QWidget > QWidget { background: transparent; border: none; }
+            QLabel#outputsTitle { color: #f2f7ff; font-size: 18px; font-weight: 700; }
+            QPushButton#addDestination { background: #101a2a; border: 1px solid #29496f;
                 border-radius: 8px; padding: 8px 14px; color: #edf1fb; font-weight: 600; }
-            QPushButton#addDestination:hover { border-color: #8257ff; background: #243149; }
-            QPushButton#startAll { background: #087c43; border: 1px solid #21d77c;
+            QPushButton#addDestination:hover { border-color: #00c8ff; background: #15233a; }
+            QPushButton#startAll { background: #087d42; border: 1px solid #16d86a;
                 border-radius: 8px; color: white; font-weight: 700; }
-            QPushButton#startAll:hover { background: #0a9651; }
-            QPushButton#stopAll { background: #50202c; border: 1px solid #dc3656;
+            QPushButton#startAll:hover { background: #0a9651; border-color:#3cff91; }
+            QPushButton#stopAll { background: #431c29; border: 1px solid #d94155;
                 border-radius: 8px; color: #ffdce3; font-weight: 700; }
-            QPushButton#stopAll:hover { background: #672637; }
-            QWidget#outputCard { background: #151e2e; border: 1px solid #2b3952;
+            QPushButton#stopAll:hover { background: #5b2231; }
+            QWidget#outputCard { background: rgba(16,26,42,235); border: 1px solid #29496f;
                 border-radius: 9px; }
-            QLabel#outputName { color: #f3f5fb; font-size: 14px; font-weight: 700; }
-            QLabel#outputStatus { color: #8fa0ba; }
-            QPushButton#outputStart { background: #263551; border: 1px solid #425474;
-                border-radius: 7px; padding: 6px 12px; color: white; font-weight: 600; }
-            QPushButton#outputStart:hover { background: #334667; border-color: #8257ff; }
-            QPushButton#outputEdit, QPushButton#outputDelete { background: #1c273a;
-                border: 1px solid #35455f; border-radius: 7px; padding: 6px 10px; color: #dbe4f5; }
-            QPushButton#outputEdit:hover { border-color: #8257ff; }
-            QPushButton#outputDelete:hover { border-color: #dc3656; color: #ff9caf; }
+            QLabel#outputName { color: #f2f7ff; font-size: 15px; font-weight: 700; }
+            QLabel#outputStatus { color: #9eb2cb; }
+            QLabel#outputStatus[ready="true"] { color: #16d86a; }
+            QLabel#outputQuality { background:#101a2a; border:1px solid #29496f;
+                border-radius:6px; padding:5px 8px; color:#dbe8f8; }
+            QPushButton#outputEdit { background: #101a2a; border: 1px solid #29496f;
+                border-radius: 7px; padding: 6px; color: #dbe4f5; }
+            QPushButton#outputEdit:hover { border-color: #00c8ff; background:#15233a; }
+            QWidget#inlineSettings { background:rgba(16,26,42,242); border:1px solid #00c8ff;
+                border-radius:10px; color:#f2f7ff; }
+            QLabel#inlineTitle { font-size:16px; font-weight:700; color:#f2f7ff; }
+            QPushButton#inlineClose { background:transparent; border:none; color:#9eb2cb; font-size:20px; }
+            QLineEdit { background:#080c14; border:1px solid #29496f; border-radius:7px;
+                min-height:30px; padding:3px 8px; color:#f2f7ff; }
+            QLineEdit:focus { border-color:#00c8ff; }
+            QPushButton#inlinePrimary { background:#0077ff; border:1px solid #00c8ff; border-radius:7px;
+                padding:7px 13px; color:white; font-weight:700; }
+            QPushButton#inlineSecondary { background:#101a2a; border:1px solid #29496f; border-radius:7px;
+                padding:7px 11px; color:#f2f7ff; }
+            QPushButton#inlineDanger { background:#351924; border:1px solid #d94155; border-radius:7px;
+                padding:7px 11px; color:#ffb9c2; }
         )");
 
         auto fullLayout = new QGridLayout(this);
@@ -445,9 +684,42 @@ private:
     QScrollArea scroll_;
     // Widget, that contains output source widgets
     QListWidget* outputsContainer_ = 0;
+    QWidget* settingsPanelHost_ = nullptr;
+    QVBoxLayout* settingsPanelLayout_ = nullptr;
+    StreamHubInlineSettings* settingsPanel_ = nullptr;
+    std::string settingsTargetId_;
+
+    void ShowSettingsFor(const std::string &targetId, PushWidget *pushWidget)
+    {
+        if (settingsPanel_ && settingsTargetId_ == targetId) {
+            settingsPanelHost_->setVisible(!settingsPanelHost_->isVisible());
+            return;
+        }
+        if (settingsPanel_) {
+            settingsPanelLayout_->removeWidget(settingsPanel_);
+            settingsPanel_->deleteLater();
+        }
+        settingsTargetId_ = targetId;
+        settingsPanel_ = new StreamHubInlineSettings(
+            targetId, pushWidget,
+            [this, pushWidget]() {
+                pushWidget->ReloadConfig();
+                outputsContainer_->doItemsLayout();
+            },
+            [pushWidget]() { pushWidget->GetDeleteButton()->click(); }, settingsPanelHost_);
+        settingsPanelLayout_->addWidget(settingsPanel_);
+        settingsPanelHost_->show();
+    }
 
     void DeletePushWidget(const std::string& targetId)
     {
+        if (settingsPanel_ && settingsTargetId_ == targetId) {
+            settingsPanelLayout_->removeWidget(settingsPanel_);
+            settingsPanel_->deleteLater();
+            settingsPanel_ = nullptr;
+            settingsTargetId_.clear();
+            settingsPanelHost_->hide();
+        }
         // Delete from model
         auto outputTargets = &(GlobalMultiOutputConfig().targets);
         auto currentTarget = std::find_if(outputTargets->begin(), outputTargets->end(), [&targetId](auto& x) { return x->id == targetId; });
@@ -496,6 +768,9 @@ private:
             DeletePushWidget(targetId);
             SaveConfig();
         });
+
+        QObject::connect(pushWidget->GetEditButton(), &QPushButton::clicked,
+                         [this, targetId, pushWidget]() { ShowSettingsFor(targetId, pushWidget); });
 
         return pushWidget;
     }

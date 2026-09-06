@@ -38,6 +38,9 @@
     <file alias="icons/kick.svg">../assets/icons/kick.svg</file>
     <file alias="icons/youtube.svg">../assets/icons/youtube.svg</file>
     <file alias="icons/tiktok.svg">../assets/icons/tiktok.svg</file>
+    <file alias="icons/facebook.svg">../assets/icons/facebook.svg</file>
     <file alias="icons/settings.svg">../assets/icons/settings.svg</file>
+    <file alias="branding/streamhub-background.png">../assets/branding/streamhub-background.png</file>
+    <file alias="branding/k4-crown.png">../assets/branding/k4-crown.png</file>
   </qresource>
 </RCC>

@@ -27,6 +27,21 @@ Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico
 - O painel Múltiplas saídas identifica o projeto como gratuito e credita SoraYuki pelo projeto original e K4binho pelas melhorias StreamHub, com links de apoio para PayPal e LivePix respectivamente.
 - O README principal registra as alterações do fork: visual, chat unificado, configuração nativa, DLL autocontida e correções de instalação/inicialização.
 - Correção compilada e instalada no OBS portátil. O arquivo instalado tem o mesmo SHA-256 da DLL gerada; falta somente confirmar o botão **Salvar e aplicar** pela interface.
+- O cabeçalho do chat passa a exibir **Donate** abaixo da engrenagem, apontando para o LivePix do K4binho. Uma faixa no rodapé dá acesso às redes Twitch, Kick e YouTube do K4binho.
+
+## Redesign de Múltiplas saídas — 06/09/2026
+
+- Paleta aplicada: fundo `#080c14`, superfície `#101a2a`, hover `#15233a`, borda `#29496f`, azul `#00c8ff/#0077ff`, texto `#f2f7ff`, muted `#9eb2cb`, sucesso `#16d86a` e perigo `#d94155`.
+- **Adicionar novo destino** abre um seletor visual para Twitch, Kick, YouTube, TikTok, Facebook ou RTMP personalizado. O modelo salva um campo `platform` novo; configurações antigas continuam compatíveis e têm a plataforma inferida pelo nome/servidor.
+- Twitch, YouTube e Facebook recebem seus servidores públicos conhecidos. Kick e TikTok deixam o servidor vazio para receber o endereço fornecido pelo painel da conta.
+- Cada cartão mostra ícone, nome, estado, qualidade, interruptor de iniciar/parar e engrenagem. Destinos incompletos não iniciam e orientam a preencher servidor e stream key.
+- A engrenagem abre abaixo da lista um painel para nome, servidor, chave e sincronização com o OBS. Configurações avançadas de encoder/áudio continuam disponíveis e a janela antiga recebeu a mesma paleta.
+- A textura enviada pelo usuário é usada no fundo do painel; a coroa K4binho aparece com baixa opacidade no canto. As imagens ficam embutidas na DLL e em cache durante a pintura.
+- O aviso gratuito e os links de apoio a SoraYuki e K4binho permanecem no rodapé.
+- Build `RelWithDebInfo` concluído, DLL instalada com SHA-256 conferido e OBS carregado. O log `2026-09-06 10-20-20.txt` confirma dois destinos nativos carregados e nenhum erro do módulo.
+- Após o primeiro teste visual, a altura calculada da lista ganhou folga para preservar a borda inferior do último cartão. Estados longos foram reduzidos para **Pendente/Pronto**, mantendo a explicação completa no tooltip, para não cortar letras no dock estreito.
+- [ ] Validar visualmente seletor, cartões, painel expansível e janela avançada na largura usada pelo usuário.
+- [ ] Testar iniciar/parar de verdade; transmissão continua sem validação real.
 
 ## Correção do caminho — 06/09/2026
 

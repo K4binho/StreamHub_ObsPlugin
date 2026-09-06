@@ -491,6 +491,31 @@ public:
         config_ = std::make_shared<OutputTargetConfig>(*config_);
 
         setWindowTitle(obs_module_text("StreamingSettings"));
+        setObjectName("streamHubOutputDialog");
+        setMinimumSize(780, 560);
+        setStyleSheet(R"(
+            QDialog#streamHubOutputDialog { background:#080c14; color:#f2f7ff; }
+            QScrollArea { background:#080c14; border:none; }
+            QWidget#outputDialogContent { background:#080c14; color:#f2f7ff; }
+            QLabel, QCheckBox { color:#f2f7ff; }
+            QLineEdit, QComboBox { background:#101a2a; border:1px solid #29496f;
+                border-radius:6px; min-height:30px; padding:3px 8px; color:#f2f7ff; }
+            QLineEdit:focus, QComboBox:focus { border-color:#00c8ff; }
+            QComboBox::drop-down { border:none; width:26px; }
+            QTabWidget::pane { border:1px solid #29496f; background:#101a2a; border-radius:7px; }
+            QTabBar::tab { background:#101a2a; color:#9eb2cb; border:1px solid #29496f;
+                padding:8px 18px; }
+            QTabBar::tab:selected { background:#0077ff; color:white; border-color:#00c8ff; }
+            QGroupBox { background:rgba(16,26,42,235); border:1px solid #29496f;
+                border-radius:8px; margin-top:14px; padding-top:10px; color:#f2f7ff; font-weight:700; }
+            QGroupBox::title { subcontrol-origin:margin; left:10px; padding:0 5px; }
+            QPushButton { background:#101a2a; border:1px solid #29496f; border-radius:7px;
+                min-height:30px; padding:3px 12px; color:#f2f7ff; }
+            QPushButton:hover { background:#15233a; border-color:#00c8ff; }
+            QPushButton#saveOutput { background:#0077ff; border-color:#00c8ff; font-weight:700; }
+            QScrollBar:vertical { background:#080c14; width:10px; }
+            QScrollBar::handle:vertical { background:#29496f; border-radius:5px; min-height:28px; }
+        )");
 
         scroll_ = new ContentSizeScrollArea(this);
         scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
@@ -499,6 +524,7 @@ public:
         scroll_->setSizeAdjustPolicy(QScrollArea::SizeAdjustPolicy::AdjustToContents);
 
         container_ = new QWidget(scroll_);
+        container_->setObjectName("outputDialogContent");
         container_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
 
         auto layout = new QVBoxLayout(container_);
@@ -648,6 +674,7 @@ public:
         ++currow;
         {
             auto okbtn = new QPushButton(obs_module_text("OK"), container_);
+            okbtn->setObjectName("saveOutput");
             QObject::connect(okbtn, &QPushButton::clicked, [this]() {
                 SaveConfig();
                 auto& global = GlobalMultiOutputConfig();
@@ -664,7 +691,7 @@ public:
         container_->setLayout(layout);
 
         scroll_->setWidget(container_);
-        scroll_->setWidgetResizable(false);
+        scroll_->setWidgetResizable(true);
 
         auto fullLayout = new QGridLayout(this);
         fullLayout->setContentsMargins(0, 0, 0, 0);
