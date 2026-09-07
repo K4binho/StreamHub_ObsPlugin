@@ -14,7 +14,7 @@ namespace {
 // Suba este número sempre que qrc/streamhub-data.qrc mudar de conteúdo
 // (novo arquivo, JS corrigido, etc.) para forçar reextração na próxima
 // abertura do OBS. Não precisa acompanhar PLUGIN_VERSION.
-constexpr const char *kBundleVersion = "3";
+constexpr const char *kBundleVersion = "10";
 
 constexpr const char *kResourcePrefix = ":/streamhub-data";
 constexpr const char *kVersionMarkerName = ".streamhub-bundle-version";

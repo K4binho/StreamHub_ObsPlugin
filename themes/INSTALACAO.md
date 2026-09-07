@@ -11,7 +11,7 @@ Tema visual escuro, urbano e profissional criado para o StreamHub. A base de com
 
 Atualizações futuras do tema são aplicadas automaticamente pela DLL.
 
-No Windows, a DLL também aplica a paleta navy/ciano à barra de título das janelas nativas quando este tema está ativo, incluindo **Informações da transmissão**. O conteúdo do Chat e do Feed de atividade da Twitch é uma página web externa e não recebe estilos `.qss`; para uma interface uniforme, oculte esses dois painéis em **Painéis (D)** e use **StreamHub Chat · K4**.
+No Windows, a DLL também aplica a paleta navy/ciano às janelas nativas e registra a logo K4 nas entradas **Múltiplas saídas · K4**, **StreamHub Chat · K4** e **Informações de transmissão K4**. O conteúdo do Chat e do Feed de atividade da Twitch é uma página web externa e não recebe estilos `.qss`; para uma interface uniforme, oculte esses dois painéis em **Painéis (D)** e use **StreamHub Chat · K4**.
 
 ## Instalação manual pelo ZIP
 

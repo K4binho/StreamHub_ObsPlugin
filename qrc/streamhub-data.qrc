@@ -22,6 +22,8 @@
     <file alias="streamhub-server/server/index.js">../data/streamhub-server/server/index.js</file>
     <file alias="streamhub-server/server/config-store.js">../data/streamhub-server/server/config-store.js</file>
     <file alias="streamhub-server/server/routes/api.js">../data/streamhub-server/server/routes/api.js</file>
+    <file alias="streamhub-server/server/accounts.js">../data/streamhub-server/server/accounts.js</file>
+    <file alias="streamhub-server/server/platform-actions.js">../data/streamhub-server/server/platform-actions.js</file>
     <file alias="streamhub-server/server/chat/twitch.js">../data/streamhub-server/server/chat/twitch.js</file>
     <file alias="streamhub-server/server/chat/kick.js">../data/streamhub-server/server/chat/kick.js</file>
     <file alias="streamhub-server/server/chat/youtube.js">../data/streamhub-server/server/chat/youtube.js</file>

@@ -67,6 +67,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/streamhub-chat-dock.cpp
   ./src/streamhub-chat-settings.h
   ./src/streamhub-chat-settings.cpp
+  ./src/streamhub-chat-admin.h
+  ./src/streamhub-chat-admin.cpp
+  ./src/streamhub-control-dock.h
+  ./src/streamhub-control-dock.cpp
   ./src/streamhub-platforms.h
   ./src/streamhub-platforms.cpp
   ./src/streamhub-theme-installer.h

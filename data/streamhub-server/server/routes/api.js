@@ -1,6 +1,7 @@
 const express = require('express');
 const { readConfig, writeConfig } = require('../config-store');
 
+function createApiRouter(accounts) {
 const router = express.Router();
 
 // Retorna o config.json inteiro pro dashboard preencher os campos.
@@ -29,4 +30,221 @@ router.post('/config', (req, res) => {
   }
 });
 
-module.exports = router;
+router.get('/accounts/twitch/status', (_req, res) => {
+  res.json(accounts.status());
+});
+
+router.post('/accounts/twitch/connect', async (_req, res) => {
+  try { res.json(await accounts.start()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/accounts/twitch/connect/:flowId', async (req, res) => {
+  try { res.json(await accounts.poll(req.params.flowId)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/twitch/channel', async (_req, res) => {
+  try {
+    const broadcasterId = await accounts.userId();
+    const result = await accounts.request(`/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`);
+    const channel = result.data?.[0];
+    if (!channel) throw new Error('A Twitch não retornou as informações do canal.');
+    res.json({
+      title: channel.title || '', gameId: channel.game_id || '', gameName: channel.game_name || '',
+      language: channel.broadcaster_language || 'pt', tags: channel.tags || [],
+      classificationLabels: (channel.content_classification_labels || []).filter((item) => item.is_enabled).map((item) => item.id),
+    });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/twitch/categories', async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  if (query.length < 2) return res.json({ data: [] });
+  try {
+    const result = await accounts.request(`/search/categories?query=${encodeURIComponent(query)}&first=10`);
+    res.json({ data: (result.data || []).map((item) => ({
+      id: item.id, name: item.name,
+      boxArtUrl: String(item.box_art_url || '').replace('{width}', '52').replace('{height}', '72'),
+    })) });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.patch('/twitch/channel', async (req, res) => {
+  const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+  const gameId = typeof req.body?.gameId === 'string' ? req.body.gameId.trim() : '';
+  if (!title && !gameId) return res.status(400).json({ error: 'Informe um título ou selecione uma categoria.' });
+  if (title.length > 140) return res.status(400).json({ error: 'O título pode ter no máximo 140 caracteres.' });
+  try {
+    const broadcasterId = await accounts.userId();
+    const body = {};
+    if (title) body.title = title;
+    if (gameId) body.game_id = gameId;
+    await accounts.request(`/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    });
+    res.json({ ok: true });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.post('/broadcast/apply', async (req, res) => {
+  const title = String(req.body?.title || '').trim();
+  const category = String(req.body?.category || '').trim();
+  const categoryId = String(req.body?.categoryId || '').trim();
+  if (!title) return res.status(400).json({ error: 'Informe o título da transmissão.' });
+  if (title.length > 140) return res.status(400).json({ error: 'O título pode ter no máximo 140 caracteres.' });
+  const results = [];
+  try {
+    const broadcasterId = await accounts.userId();
+    const body = { title };
+    if (categoryId) {
+      body.game_id = categoryId;
+    } else if (category) {
+      const found = await accounts.request(`/search/categories?query=${encodeURIComponent(category)}&first=10`);
+      const exact = (found.data || []).find((item) => item.name.toLowerCase() === category.toLowerCase());
+      if (!exact) throw new Error('Selecione uma categoria existente da Twitch.');
+      body.game_id = exact.id;
+    }
+    if (Array.isArray(req.body?.tags)) body.tags = req.body.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 10);
+    if (typeof req.body?.language === 'string' && req.body.language) body.broadcaster_language = req.body.language;
+    const classificationIds = ['ProfanityVulgarity', 'ViolentGraphic', 'DebatedSocialIssuesAndPolitics', 'Gambling'];
+    if (typeof req.body?.classification === 'string') {
+      body.content_classification_labels = classificationIds.map((id) => ({ id, is_enabled: id === req.body.classification }));
+    }
+    await accounts.request(`/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`, { method: 'PATCH', body: JSON.stringify(body) });
+    const ignored = [];
+    if (req.body?.notification) ignored.push('notificação');
+    if (Number(req.body?.visibility) !== 0) ignored.push('visibilidade');
+    results.push({ platform: 'Twitch', ok: true, message: ignored.length ? `Atualizada; ${ignored.join(' e ')} não existem na API da Twitch.` : 'Informações atualizadas.' });
+  } catch (err) {
+    results.push({ platform: 'Twitch', ok: false, message: err.message });
+  }
+  const config = readConfig();
+  for (const [key, name] of [['youtube', 'YouTube'], ['kick', 'Kick'], ['tiktok', 'TikTok']]) {
+    if (config[key]?.enabled) results.push({ platform: name, ok: false, message: 'OAuth desta plataforma ainda não está conectado.' });
+  }
+  res.json({ results });
+});
+
+router.post('/chat/send', async (req, res) => {
+  const message = String(req.body?.message || '').trim();
+  const target = String(req.body?.target || 'all').toLowerCase();
+  if (!message || message.length > 500) return res.status(400).json({ error: 'Digite uma mensagem com até 500 caracteres.' });
+  if (!['all', 'twitch', 'kick', 'youtube', 'tiktok'].includes(target)) return res.status(400).json({ error: 'Chat de destino inválido.' });
+  if (target !== 'all' && target !== 'twitch') return res.status(400).json({ error: `O envio autenticado para ${target} ainda não está conectado.` });
+  try {
+    const config = readConfig();
+    const senderId = await accounts.userId();
+    let broadcasterId = senderId;
+    const channel = String(config.twitch?.channel || '').trim();
+    if (channel) {
+      const users = await accounts.request(`/users?login=${encodeURIComponent(channel)}`);
+      if (!users.data?.[0]) throw new Error('Canal da Twitch não encontrado.');
+      broadcasterId = users.data[0].id;
+    }
+    const result = await accounts.request('/chat/messages', { method: 'POST', body: JSON.stringify({ broadcaster_id: broadcasterId, sender_id: senderId, message }) });
+    if (!result.data?.[0]?.is_sent) throw new Error(result.data?.[0]?.drop_reason?.message || 'A Twitch recusou a mensagem.');
+    res.json({ results: [{ platform: 'Twitch', ok: true, message: 'Mensagem enviada.' }] });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.post('/twitch/moderation', async (req, res) => {
+  const action = String(req.body?.action || 'timeout');
+  const login = String(req.body?.user || '').trim().replace(/^@/, '');
+  if (!login) return res.status(400).json({ error: 'Informe o usuário.' });
+  try {
+    const broadcasterId = await accounts.userId();
+    const users = await accounts.request(`/users?login=${encodeURIComponent(login)}`);
+    const targetId = users.data?.[0]?.id;
+    if (!targetId) throw new Error('Usuário não encontrado.');
+    const query = `broadcaster_id=${encodeURIComponent(broadcasterId)}&moderator_id=${encodeURIComponent(broadcasterId)}`;
+    if (action === 'unban') {
+      await accounts.request(`/moderation/bans?${query}&user_id=${encodeURIComponent(targetId)}`, { method: 'DELETE' });
+    } else {
+      const data = { user_id: targetId };
+      if (action === 'timeout') data.duration = Math.min(1209600, Math.max(1, Number(req.body?.duration) || 600));
+      await accounts.request(`/moderation/bans?${query}`, { method: 'POST', body: JSON.stringify({ data }) });
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/twitch/chat-settings', async (_req, res) => {
+  try {
+    const broadcasterId = await accounts.userId();
+    const query = `broadcaster_id=${encodeURIComponent(broadcasterId)}&moderator_id=${encodeURIComponent(broadcasterId)}`;
+    const result = await accounts.request(`/chat/settings?${query}`);
+    res.json({ data: result.data?.[0] || {} });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.patch('/twitch/chat-settings', async (req, res) => {
+  try {
+    const broadcasterId = await accounts.userId();
+    const query = `broadcaster_id=${encodeURIComponent(broadcasterId)}&moderator_id=${encodeURIComponent(broadcasterId)}`;
+    const slowSeconds = Math.min(120, Math.max(3, Number(req.body?.slowModeWaitTime) || 30));
+    const body = {
+      slow_mode: Boolean(req.body?.slowMode),
+      follower_mode: Boolean(req.body?.followerMode),
+      subscriber_mode: Boolean(req.body?.subscriberMode),
+      emote_mode: Boolean(req.body?.emoteMode),
+    };
+    if (body.slow_mode) body.slow_mode_wait_time = slowSeconds;
+    if (body.follower_mode) body.follower_mode_duration = 0;
+    const result = await accounts.request(`/chat/settings?${query}`, { method: 'PATCH', body: JSON.stringify(body) });
+    res.json({ data: result.data?.[0] || body });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/twitch/rewards', async (_req, res) => {
+  try {
+    const broadcasterId = await accounts.userId();
+    const result = await accounts.request(`/channel_points/custom_rewards?broadcaster_id=${encodeURIComponent(broadcasterId)}&only_manageable_rewards=true`);
+    res.json({ data: result.data || [] });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.post('/twitch/rewards', async (req, res) => {
+  const title = String(req.body?.title || '').trim();
+  const cost = Number(req.body?.cost);
+  if (!title || title.length > 45 || !Number.isInteger(cost) || cost < 1) return res.status(400).json({ error: 'Informe título e custo válido para a recompensa.' });
+  try {
+    const broadcasterId = await accounts.userId();
+    const body = { title, cost, prompt: String(req.body?.prompt || '').trim().slice(0, 200), is_enabled: true };
+    const result = await accounts.request(`/channel_points/custom_rewards?broadcaster_id=${encodeURIComponent(broadcasterId)}`, { method: 'POST', body: JSON.stringify(body) });
+    res.json({ data: result.data?.[0] });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/twitch/rewards/:rewardId/redemptions', async (req, res) => {
+  const rewardId = String(req.params.rewardId || '').trim();
+  if (!rewardId) return res.status(400).json({ error: 'Selecione uma recompensa.' });
+  try {
+    const broadcasterId = await accounts.userId();
+    const query = `broadcaster_id=${encodeURIComponent(broadcasterId)}&reward_id=${encodeURIComponent(rewardId)}&status=UNFULFILLED&sort=OLDEST&first=50`;
+    const result = await accounts.request(`/channel_points/custom_rewards/redemptions?${query}`);
+    res.json({ data: result.data || [] });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.patch('/twitch/rewards/:rewardId/redemptions/:redemptionId', async (req, res) => {
+  const rewardId = String(req.params.rewardId || '').trim();
+  const redemptionId = String(req.params.redemptionId || '').trim();
+  const status = String(req.body?.status || '').toUpperCase();
+  if (!rewardId || !redemptionId || !['FULFILLED', 'CANCELED'].includes(status)) {
+    return res.status(400).json({ error: 'Resgate ou estado inválido.' });
+  }
+  try {
+    const broadcasterId = await accounts.userId();
+    const query = `broadcaster_id=${encodeURIComponent(broadcasterId)}&reward_id=${encodeURIComponent(rewardId)}&id=${encodeURIComponent(redemptionId)}`;
+    const result = await accounts.request(`/channel_points/custom_rewards/redemptions?${query}`, {
+      method: 'PATCH', body: JSON.stringify({ status }),
+    });
+    res.json({ data: result.data?.[0] });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+return router;
+}
+
+module.exports = { createApiRouter };

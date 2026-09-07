@@ -8,8 +8,13 @@
 #include <QTimer>
 #include <QPixmap>
 #include <QStringList>
+#include <QHash>
+#include <QSet>
 
 class QButtonGroup;
+class QJsonObject;
+class QLineEdit;
+class QPushButton;
 
 // Dock nativo (Qt puro, sem CEF) que consulta o endpoint HTTP
 // /api/chat/poll do servidor StreamHub e mostra as mensagens do chat
@@ -45,6 +50,8 @@ private slots:
     void PollOnce();
     void OnPollFinished(QNetworkReply *reply);
     void OnConfigureClicked();
+    void OnAdminClicked();
+    void SendMessage();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -55,23 +62,37 @@ private:
     void AppendConnectionNotice(const QString &platform, const QString &message, bool connected);
     void ApplyFilter();
     void SetConnected(bool connected);
+    void UpdatePlatformStatus(const QString &platform, const QString &state, bool connected);
+    void UpdateConnectionPresentation();
+    void RebuildEnabledPlatforms(const QJsonObject &config);
 
     QLabel *statusLabel_ = nullptr;
     QLabel *connectionLabel_ = nullptr;
     QListWidget *list_ = nullptr;
     QButtonGroup *filterGroup_ = nullptr;
     QNetworkAccessManager *net_ = nullptr;
+    QNetworkAccessManager *actionNet_ = nullptr;
     QTimer *retryTimer_ = nullptr;
+    QTimer *statusAnimationTimer_ = nullptr;
 
     int port_ = 3000;
     qint64 since_ = 0;
     bool connected_ = false;
     bool pollInFlight_ = false;
+    bool showTimestamps_ = true;
+    int statusAnimationStep_ = 0;
     QString configPath_;
     QString activeFilter_ = "all";
     QStringList highlightTerms_;
+    QSet<QString> enabledPlatforms_;
+    QHash<QString, bool> platformStatuses_;
+    QHash<QString, QString> platformStatusStates_;
     QPixmap background_;
     QPixmap crown_;
+    QLineEdit *messageInput_ = nullptr;
+    QPushButton *sendButton_ = nullptr;
+    QLabel *sendStatus_ = nullptr;
+    QHash<QString, qint64> pendingOutgoing_;
 
     static constexpr int kMaxItems = 200;
 };

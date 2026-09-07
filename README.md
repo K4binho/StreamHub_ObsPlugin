@@ -3,8 +3,8 @@
 Este projeto é uma modificação do [obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp), criado por **SoraYuki**. O trabalho original das múltiplas saídas foi preservado e recebeu melhorias de **K4binho** para formar o StreamHub:
 
 - visual escuro integrado ao OBS para chat e múltiplas saídas;
-- chat unificado com Twitch e Kick validados ponta a ponta; conectores de YouTube e TikTok disponíveis para validação no canal do usuário;
-- configuração dos chats dentro do próprio dock;
+- chat unificado com leitura de Twitch e Kick e envio autenticado pela Twitch diretamente no dock;
+- configuração dos canais, moderação, ajustes administrativos e recompensas dentro do **StreamHub Chat · K4**;
 - servidor de chat e recursos embutidos na DLL;
 - instalação autorreparável, sem a antiga dependência manual do QtWebSockets;
 - correções de inicialização, caminhos e dependências no Windows/OBS portátil.
@@ -12,14 +12,16 @@ Este projeto é uma modificação do [obs-multi-rtmp](https://github.com/sorayuk
 - servidor RTMP e stream key protegidos por padrão, com controles para visualizar/copiar e validação antes de iniciar;
 - modelos de destino para Twitch, Kick, YouTube, TikTok, Facebook e RTMP personalizado;
 - **Iniciar tudo** aciona primeiro a transmissão principal do OBS e, depois que ela estiver ativa, inicia somente os destinos marcados;
+- a transmissão principal do OBS aparece como o primeiro cartão fixo, acima das saídas adicionais;
 - textura StreamHub no fundo e coroa K4binho usada somente como marca d'água discreta.
 - identidade visual inspirada nas artes K4binho, com textura mais visível, logotipo K4 no chat e câmera no cabeçalho das saídas;
 - tema completo **K4binho — Má Fase** embutido na DLL, com instalação automática, versão `.qss`, pacote `.obt` para OBS 32 e fundo de cena 1920×1080;
 - overlay transparente em `http://127.0.0.1:3000/overlay.html`, pronto para Fonte de navegador, com cor e ícone por plataforma, badges, destaque de menções e remoção automática;
 - aba **Overlay** nas configurações do chat com tempo das mensagens, nome do canal, filtros de comandos por plataforma, cópia da URL e prévia;
-- aviso de reconexão por plataforma no dock e no overlay, além de auto-scroll que permanece travado enquanto o streamer lê mensagens antigas;
+- alertas comuns de online/offline ficam ocultos; somente a reinicialização efetiva do chat é informada, e o auto-scroll permanece travado enquanto o streamer lê mensagens antigas;
 - destinos RTMP personalizados agora podem escolher ícone e cor; o painel mostra a banda agregada das saídas adicionais ativas;
 - entradas do plugin no menu **Painéis** recebem identificação K4 e o tema aplica a barra nativa escura às janelas abertas no Windows;
+- painel **Informações de transmissão K4** com cartão da conta Twitch, autorização persistente, prévia da live, contadores e busca visual de jogo/categoria;
 
 Este plugin é fornecido gratuitamente. Se quiser apoiar o trabalho:
 
@@ -39,7 +41,13 @@ A URL aceita ajustes temporários, úteis para fontes diferentes: `?duration=30&
 
 ## Painéis nativos do OBS
 
-O `.qss` cobre widgets Qt, Estatísticas, molduras de docks e janelas auxiliares. O conteúdo do **Chat** e do **Feed de atividade da Twitch** é uma página web fornecida pela Twitch dentro do OBS; esse conteúdo não aceita o stylesheet Qt do tema. Para manter uma interface consistente, use **Painéis (D)** para ocultar Chat e Feed de atividade da Twitch e deixe o **StreamHub Chat · K4** no lugar deles. A janela **Informações da transmissão** recebe barra nativa navy/ciano no Windows quando o tema K4binho está ativo.
+Em **Painéis**, o plugin registra três entradas com a marca K4:
+
+- **Múltiplas saídas · K4:** transmissão principal primeiro, seguida dos destinos adicionais.
+- **StreamHub Chat · K4:** leitura, filtros e envio. O botão **ADM** abre moderação e recompensas.
+- **Informações de transmissão K4:** conta Twitch e edição dos dados da live com prévia.
+
+Na aba **Todos**, uma mensagem enviada pelo StreamHub aparece uma única vez com o selo **Todos**, mesmo quando as plataformas devolvem cópias da mesma mensagem. O conteúdo do Chat e do Feed de atividade nativos da Twitch é uma página web e não recebe o stylesheet Qt; o StreamHub Chat pode substituí-los na disposição do OBS.
 
 TikTok permanece marcado como **experimental** até um teste ponta a ponta em uma live real. Facebook está disponível como destino RTMP, mas o conector de chat ainda está no roadmap e não é anunciado como suportado.
 

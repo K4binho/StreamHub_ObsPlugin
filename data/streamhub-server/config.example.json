@@ -3,6 +3,10 @@
     "port": 3000
   },
 
+  "chat": {
+    "showTimestamps": true
+  },
+
   "overlay": {
     "messageDurationSeconds": 20,
     "channelName": "",

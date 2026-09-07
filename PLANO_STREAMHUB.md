@@ -1,6 +1,6 @@
 # Plano de execução — StreamHub nativo + chats
 
-Data: 2026-09-05. Status: em execução; DLL autocontida, separação do relay e primeira interface nativa implementadas.
+Data: 2026-09-05. Status atualizado em 06/09/2026: DLL autocontida, painéis nativos, Twitch OAuth, envio no chat, moderação, recompensas e editor de transmissão implementados. Permanecem pendentes OAuth e escrita para YouTube, Kick e TikTok, além do teste real de transmissão.
 
 Atualização de execução (06/09/2026): DLL autocontida instalada; extração, reparação do npm, caminho absoluto e chats Twitch/Kick validados. O frontend nativo inicial de chat/configuração e o novo visual de Múltiplas saídas foram compilados e instalados; o log confirma nova conexão com o Node. Falta validação visual/regressão dos chats e a transmissão continua sem teste. Detalhes em [STATUS.md](STATUS.md).
 
@@ -12,7 +12,14 @@ Histórico consolidado em [STATUS.md](STATUS.md) e instruções corrigidas em [B
 
 Transmitir para Twitch e Kick pelas saídas nativas do OBS, compartilhando o encoder quando compatível. Configurar os chats pelo dock StreamHub, sem editar JSON e sem cadastrar chaves RTMP no servidor de chat. Salvar e aplicar canais sem fechar o OBS ou interromper a transmissão.
 
-YouTube/TikTok completos e envio de mensagens exigem uma etapa posterior de autenticação. Preservar suas configurações existentes.
+YouTube, Kick e TikTok completos exigem autenticação própria. O envio Twitch já está implementado; o fluxo Todos está preparado para acrescentar as demais plataformas sem duplicar a linha exibida no chat. Preservar as configurações existentes.
+
+## Interface vigente
+
+- **Múltiplas saídas · K4:** primeiro cartão reservado à transmissão principal do OBS; cartões adicionais abaixo.
+- **Informações de transmissão K4:** somente contas e edição da live, com busca visual de categoria e prévia.
+- **StreamHub Chat · K4:** leitura e envio no mesmo dock; a engrenagem configura conectores e overlay; **ADM** concentra moderação e recompensas.
+- A aba Todos exibe uma única mensagem local identificada como **Todos** e ignora ecos correspondentes durante a janela de deduplicação.
 
 ## Fase -1 — DLL autocontida
 

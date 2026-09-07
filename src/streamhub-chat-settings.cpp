@@ -78,6 +78,7 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
     const QJsonObject tiktok = config.value("tiktok").toObject();
     const QJsonObject overlay = config.value("overlay").toObject();
     const QJsonObject hideCommands = overlay.value("hideCommands").toObject();
+    const QJsonObject chat = config.value("chat").toObject();
     const int port = config.value("server").toObject().value("port").toInt(3000);
 
     QDialog dialog(parent);
@@ -127,7 +128,10 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
     tiktokUsername->setPlaceholderText(QObject::tr("Usuário sem @"));
     form->addRow(tiktokEnabled);
     form->addRow(QObject::tr("Usuário do TikTok:"), tiktokUsername);
+    auto *showTimestamps = new QCheckBox(QObject::tr("Mostrar horário nas mensagens"), chatPage);
+    showTimestamps->setChecked(chat.value("showTimestamps").toBool(true));
     chatLayout->addLayout(form);
+    chatLayout->addWidget(showTimestamps);
     chatLayout->addStretch();
     tabs->addTab(chatPage, QObject::tr("Chats"));
 
@@ -170,7 +174,7 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
     filters->addStretch();
     overlayLayout->addLayout(filters);
 
-    const QString overlayUrl = QString("http://127.0.0.1:%1/overlay.html").arg(port);
+    const QString overlayUrl = QString("http://localhost:%1/overlay.html").arg(port);
     auto *urlRow = new QHBoxLayout();
     auto *url = new QLineEdit(overlayUrl, overlayPage);
     url->setReadOnly(true);
@@ -254,6 +258,10 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
         updatedTiktok.insert("enabled", tiktokEnabled->isChecked());
         updatedTiktok.insert("username", tiktokName);
         config.insert("tiktok", updatedTiktok);
+
+        QJsonObject updatedChat = chat;
+        updatedChat.insert("showTimestamps", showTimestamps->isChecked());
+        config.insert("chat", updatedChat);
 
         QJsonObject updatedOverlay = overlay;
         updatedOverlay.insert("messageDurationSeconds", duration->value());

@@ -160,6 +160,16 @@ input:focus { outline: none; border-color: #7c8cff; }
 }
 .btn-primary:hover { background: #3d4fd1; }
 
+.account-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+#twitch-account-status { color: #aaa; font-size: 12px; }
+.authorize-help { color: #cfc6ff; font-size: 12px; line-height: 1.45; margin: 10px 0 0; }
+.authorize-help a { color: #a995ff; }
+.category-results { margin-top: 4px; background: #17181c; border: 1px solid #34363e; border-radius: 6px; overflow: hidden; }
+.category-results button { display: block; width: 100%; text-align: left; padding: 8px 10px; border: 0; background: transparent; color: #e8e8ea; cursor: pointer; }
+.category-results button:hover { background: #2f3138; }
+#twitch-update-btn { margin-top: 14px; }
+#twitch-live-status { margin-left: 9px; color: #9eb2cb; font-size: 12px; }
+
 .output-row {
   display: flex;
   align-items: center;

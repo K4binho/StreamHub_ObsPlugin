@@ -1,10 +1,21 @@
 # StreamHub — estado e diário de bordo
 
+## Reorganização dos painéis e Twitch OAuth — 06/09/2026
+
+- **Múltiplas saídas · K4** mostra a transmissão principal do OBS como primeiro cartão fixo; o botão do cartão inicia e para a saída principal. Os destinos adicionais permanecem abaixo e continuam reordenáveis.
+- **Informações de transmissão K4** agora contém somente **Contas** e **Transmissão**. A conta Twitch aparece como cartão com ícone, usuário, estado e ação contextual (Conectar, Reconectar ou Trocar conta).
+- A transmissão ganhou prévia instantânea, contadores de 140 caracteres, busca de categoria da Twitch com capa, tags, idioma e classificação. O ID selecionado é enviado à API para evitar correspondência ambígua por texto.
+- Envio de chat, moderação e recompensas foram movidos para **StreamHub Chat · K4**. O campo inferior envia conforme o filtro ativo; em Todos, a mensagem local recebe selo **Todos** e ecos iguais são suprimidos por dez segundos.
+- O botão **ADM** do chat abre timeout/ban/desban, modo lento, seguidores, inscritos, emotes, criação de recompensa e conclusão/cancelamento de resgates pendentes.
+- Os três painéis recebem a logo K4 no menu **Painéis**. O bundle atual é `10`.
+- A autorização Twitch usa cliente público e Device Code Flow. O token é persistido fora do `config.json` e renovado automaticamente; novas permissões exigem uma única reconexão.
+- Compilação `RelWithDebInfo` passou após a reorganização. Ainda falta a inspeção visual da DLL instalada e um envio real autenticado.
+
 Atualizado em 05/09/2026 a partir do diário fornecido pelo usuário, histórico posterior e leitura do código. Testes em OBS aqui registrados foram relatados no histórico; não foram repetidos nesta atualização documental.
 
 ## Frontend nativo inicial — 06/09/2026
 
-- O dock **StreamHub Chat** ganhou cabeçalho com estado Online/Offline, botão de configuração, filtros Todos/Twitch/Kick/YouTube/TikTok, mensagens estruturadas com hora, selo da plataforma, usuário colorido e indicação de modo leitura.
+- O dock **StreamHub Chat** ganhou cabeçalho, botão de configuração, filtros Todos/Twitch/Kick/YouTube/TikTok e mensagens estruturadas com hora, selo da plataforma e usuário colorido. O modo leitura descrito nesta etapa histórica foi substituído pelo envio autenticado descrito acima.
 - O botão de configuração abre um formulário Qt para ativar e informar os canais da Twitch e Kick. O salvamento é atômico, preserva as demais seções do JSON e reinicia somente o Node para aplicar, sem reiniciar o OBS nem interferir nas saídas nativas.
 - O dock **Múltiplas saídas** recebeu o mesmo tema escuro, cabeçalho, botão Adicionar destino, ações globais destacadas e cartões visuais para os destinos. As ações continuam ligadas ao código nativo já existente do `obs-multi-rtmp`.
 - Build `RelWithDebInfo` concluído e DLL instalada em `E:\obs-studio\obs-plugins\64bit\obs-multi-rtmp.dll`, com backup da versão anterior. O hash da origem e do arquivo instalado é idêntico.

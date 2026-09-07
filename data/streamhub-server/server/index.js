@@ -8,7 +8,8 @@ const { startTwitch } = require('./chat/twitch');
 const { startYoutube } = require('./chat/youtube');
 const { startKick } = require('./chat/kick');
 const { startTiktok } = require('./chat/tiktok');
-const apiRouter = require('./routes/api');
+const { createApiRouter } = require('./routes/api');
+const { createAccounts } = require('./accounts');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 const PUBLIC_PATH = path.join(__dirname, '..', 'public');
@@ -19,6 +20,7 @@ if (!fs.existsSync(CONFIG_PATH)) {
 }
 
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+const accounts = createAccounts(path.join(__dirname, '..'));
 
 const app = express();
 const server = http.createServer(app);
@@ -27,7 +29,7 @@ const io = new Server(server);
 app.use(express.json());
 app.get('/overlay.html', (_req, res) => res.sendFile(path.join(PUBLIC_PATH, 'overlay.html')));
 app.use(express.static(PUBLIC_PATH));
-app.use('/api', apiRouter);
+app.use('/api', createApiRouter(accounts));
 
 const overlayConfig = {
   messageDurationSeconds: Math.max(3, Number(config.overlay?.messageDurationSeconds) || 20),

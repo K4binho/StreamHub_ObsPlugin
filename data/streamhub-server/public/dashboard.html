@@ -10,6 +10,7 @@
     <nav class="sidebar">
       <div class="brand">StreamHub</div>
       <button class="nav-item active" data-tab="chat">💬 Chat</button>
+      <button class="nav-item" data-tab="live">📺 Transmissão</button>
       <button class="nav-item" data-tab="outputs">📡 Saídas</button>
       <div class="version">v0.1.0 — feito por você</div>
     </nav>
@@ -62,6 +63,29 @@
           </div>
           <label>Usuário (sem @)</label>
           <input type="text" id="tiktok-username" placeholder="seuusuario">
+        </div>
+      </section>
+
+      <!-- ABA SAÍDAS -->
+      <section id="tab-live" class="tab hidden">
+        <h1>Transmissão</h1>
+        <p class="hint">Conecte sua conta da Twitch para atualizar o título e a categoria da live.</p>
+        <div class="platform-card">
+          <div class="platform-head"><span class="dot twitch"></span><strong>Twitch</strong></div>
+          <div class="account-actions">
+            <button class="btn-primary" id="twitch-connect-btn" type="button">Conectar à Twitch</button>
+            <span id="twitch-account-status" aria-live="polite"></span>
+          </div>
+          <p id="twitch-authorize-help" class="authorize-help hidden"></p>
+          <div id="twitch-live-fields" class="hidden">
+            <label>Título da live</label>
+            <input type="text" id="twitch-title" maxlength="140" placeholder="Digite o título da transmissão">
+            <label>Categoria ou jogo</label>
+            <input type="text" id="twitch-category" autocomplete="off" placeholder="Pesquise e selecione uma categoria">
+            <div id="twitch-category-results" class="category-results hidden"></div>
+            <button class="btn-primary" id="twitch-update-btn" type="button">Atualizar Twitch</button>
+            <span id="twitch-live-status" aria-live="polite"></span>
+          </div>
         </div>
       </section>
 

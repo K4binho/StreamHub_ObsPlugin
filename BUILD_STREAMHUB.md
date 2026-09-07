@@ -23,7 +23,7 @@ O teste passou nesta sessão. As referências históricas abaixo a VS2022, WebSo
 
 O dock de chat possui filtros por plataforma, mensagens estruturadas e botão de configuração. Esse formulário edita Twitch/Kick, salva `config.json` de forma atômica e reinicia somente o servidor Node. O dock Múltiplas saídas continua sendo a autoridade das transmissões e agora apresenta os controles existentes em cabeçalho e cartões com o tema StreamHub.
 
-A build com essa interface foi instalada no OBS portátil e o log `2026-09-06 00-35-36.txt` confirmou o carregamento e a conexão local. O envio pelo campo do chat não foi implementado: os conectores atuais apenas leem mensagens públicas, e enviar exige autenticação OAuth por plataforma. A transmissão real ainda não foi testada.
+A build inicial foi instalada no OBS portátil e o log confirmou o carregamento e a conexão local. A versão atual acrescenta `streamhub-control-dock.*` para conta/editor da live e `streamhub-chat-admin.*` para moderação e recompensas. O envio autenticado da Twitch fica em `streamhub-chat-dock.*`; outras plataformas ainda exigem OAuth próprio. A transmissão real ainda não foi testada.
 
 O painel Múltiplas saídas também oferece modelos de Twitch, Kick, YouTube, TikTok, Facebook e RTMP personalizado. O campo `platform` é persistido em `obs-multi-rtmp.json`; arquivos antigos continuam válidos. Servidor, stream key e sincronização são editados no painel inferior, enquanto encoder, resolução e áudio ficam em **Configurações avançadas**. Os recursos visuais ficam em `assets/branding` e são incorporados à DLL pelo arquivo QRC.
 
@@ -123,20 +123,21 @@ Isso gera o plugin em algo como
 ### Instalando pra testar
 
 1. Copie o `.dll` gerado para
-   `%ProgramData%\obs-studio\plugins\<nome-do-plugin>\bin\64bit\`
-2. Copie a pasta `data/` (que já inclui nosso `data/streamhub-server/`) para
-   `%ProgramData%\obs-studio\plugins\<nome-do-plugin>\data\`
-3. Abra o OBS. Nos logs (Help → Log Files → Ver Log Atual), procure por
+   `%ProgramData%\obs-studio\plugins\<nome-do-plugin>\bin\64bit\`. Os recursos
+   e o servidor estão embutidos e são extraídos automaticamente; não copie
+   `data/` manualmente.
+2. Abra o OBS. Nos logs (Ajuda → Arquivos de log → Ver log atual), procure por
    linhas com `[streamhub]` pra confirmar que o servidor Node subiu.
-4. Dois docks novos devem aparecer em **View → Docks**: "Outputs" (do
-   obs-multi-rtmp original) e "StreamHub Chat" (o nosso).
+3. Três docks devem aparecer em **Painéis**: **Múltiplas saídas · K4**,
+   **StreamHub Chat · K4** e **Informações de transmissão K4**.
 
 ### Configurando o chat e as saídas
 
-Use a engrenagem no cabeçalho do dock **StreamHub Chat** para ativar e
-informar os canais Twitch/Kick; **Salvar e aplicar** reinicia somente o
-serviço de chat. Use **Múltiplas saídas → Adicionar destino** para URL,
-stream key e encoder das transmissões.
+Use a engrenagem do **StreamHub Chat** para canais/overlay e o botão **ADM**
+para moderação e recompensas. Envie mensagens no campo inferior do próprio
+chat. Autorize a Twitch em **Informações de transmissão K4 → Contas** e edite
+os dados da live na aba **Transmissão**. Use **Múltiplas saídas → Adicionar
+destino** para URL, stream key e encoder das saídas adicionais.
 
 ## Próximos passos possíveis
 

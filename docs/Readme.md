@@ -1,3 +1,13 @@
+# StreamHub K4 — interface atual
+
+Esta distribuição acrescenta três painéis nativos ao OBS:
+
+- **Múltiplas saídas · K4**, com a transmissão principal primeiro e destinos adicionais abaixo;
+- **StreamHub Chat · K4**, com leitura, envio, filtros, moderação e recompensas;
+- **Informações de transmissão K4**, com autorização Twitch e editor da live com prévia e busca visual de categoria.
+
+A DLL inclui recursos, ícones, traduções e servidor local. Configuração pública, tokens OAuth e stream keys permanecem separados. A autorização Twitch é feita uma vez por instalação e renovada automaticamente.
+
 <!-- Global site tag (gtag.js) - Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=UA-163314878-1"></script>
 <script>

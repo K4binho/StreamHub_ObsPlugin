@@ -100,14 +100,6 @@ function renderMessage(msg) {
 
 function renderStatuses() {
   connectionStatus.replaceChildren();
-  for (const status of statuses.values()) {
-    if (status.connected) continue;
-    const pill = document.createElement('span');
-    pill.className = 'status-pill';
-    pill.dataset.platform = status.platform;
-    pill.textContent = status.message || `${PLATFORM_NAMES[status.platform] || status.platform} desconectado — reconectando`;
-    connectionStatus.appendChild(pill);
-  }
 }
 
 function updateStatus(status) {

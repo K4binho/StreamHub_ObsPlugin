@@ -4,6 +4,7 @@
 #include <regex>
 #include <filesystem>
 #include <unordered_map>
+#include <cstring>
 
 #include "push-widget.h"
 #include "plugin-support.h"
@@ -12,6 +13,7 @@
 
 #include "streamhub-bundle.h"
 #include "streamhub-chat-dock.h"
+#include "streamhub-control-dock.h"
 #include "streamhub-launcher.h"
 #include "streamhub-paths.h"
 #include "streamhub-platforms.h"
@@ -37,6 +39,9 @@
 #endif
 
 #define ConfigSection "obs-multi-rtmp"
+
+const char *ModuleText(const char *key, const char *fallback);
+static void InitializeStreamHubResources();
 
 static class GlobalServiceImpl : public GlobalService
 {
@@ -460,7 +465,7 @@ public:
     MultiOutputWidget(QWidget* parent = 0)
         : QWidget(parent)
     {
-        setWindowTitle(obs_module_text("Title"));
+        setWindowTitle(ModuleText("Title", "Múltiplas saídas"));
         setObjectName("streamHubOutputs");
 
         container_ = new StreamHubBackdrop(&scroll_);
@@ -480,12 +485,12 @@ public:
         headerIcon->setAlignment(Qt::AlignCenter);
         headerIcon->setPixmap(QIcon(":/streamhub-ui/icons/camera.svg").pixmap(24, 24));
         headerLayout->addWidget(headerIcon);
-        auto headerLabel = new QLabel(obs_module_text("Title"), header);
+        auto headerLabel = new QLabel(ModuleText("Title", "Múltiplas saídas"), header);
         headerLabel->setObjectName("outputsTitle");
         headerLayout->addWidget(headerLabel);
         headerLayout->addStretch();
 
-        auto addButton = new QPushButton(QString::fromUtf8(u8"＋  ") + obs_module_text("Btn.NewTarget"), header);
+        auto addButton = new QPushButton(QString::fromUtf8(u8"＋  ") + ModuleText("Btn.NewTarget", "Adicionar novo destino"), header);
         addButton->setObjectName("addDestination");
         QObject::connect(addButton, &QPushButton::clicked, [this]() {
             StreamHubPlatformDialog chooser(this);
@@ -510,13 +515,13 @@ public:
         auto allBtnLayout = new QHBoxLayout();
         allBtnLayout->setContentsMargins(0, 2, 0, 8);
         allBtnLayout->setSpacing(9);
-        auto startAllButton = new QPushButton(obs_module_text("Btn.StartAll"), allBtnContainer);
+        auto startAllButton = new QPushButton(ModuleText("Btn.StartAll", "Iniciar tudo"), allBtnContainer);
         startAllButton->setObjectName("startAll");
         startAllButton->setIcon(QIcon(":/streamhub-ui/icons/play.svg"));
         startAllButton->setIconSize(QSize(17, 17));
         startAllButton->setFixedHeight(48);
         allBtnLayout->addWidget(startAllButton);
-        auto stopAllButton = new QPushButton(obs_module_text("Btn.StopAll"), allBtnContainer);
+        auto stopAllButton = new QPushButton(ModuleText("Btn.StopAll", "Parar tudo"), allBtnContainer);
         stopAllButton->setObjectName("stopAll");
         stopAllButton->setIcon(QIcon(":/streamhub-ui/icons/stop.svg"));
         stopAllButton->setIconSize(QSize(15, 15));
@@ -546,6 +551,66 @@ public:
                     .arg(active));
         });
         aggregateTimer_->start();
+
+        auto *mainCard = new QWidget(container_);
+        mainCard->setObjectName("outputCard");
+        auto *mainCardLayout = new QGridLayout(mainCard);
+        mainCardLayout->setContentsMargins(13, 10, 13, 10);
+        mainCardLayout->setHorizontalSpacing(10);
+        auto *mainIcon = new QLabel(mainCard);
+        mainIcon->setFixedSize(42, 42);
+        mainIcon->setAlignment(Qt::AlignCenter);
+        QString mainServiceName = tr("Transmissão principal");
+        QString mainPlatform = "custom";
+        if (obs_service_t *service = obs_frontend_get_streaming_service()) {
+            obs_data_t *settings = obs_service_get_settings(service);
+            const QString configuredService = QString::fromUtf8(obs_data_get_string(settings, "service")).trimmed();
+            if (!configuredService.isEmpty()) mainServiceName = configuredService;
+            const QString lowered = mainServiceName.toLower();
+            if (lowered.contains("twitch")) mainPlatform = "twitch";
+            else if (lowered.contains("youtube")) mainPlatform = "youtube";
+            else if (lowered.contains("kick")) mainPlatform = "kick";
+            else if (lowered.contains("tiktok")) mainPlatform = "tiktok";
+            obs_data_release(settings);
+        }
+        mainIcon->setPixmap(QIcon(mainPlatform == "custom" ? ":/streamhub-ui/icons/camera.svg"
+                                                           : QString(":/streamhub-ui/icons/%1.svg").arg(mainPlatform)).pixmap(38, 38));
+        mainCardLayout->addWidget(mainIcon, 0, 0, 2, 1);
+        auto *mainName = new QLabel(QString("%1 · %2").arg(mainServiceName, tr("Principal")), mainCard);
+        mainName->setObjectName("outputName");
+        mainCardLayout->addWidget(mainName, 0, 1);
+        auto *mainStatus = new QLabel(mainCard);
+        mainStatus->setObjectName("outputStatus");
+        mainCardLayout->addWidget(mainStatus, 1, 1);
+        mainCardLayout->setColumnStretch(1, 1);
+        auto *mainQuality = new QLabel(tr("OBS"), mainCard);
+        mainQuality->setObjectName("outputQuality");
+        mainQuality->setAlignment(Qt::AlignCenter);
+        mainCardLayout->addWidget(mainQuality, 0, 2, 2, 1);
+        auto *mainToggle = new QPushButton(mainCard);
+        mainToggle->setObjectName("mainOutputToggle");
+        mainToggle->setCheckable(true);
+        mainToggle->setFixedSize(66, 34);
+        mainCardLayout->addWidget(mainToggle, 0, 3, 2, 1);
+        const auto updateMainCard = [mainStatus, mainToggle]() {
+            const bool active = obs_frontend_streaming_active();
+            mainToggle->blockSignals(true);
+            mainToggle->setChecked(active);
+            mainToggle->setText(active ? QObject::tr("Parar") : QObject::tr("Iniciar"));
+            mainToggle->blockSignals(false);
+            mainStatus->setText(active ? QObject::tr("● Ao vivo") : QObject::tr("● Pronta"));
+            mainStatus->setProperty("ready", true);
+            mainStatus->style()->unpolish(mainStatus); mainStatus->style()->polish(mainStatus);
+        };
+        QObject::connect(mainToggle, &QPushButton::clicked, this, [](bool checked) {
+            if (checked) obs_frontend_streaming_start(); else obs_frontend_streaming_stop();
+        });
+        auto *mainTimer = new QTimer(mainCard);
+        mainTimer->setInterval(500);
+        QObject::connect(mainTimer, &QTimer::timeout, mainCard, updateMainCard);
+        mainTimer->start();
+        updateMainCard();
+        layout_->addWidget(mainCard);
 
         QObject::connect(startAllButton, &QPushButton::clicked, [this]() {
             if (!obs_frontend_streaming_active()) {
@@ -732,6 +797,8 @@ public:
             QPushButton#outputEdit { background: #101a2a; border: 1px solid #29496f;
                 border-radius: 7px; padding: 6px; color: #dbe4f5; }
             QPushButton#outputEdit:hover { border-color: #00c8ff; background:#15233a; }
+            QPushButton#mainOutputToggle { background:#101a2a; border:1px solid #29496f; border-radius:14px; color:#dbe8f8; font-size:10px; font-weight:700; }
+            QPushButton#mainOutputToggle:checked { background:#16d86a; border-color:#53fc18; color:#06130b; }
             QWidget#inlineSettings { background:rgba(16,26,42,242); border:1px solid #00c8ff;
                 border-radius:10px; color:#f2f7ff; }
             QLabel#inlineTitle { font-size:16px; font-weight:700; color:#f2f7ff; }
@@ -974,7 +1041,80 @@ private:
 };
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE("obs-multi-rtmp", "en-US")
+
+// OBS calls obs_module_set_locale() during obs_open_module(), before
+// obs_module_load(). Extract bundled locale first so DLL-only installs have
+// translations available when OBS initializes the module.
+lookup_t *obs_module_lookup = nullptr;
+
+const char *obs_module_text(const char *val)
+{
+    const char *out = val;
+    text_lookup_getstr(obs_module_lookup, val, &out);
+    if (out && std::strcmp(out, val) != 0)
+        return out;
+
+    if (std::strcmp(val, "Title") == 0)
+        return "Múltiplas saídas";
+    if (std::strcmp(val, "Btn.NewTarget") == 0)
+        return "Adicionar novo destino";
+    if (std::strcmp(val, "Btn.StartAll") == 0)
+        return "Iniciar tudo";
+    if (std::strcmp(val, "Btn.StopAll") == 0)
+        return "Parar tudo";
+    if (std::strcmp(val, "Question.Title") == 0)
+        return "Pergunta";
+    if (std::strcmp(val, "Question.Delete") == 0)
+        return "Tem certeza de que deseja excluir?";
+    return out ? out : val;
+}
+
+const char *ModuleText(const char *key, const char *fallback)
+{
+    const char *text = obs_module_text(key);
+    return text && *text ? text : fallback;
+}
+
+static void InitializeStreamHubResources()
+{
+    static bool initialized = false;
+    if (!initialized) {
+        Q_INIT_RESOURCE(streamhub_data);
+        initialized = true;
+    }
+}
+
+bool obs_module_get_string(const char *val, const char **out)
+{
+    return text_lookup_getstr(obs_module_lookup, val, out);
+}
+
+void obs_module_set_locale(const char *locale)
+{
+    // OBS solicita o locale antes de obs_module_load(). Assim, uma instalação
+    // apenas com a DLL já encontra os recursos embutidos nesta primeira etapa.
+    InitializeStreamHubResources();
+
+    if (obs_module_lookup)
+        text_lookup_destroy(obs_module_lookup);
+
+    const char *rawDataPath = obs_get_module_data_path(obs_current_module());
+    if (rawDataPath && *rawDataPath) {
+        const QString dataPath = StreamHubAbsolutePath(QString::fromUtf8(rawDataPath));
+        StreamHub_EnsureBundledData(dataPath);
+    }
+
+    obs_module_lookup = obs_module_load_locale(obs_current_module(), "en-US",
+                                                locale ? locale : "en-US");
+}
+
+void obs_module_free_locale(void)
+{
+    if (obs_module_lookup)
+        text_lookup_destroy(obs_module_lookup);
+    obs_module_lookup = nullptr;
+}
+
 OBS_MODULE_AUTHOR("SoraYuki (@sorayukinoyume); melhorias StreamHub por K4binho")
 
 bool obs_module_load()
@@ -1012,6 +1152,7 @@ bool obs_module_load()
         });
     };
 
+    InitializeStreamHubResources();
     auto dock = new MultiOutputWidget();
     dock->setObjectName("obs-multi-rtmp-dock");
     const QByteArray outputsDockTitle =
@@ -1056,6 +1197,14 @@ bool obs_module_load()
     } else {
         delete chatDock;
     }
+
+    auto *controlDock = new StreamHubControlDock();
+    controlDock->setObjectName("streamhub-control-dock");
+    controlDock->ConnectTo(chatPort);
+    if (!obs_frontend_add_dock_by_id("streamhub-control-dock", "Informações de transmissão K4", controlDock))
+        delete controlDock;
+    else
+        brandDock(controlDock);
 
     // dataPath já é a pasta de dados do plugin — usada tanto pro servidor
     // bundled quanto (se precisar) pra guardar o runtime portátil do Node.

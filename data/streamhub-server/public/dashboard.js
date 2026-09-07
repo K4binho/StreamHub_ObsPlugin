@@ -1,11 +1,116 @@
 let config = null;
 let editingIndex = null; // índice da saída sendo editada no modal (null = criando nova)
+let twitchPollTimer = null;
+let selectedTwitchGameId = '';
+let categorySearchTimer = null;
 
 async function loadConfig() {
   const res = await fetch('/api/config');
   config = await res.json();
   fillChatFields();
   renderOutputs();
+  loadTwitchAccount();
+}
+
+async function loadTwitchAccount() {
+  const status = document.getElementById('twitch-account-status');
+  try {
+    const res = await fetch('/api/accounts/twitch/status');
+    const account = await res.json();
+    status.textContent = account.connected ? `Conectada como ${account.name}` : 'Nenhuma conta conectada';
+    document.getElementById('twitch-live-fields').classList.toggle('hidden', !account.connected);
+    if (account.connected) loadTwitchChannel();
+  } catch (_) {
+    status.textContent = 'Não foi possível consultar a conta';
+  }
+}
+
+async function connectTwitch() {
+  const button = document.getElementById('twitch-connect-btn');
+  const status = document.getElementById('twitch-account-status');
+  const help = document.getElementById('twitch-authorize-help');
+  clearTimeout(twitchPollTimer);
+  button.disabled = true;
+  status.textContent = 'Preparando autorização…';
+  help.classList.add('hidden');
+  try {
+    const res = await fetch('/api/accounts/twitch/connect', { method: 'POST' });
+    const flow = await res.json();
+    if (!res.ok) throw new Error(flow.error || 'Não foi possível iniciar a autorização.');
+    status.textContent = 'Aguardando a autorização na Twitch…';
+    help.innerHTML = `Se a página não abriu, <a href="${flow.verificationUri}" target="_blank" rel="noopener">abra a Twitch</a> e use o código <strong>${flow.userCode}</strong>.`;
+    help.classList.remove('hidden');
+    window.open(flow.verificationUri, '_blank', 'noopener');
+    pollTwitchAuthorization(flow.flowId, flow.interval);
+  } catch (error) {
+    status.textContent = error.message;
+    button.disabled = false;
+  }
+}
+
+async function pollTwitchAuthorization(flowId, interval) {
+  const status = document.getElementById('twitch-account-status');
+  const button = document.getElementById('twitch-connect-btn');
+  try {
+    const res = await fetch(`/api/accounts/twitch/connect/${encodeURIComponent(flowId)}`);
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'A autorização não foi concluída.');
+    if (result.state === 'connected') {
+      status.textContent = `Conectada como ${result.name}`;
+      document.getElementById('twitch-live-fields').classList.remove('hidden');
+      document.getElementById('twitch-authorize-help').classList.add('hidden');
+      loadTwitchChannel();
+      button.disabled = false;
+      return;
+    }
+    twitchPollTimer = setTimeout(() => pollTwitchAuthorization(flowId, result.interval || interval), (result.interval || interval) * 1000);
+  } catch (error) {
+    status.textContent = error.message;
+    button.disabled = false;
+  }
+}
+
+async function loadTwitchChannel() {
+  const response = await fetch('/api/twitch/channel');
+  const channel = await response.json();
+  if (!response.ok) return;
+  document.getElementById('twitch-title').value = channel.title || '';
+  document.getElementById('twitch-category').value = channel.gameName || '';
+  selectedTwitchGameId = channel.gameId || '';
+}
+
+async function searchTwitchCategories() {
+  const input = document.getElementById('twitch-category');
+  const results = document.getElementById('twitch-category-results');
+  const query = input.value.trim();
+  selectedTwitchGameId = '';
+  if (query.length < 2) { results.classList.add('hidden'); return; }
+  const response = await fetch(`/api/twitch/categories?q=${encodeURIComponent(query)}`);
+  const payload = await response.json();
+  results.replaceChildren();
+  for (const category of payload.data || []) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = category.name;
+    button.onclick = () => {
+      input.value = category.name;
+      selectedTwitchGameId = category.id;
+      results.classList.add('hidden');
+    };
+    results.appendChild(button);
+  }
+  results.classList.toggle('hidden', !results.children.length);
+}
+
+async function updateTwitchChannel() {
+  const status = document.getElementById('twitch-live-status');
+  status.textContent = 'Atualizando…';
+  const response = await fetch('/api/twitch/channel', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: document.getElementById('twitch-title').value, gameId: selectedTwitchGameId }),
+  });
+  const result = await response.json();
+  status.textContent = response.ok ? 'Atualizado na Twitch.' : (result.error || 'Não foi possível atualizar.');
 }
 
 function fillChatFields() {
@@ -164,5 +269,11 @@ document.getElementById('add-output-btn').addEventListener('click', () => openMo
 document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('modal-save').addEventListener('click', saveModal);
 document.getElementById('save-btn').addEventListener('click', saveAll);
+document.getElementById('twitch-connect-btn').addEventListener('click', connectTwitch);
+document.getElementById('twitch-category').addEventListener('input', () => {
+  clearTimeout(categorySearchTimer);
+  categorySearchTimer = setTimeout(searchTwitchCategories, 250);
+});
+document.getElementById('twitch-update-btn').addEventListener('click', updateTwitchChannel);
 
 loadConfig();
