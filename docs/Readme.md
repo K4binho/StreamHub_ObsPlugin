@@ -4,9 +4,24 @@ Esta distribuição acrescenta três painéis nativos ao OBS:
 
 - **Múltiplas saídas · K4**, com a transmissão principal primeiro e destinos adicionais abaixo;
 - **StreamHub Chat · K4**, com leitura, envio, filtros, moderação e recompensas;
-- **Informações de transmissão K4**, com autorização Twitch e editor da live com prévia e busca visual de categoria.
+- **Informações de transmissão K4**, com autorização Twitch/YouTube e editor da live com prévia e busca visual de categoria.
 
-A DLL inclui recursos, ícones, traduções e servidor local. Configuração pública, tokens OAuth e stream keys permanecem separados. A autorização Twitch é feita uma vez por instalação e renovada automaticamente.
+A DLL inclui recursos, ícones, traduções e servidor local. Configuração pública, tokens OAuth e stream keys permanecem separados. A autorização Twitch/YouTube é feita uma vez por instalação e renovada automaticamente.
+
+## Estado de desenvolvimento — 07/09/2026
+
+- OAuth YouTube validado no navegador externo; callback local retornou **YouTube conectado ao StreamHub**.
+- Painel de transmissão ainda precisa corrigir consulta YouTube com parâmetros incompatíveis `mine` e `broadcastStatus`.
+- Resultado Twitch ainda menciona notificação, embora esse campo não exista na API Twitch; resposta deve ser ajustada.
+- Próxima etapa: corrigir consulta YouTube/Twitch, integrar Kick OAuth oficial e sincronizar automaticamente servidor RTMP, stream key e destinos em **Múltiplas saídas** ao conectar plataformas, mesmo sem live ou destino pré-configurado. Preservar configurações existentes e nunca expor stream keys.
+- Kick deverá usar OAuth por navegador externo, callback local, refresh token e escopos oficiais para chat, moderação e leitura de `streamkey:read`.
+- Ponte futura Node/C++ deverá ser local, autenticada e temporária; chaves não serão enviadas em logs, documentação, URLs ou eventos comuns.
+
+Contexto detalhado: [contexto.md](../contexto.md). Implementação aguarda aprovação do plano.
+
+<!-- registro histórico -->
+
+Esta documentação não representa conclusão da sincronização automática nem da transmissão real.
 
 <!-- Global site tag (gtag.js) - Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=UA-163314878-1"></script>
@@ -17,6 +32,14 @@ A DLL inclui recursos, ícones, traduções e servidor local. Configuração pú
 
   gtag('config', 'UA-163314878-1');
 </script>
+
+# StreamHub — 現在の統合状況
+
+2026-09-07時点で、YouTube OAuthは外部ブラウザとローカルコールバックを使って検証済みです。YouTubeの配信読み込みには、`mine` と `broadcastStatus` を同時指定している既知のAPIエラーがあります。Twitchの通知項目はAPIに存在しないため、更新失敗ではなく無視された項目として表示する必要があります。
+
+次の実装では、Kick公式OAuth、PKCE、ローカルコールバック、refresh token、認証済みチャット、権限がある場合のモデレーション、`streamkey:read` による認証済み配信キー取得を追加します。接続後、公式に取得できるRTMPサーバーと配信キーをネイティブ出力へ同期し、配信や出力先が事前設定されていなくても対応する出力先を作成します。既存の順序、名前、encoder、詳細設定、他サービスの出力先は保持します。
+
+Node.jsはプラットフォームAPIと認証情報、C++はOBSネイティブ出力と `GlobalMultiOutputConfig()` を管理します。将来の橋渡しはローカル、認証付き、一時的とし、秘密情報をURL、ログ、通常イベント、ドキュメント、Gitへ流しません。詳細は [contexto.md](../contexto.md) を参照してください。実装は計画承認後に開始します。
 
 # OBS 同時配信プラグイン
 

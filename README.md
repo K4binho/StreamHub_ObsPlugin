@@ -3,7 +3,7 @@
 Este projeto é uma modificação do [obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp), criado por **SoraYuki**. O trabalho original das múltiplas saídas foi preservado e recebeu melhorias de **K4binho** para formar o StreamHub:
 
 - visual escuro integrado ao OBS para chat e múltiplas saídas;
-- chat unificado com leitura de Twitch e Kick e envio autenticado pela Twitch diretamente no dock;
+- chat unificado com leitura de Twitch, Kick e YouTube e envio autenticado pela Twitch e YouTube diretamente no dock;
 - configuração dos canais, moderação, ajustes administrativos e recompensas dentro do **StreamHub Chat · K4**;
 - servidor de chat e recursos embutidos na DLL;
 - instalação autorreparável, sem a antiga dependência manual do QtWebSockets;
@@ -21,7 +21,7 @@ Este projeto é uma modificação do [obs-multi-rtmp](https://github.com/sorayuk
 - alertas comuns de online/offline ficam ocultos; somente a reinicialização efetiva do chat é informada, e o auto-scroll permanece travado enquanto o streamer lê mensagens antigas;
 - destinos RTMP personalizados agora podem escolher ícone e cor; o painel mostra a banda agregada das saídas adicionais ativas;
 - entradas do plugin no menu **Painéis** recebem identificação K4 e o tema aplica a barra nativa escura às janelas abertas no Windows;
-- painel **Informações de transmissão K4** com cartão da conta Twitch, autorização persistente, prévia da live, contadores e busca visual de jogo/categoria;
+- painel **Informações de transmissão K4** com cartões de conta Twitch/YouTube, autorização persistente, prévia da live, contadores e busca visual de jogo/categoria;
 
 Este plugin é fornecido gratuitamente. Se quiser apoiar o trabalho:
 
@@ -45,11 +45,45 @@ Em **Painéis**, o plugin registra três entradas com a marca K4:
 
 - **Múltiplas saídas · K4:** transmissão principal primeiro, seguida dos destinos adicionais.
 - **StreamHub Chat · K4:** leitura, filtros e envio. O botão **ADM** abre moderação e recompensas.
-- **Informações de transmissão K4:** conta Twitch e edição dos dados da live com prévia.
+- **Informações de transmissão K4:** contas Twitch/YouTube e edição dos dados da live com prévia.
 
 Na aba **Todos**, uma mensagem enviada pelo StreamHub aparece uma única vez com o selo **Todos**, mesmo quando as plataformas devolvem cópias da mesma mensagem. O conteúdo do Chat e do Feed de atividade nativos da Twitch é uma página web e não recebe o stylesheet Qt; o StreamHub Chat pode substituí-los na disposição do OBS.
 
 TikTok permanece marcado como **experimental** até um teste ponta a ponta em uma live real. Facebook está disponível como destino RTMP, mas o conector de chat ainda está no roadmap e não é anunciado como suportado.
+
+## Conectar o YouTube
+
+1. Crie um projeto no Google Cloud e ative a **YouTube Data API v3**.
+2. Em **Google Auth Platform**, configure a marca, escolha público **Externo** e, durante os testes, inclua os e-mails autorizados.
+3. Em **Acesso a dados**, adicione o escopo `https://www.googleapis.com/auth/youtube.force-ssl`.
+4. Em **Clientes**, crie um cliente OAuth do tipo **Aplicativo para computador**.
+5. No OBS, abra **Painéis > Informações de transmissão K4 > Contas**, informe o Client ID e o Client Secret e clique em **Conectar**.
+
+O navegador pede autorização da própria conta e retorna ao StreamHub localmente. As credenciais e os tokens ficam somente em `accounts-private.json`, que não é versionado. O uso comum da YouTube Data API trabalha com cota gratuita; o projeto recebe por padrão uma cota diária definida pelo Google. Aplicativos em modo de teste são limitados aos usuários de teste e podem exigir nova autorização periodicamente. Para distribuição pública, o Google pode exigir verificação do aplicativo.
+
+## Estado atual e próximos ajustes
+
+- OAuth YouTube já foi validado: autorização concluída no navegador externo e callback local retornou **YouTube conectado ao StreamHub**.
+- O botão **Carregar atuais** ainda apresenta erro da API ao combinar `mine` e `broadcastStatus`; esse fluxo precisa ser corrigido antes da edição da live YouTube.
+- Resultado Twitch atual informa que notificação não existe na API da Twitch. Esse campo será tratado como ignorado, sem mensagem enganosa de falha.
+- Planejado: corrigir consulta YouTube/Twitch, integrar Kick OAuth oficial e sincronizar servidor RTMP e stream key ao conectar plataformas, criando automaticamente destinos correspondentes em **Múltiplas saídas**, mesmo sem live ou destino previamente configurado. A sincronização deve preservar destinos existentes, ordem e configurações avançadas.
+- Kick deverá usar navegador externo, callback local, refresh token e escopos oficiais para chat, moderação e leitura de `streamkey:read`, conforme permissões liberadas no aplicativo Kick.
+- A ponte futura entre servidor Node e saídas nativas C++ deverá ser local, autenticada e temporária; chaves não serão enviadas em logs, documentação, URLs ou eventos comuns.
+
+O estado detalhado, decisões e plano ficam em [contexto.md](contexto.md).
+- Stream keys são segredos. Nunca registrar, exibir em logs, inserir em Markdown ou commitar. Quando API não fornecer chave de forma autorizada, exigir configuração segura em vez de gravar valor falso.
+
+A transmissão real e sincronização automática de destinos ainda não foram validadas.
+
+## Segurança de credenciais
+
+Client ID pode aparecer na configuração local. Client Secret, access token, refresh token e stream key devem permanecer somente nos arquivos locais protegidos. Não compartilhar URL de callback contendo `code=`; esse código OAuth é temporário e de uso único. Client Secret exposta deve ser revogada e substituída antes de distribuição.
+
+## Limitações conhecidas
+
+- Aplicativo Google em modo **Externo/Teste** libera acesso somente para e-mails cadastrados em **Usuários de teste**.
+- O escopo `youtube.force-ssl` permite operações autenticadas, mas pode exigir verificação Google para distribuição pública.
+- A API do YouTube não deve ser usada para inventar stream key. Servidor RTMP e chave precisam vir de credencial/configuração oficial disponível.
 
 ## [Homepage original / 主页](https://sorayuki.github.io/obs-multi-rtmp)
 

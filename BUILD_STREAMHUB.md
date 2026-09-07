@@ -1,5 +1,33 @@
 # StreamHub OBS Plugin (fork do obs-multi-rtmp)
 
+## Atualização de 07/09/2026 — YouTube validado e sincronização pendente
+
+- OAuth YouTube validado no OBS: navegador externo, autorização Google, callback local e retorno **YouTube conectado ao StreamHub**.
+- O painel **Informações de transmissão K4** ainda mostra erro ao carregar dados YouTube: `Parâmetros incompatíveis especificados na solicitação: mine, broadcastStatus`. Corrigir consulta antes de considerar edição YouTube concluída.
+- O painel Twitch informa `Twitch: Atualizada; notificação não existem na API da Twitch.`. Notificação não existe na API Twitch; resultado deve marcar campo como ignorado, não como erro.
+- Requisito pendente: sincronizar automaticamente servidor RTMP e stream key ao conectar plataforma e criar destinos correspondentes em **Múltiplas saídas**, mesmo sem live ou destino previamente configurado. Preservar ordem, configurações avançadas e destinos existentes.
+- Próxima implementação: Kick OAuth por navegador externo, callback local, PKCE, refresh token, chat autenticado, moderação e leitura oficial com `streamkey:read`.
+- Node continuará responsável por APIs/credenciais; C++ continuará responsável por saídas nativas. Ponte futura deve ser local, autenticada e temporária, sem chave em logs, URLs, eventos comuns ou documentação. Ver [contexto.md](contexto.md).
+- Não iniciar implementação antes da aprovação do plano detalhado após checkpoint documental.
+
+## Plano de ação pendente
+
+1. Corrigir descoberta YouTube sem combinar `mine` e `broadcastStatus`; tratar notificação Twitch como campo ignorado.
+2. Integrar OAuth Kick e capacidades autenticadas de chat/moderação/stream key.
+3. Criar ponte Node/C++ protegida e sincronização idempotente de destinos.
+4. Preservar ordem, nomes, encoders, `outputParam`, flags e configurações avançadas.
+5. Validar criação sem live/destino prévio, regressão dos conectores, build e transmissão real.
+
+Nenhuma chave, token ou Client Secret deve entrar neste arquivo.
+
+## Contexto atual
+
+O registro completo de estado, arquitetura, decisões, segurança e testes está em [contexto.md](contexto.md).
+
+<!-- histórico abaixo -->
+
+- Stream keys são segredos e não podem aparecer em logs, documentação, screenshots ou commits. Só sincronizar quando API/credencial oficial fornecer valor válido; sem isso, solicitar configuração segura.
+
 ## Atualização de 06/09/2026 — caminho corrigido
 
 O build atual foi compilado com sucesso no Windows, VS Community 2026 e CMake 4.4.3. A DLL está em `build_x64/RelWithDebInfo/obs-multi-rtmp.dll` e foi instalada no OBS portátil em `E:\obs-studio`. A extração inicial de 18 arquivos foi validada no log de 00:00:08. Depois da remoção do relay do bundle, a versão 2 extrai 17 arquivos. O log de 00:24:35 confirma a DLL corrigida, reparação automática dos pacotes, Node iniciado e dock conectado à porta 3000. O usuário confirmou em seguida mensagens `oi` da Twitch e da Kick aparecendo no dock. Transmissão não foi testada.

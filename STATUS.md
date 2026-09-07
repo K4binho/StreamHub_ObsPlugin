@@ -1,6 +1,53 @@
 # StreamHub — estado e diário de bordo
 
+## Validação YouTube e requisitos de sincronização — 07/09/2026
+
+- [x] OAuth YouTube validado com conta Google de teste: navegador externo, callback local em `127.0.0.1` e página final **YouTube conectado ao StreamHub** confirmados pelo usuário.
+- [x] Client ID OAuth configurado no painel. O Client Secret foi aceito e não deve ser registrado neste diário, em logs ou no repositório.
+- [ ] Corrigir carregamento da transmissão YouTube no painel. Erro observado: `Parâmetros incompatíveis especificados na solicitação: mine, broadcastStatus`. A API não permite combinar `mine=true` com `broadcastStatus`; separar descoberta do broadcast autenticado da consulta por status. Ver [contexto.md](contexto.md).
+- [ ] Ajustar mensagem Twitch no painel. Resultado observado: `Twitch: Atualizada; notificação não existem na API da Twitch.`. Notificação não deve aparecer como falha; mostrar apenas campos realmente atualizados ou indicar claramente que campo foi ignorado.
+- [ ] Sincronizar automaticamente servidor RTMP e stream key ao conectar cada plataforma, sem exigir live previamente configurada nos destinos de **Múltiplas saídas**. A ponte Node/C++ deverá ser local, autenticada e temporária, sem expor chaves.
+- [ ] Integrar Kick OAuth oficial, refresh token, chat autenticado, moderação e escopo `streamkey:read`; criar/atualizar destino Kick automaticamente após conexão.
+- [ ] Criar/atualizar destino YouTube automaticamente quando dados oficiais estiverem disponíveis, sem inventar stream key.
+
+O contexto seguro e arquitetura atual estão em [contexto.md](contexto.md).
+
+**Regra:** implementação aguarda aprovação do plano detalhado; commit/push desta etapa deve conter somente documentação.
+
+## Processo de continuidade
+
+Antes de alterar código: registrar contexto, atualizar documentação, salvar memória e revisar diff. Depois, executar implementação em etapas pequenas com testes Node/CMake e validação real. Nunca versionar Client Secret, tokens ou stream keys.
+
+## Sincronização automática — desenho pendente
+
+Node possui autoridade sobre APIs e credenciais; C++ possui autoridade sobre `GlobalMultiOutputConfig()` e `obs-multi-rtmp.json`. A ponte entre processos ainda não existe. O desenho aprovado deverá impedir duplicação, preservar ordem/encoders/configurações avançadas e ignorar respostas sem chave válida.
+
+## Kick — escopo pendente
+
+OAuth Kick deverá usar navegador externo, callback loopback, PKCE, `state`, refresh token e escopos oficiais liberados no aplicativo. `streamkey:read` será usado somente para leitura autorizada de servidor RTMP e stream key. Falhas de escopo ou API devem aparecer como pendência acionável, nunca como chave inventada.
+
+## Atualização documental detalhada
+
+Consulte [contexto.md](contexto.md) para estado, decisões, segurança, arquitetura e critérios de validação.
+
+## Histórico anterior
+
+<!-- marcador de separação mantido para não reescrever diário histórico abaixo -->
+
+- [ ] Após conexão, criar/atualizar automaticamente destino correspondente em **Múltiplas saídas**, preservando encoder, opções avançadas, ordem e demais campos do usuário. Destino YouTube deve aparecer mesmo antes de existir live ativa; stream key/servidor devem vir das credenciais/configuração disponíveis na plataforma.
+- [ ] Definir fluxo para obter stream key YouTube: OAuth deve consultar/criar broadcast e stream associados quando suportado, sem expor a chave; Twitch/Kick/TikTok devem usar API oficial ou fluxo de credencial autorizado da plataforma, sem inferir chave a partir do chat.
+- [ ] Validar no OBS: conectar plataforma sem destino pré-configurado, confirmar cartão criado em **Múltiplas saídas**, conferir servidor/chave protegidos e testar iniciar/parar.
+
+**Requisito confirmado pelo usuário:** sincronização automática deve incluir destinos em **Múltiplas saídas**, mesmo quando lives ou destinos não estiverem pré-configurados.
+
 ## Reorganização dos painéis e Twitch OAuth — 06/09/2026
+
+- **YouTube OAuth — 07/09/2026:** o painel Contas recebeu cartão próprio com ícone, Client ID/Secret e autorização no navegador por retorno local. O usuário concluiu autorização real e recebeu a página **YouTube conectado ao StreamHub**. O servidor renova o token, descobre lives ativas/agendadas, lê e envia no chat e aplica título, categoria Gaming, tags, idioma e visibilidade. Bundle `14` compilado; leitura/envio e edição ainda aguardam validação em live real.
+- O envio em **Todos** continua exibindo uma única linha local; quando alguma plataforma falhar, o dock informa o resultado parcial sem duplicar a mensagem.
+- A criação de aplicativo da Kick permanece bloqueada externamente pelo erro de configuração de 2FA relatado no portal da plataforma; nenhuma alteração foi feita no conector Kick nesta etapa.
+- A capa da categoria selecionada agora também é carregada ao usar **Carregar atuais**, além de aparecer nos resultados da busca e na prévia após a seleção. Bundle `11`.
+- O cartão principal reavalia o serviço do perfil enquanto o OBS termina de carregar e passa de genérico para Twitch/YouTube/Kick/TikTok automaticamente, sem liberar o ponteiro emprestado pelo frontend.
+- Capas de jogos passam por um proxy local validado do StreamHub, evitando falhas de HTTPS do Qt ao acessar diretamente o CDN da Twitch. Bundle `12`.
 
 - **Múltiplas saídas · K4** mostra a transmissão principal do OBS como primeiro cartão fixo; o botão do cartão inicia e para a saída principal. Os destinos adicionais permanecem abaixo e continuam reordenáveis.
 - **Informações de transmissão K4** agora contém somente **Contas** e **Transmissão**. A conta Twitch aparece como cartão com ícone, usuário, estado e ação contextual (Conectar, Reconectar ou Trocar conta).

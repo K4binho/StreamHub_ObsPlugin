@@ -1,6 +1,37 @@
 # Plano de execução — StreamHub nativo + chats
 
-Data: 2026-09-05. Status atualizado em 06/09/2026: DLL autocontida, painéis nativos, Twitch OAuth, envio no chat, moderação, recompensas e editor de transmissão implementados. Permanecem pendentes OAuth e escrita para YouTube, Kick e TikTok, além do teste real de transmissão.
+Data: 2026-09-05. Status atualizado em 07/09/2026: DLL autocontida, painéis nativos, Twitch OAuth, envio no chat, moderação, recompensas e editor de transmissão implementados. OAuth YouTube validado com conta de teste; carregamento/edição da live ainda precisa corrigir consulta incompatível da API. Permanecem pendentes sincronização automática de RTMP/stream key e criação de destinos em Múltiplas saídas, além de OAuth e escrita para Kick e TikTok e teste real de transmissão.
+
+## Atualização do usuário — 07/09/2026
+
+- OAuth YouTube concluiu no navegador externo e retornou à página local **YouTube conectado ao StreamHub**.
+- O painel **Informações de transmissão K4** exibiu o erro: `YouTube: Parâmetros incompatíveis especificados na solicitação: mine, broadcastStatus`.
+- O painel exibiu também: `Twitch: Atualizada; notificação não existem na API da Twitch.`. O campo de notificação deve deixar de ser tratado como erro/resultado enganoso.
+- Requisito novo confirmado: ao conectar uma plataforma, **Servidor RTMP** e **Stream key** devem sincronizar automaticamente; destinos correspondentes devem ser adicionados em **Múltiplas saídas** mesmo quando nenhuma live ou saída estiver pré-configurada.
+- A sincronização deve ocorrer após conexão da plataforma, não depender de live previamente ativa e preservar configurações avançadas, ordem, nomes personalizados e demais destinos já existentes. Segredos precisam permanecer protegidos, sem logs, screenshots ou arquivos versionados.
+
+Pendência técnica: validar quais APIs autorizadas de cada plataforma fornecem servidor e stream key. OAuth YouTube não deve inventar ou expor stream key; quando a API não fornecer valor reutilizável, fluxo deve orientar configuração segura em vez de gravar valor falso.
+- Kick deverá usar OAuth por navegador externo, callback local, PKCE, refresh token, `streamkey:read`, envio de chat e ações de moderação conforme escopos oficiais liberados.
+- A sincronização Node/C++ deverá usar ponte local autenticada e temporária. C++ atualizará `GlobalMultiOutputConfig()` de forma idempotente, sem duplicar destinos ou sobrescrever nomes, ordem, encoders e configurações avançadas.
+- A implementação aguarda aprovação deste plano; esta etapa altera somente documentação e contexto seguro.
+
+Contexto consolidado: [contexto.md](contexto.md).
+
+## Plano de ação para próxima etapa
+
+1. Corrigir descoberta de transmissão YouTube com parâmetros aceitos e transformar notificação Twitch em campo ignorado, com testes mockados.
+2. Integrar Kick OAuth, callback, renovação, status, chat autenticado e moderação, mantendo tokens em armazenamento privado.
+3. Implementar leitura oficial de servidor RTMP/stream key Kick com `streamkey:read`; definir tratamento explícito para chave YouTube indisponível.
+4. Criar ponte Node/C++ loopback autenticada em memória, sem chave em logs, URL, eventos comuns ou configuração pública.
+5. Criar sincronização nativa idempotente: localizar por plataforma, criar destino ausente, atualizar somente valores oficiais e preservar todos os demais campos.
+6. Atualizar UI/status para sincronização concluída, pendente, indisponível ou falha, sempre mascarando segredos.
+7. Testar regressão, segurança de credenciais, compatibilidade de configurações antigas, criação sem live/destino prévio e transmissão real.
+
+Nenhum código deve ser alterado antes da confirmação do usuário após o checkpoint documental e deste plano.
+
+Contexto detalhado: [contexto.md](contexto.md).
+
+
 
 Atualização de execução (06/09/2026): DLL autocontida instalada; extração, reparação do npm, caminho absoluto e chats Twitch/Kick validados. O frontend nativo inicial de chat/configuração e o novo visual de Múltiplas saídas foram compilados e instalados; o log confirma nova conexão com o Node. Falta validação visual/regressão dos chats e a transmissão continua sem teste. Detalhes em [STATUS.md](STATUS.md).
 
@@ -12,7 +43,7 @@ Histórico consolidado em [STATUS.md](STATUS.md) e instruções corrigidas em [B
 
 Transmitir para Twitch e Kick pelas saídas nativas do OBS, compartilhando o encoder quando compatível. Configurar os chats pelo dock StreamHub, sem editar JSON e sem cadastrar chaves RTMP no servidor de chat. Salvar e aplicar canais sem fechar o OBS ou interromper a transmissão.
 
-YouTube, Kick e TikTok completos exigem autenticação própria. O envio Twitch já está implementado; o fluxo Todos está preparado para acrescentar as demais plataformas sem duplicar a linha exibida no chat. Preservar as configurações existentes.
+YouTube, Kick e TikTok completos exigem autenticação própria. Twitch e YouTube já enviam pelo fluxo Todos sem duplicar a linha exibida no chat. Kick e TikTok aguardam OAuth oficial. Preservar as configurações existentes.
 
 ## Interface vigente
 
