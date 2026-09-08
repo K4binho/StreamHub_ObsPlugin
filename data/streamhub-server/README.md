@@ -23,7 +23,7 @@ O overlay tem fundo transparente, ícone e cor fixa por plataforma, badges de mo
 - A próxima etapa usará navegador externo, callback local, PKCE, refresh token e escopos oficiais, incluindo `streamkey:read` quando liberado pelo aplicativo Kick.
 - A sincronização de servidor RTMP, stream key e destino nativo exigirá ponte local autenticada entre Node e C++. Nunca enviar chave por long-poll, Socket.IO, URL, log ou documentação.
 
-Contexto detalhado: [contexto.md](../contexto.md).
+Contexto detalhado: [PLANOS/ARQUITETURA_E_CONTEXTO.md](../../PLANOS/ARQUITETURA_E_CONTEXTO.md).
 
 **Implementação aguarda aprovação do plano detalhado.**
 
@@ -64,7 +64,7 @@ npm start
 
 O painel de múltiplas saídas é nativo em C++ e compartilha os recursos do OBS. O servidor Node cuida dos chats, overlay e chamadas autenticadas das plataformas; ele não recebe nem controla stream keys. A sincronização futura usará ponte local autenticada e temporária, com chave transitando somente no canal privado necessário para atualizar o destino nativo.
 
-A implementação da próxima etapa começa somente após aprovação do plano detalhado. Ver [contexto.md](../contexto.md) para estado, arquitetura, requisitos e critérios de validação.
+A implementação da próxima etapa começa somente após aprovação do plano detalhado. Ver [PLANOS/ARQUITETURA_E_CONTEXTO.md](../../PLANOS/ARQUITETURA_E_CONTEXTO.md) para estado, arquitetura, requisitos e critérios de validação.
 
 **Segurança:** nunca registrar Client Secret, tokens ou stream keys em logs, URLs, documentação, screenshots ou Git.
 

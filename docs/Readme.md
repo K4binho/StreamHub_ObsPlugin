@@ -17,7 +17,7 @@ A DLL inclui recursos, ícones, traduções e servidor local. Configuração pú
 - Kick deverá usar OAuth por navegador externo, callback local, refresh token e escopos oficiais para chat, moderação e leitura de `streamkey:read`.
 - Ponte futura Node/C++ deverá ser local, autenticada e temporária; chaves não serão enviadas em logs, documentação, URLs ou eventos comuns.
 
-Contexto detalhado: [contexto.md](../contexto.md). Implementação aguarda aprovação do plano.
+Contexto detalhado: [PLANOS/ARQUITETURA_E_CONTEXTO.md](../PLANOS/ARQUITETURA_E_CONTEXTO.md). Implementação aguarda aprovação do plano.
 
 <!-- registro histórico -->
 
@@ -39,7 +39,7 @@ Esta documentação não representa conclusão da sincronização automática ne
 
 次の実装では、Kick公式OAuth、PKCE、ローカルコールバック、refresh token、認証済みチャット、権限がある場合のモデレーション、`streamkey:read` による認証済み配信キー取得を追加します。接続後、公式に取得できるRTMPサーバーと配信キーをネイティブ出力へ同期し、配信や出力先が事前設定されていなくても対応する出力先を作成します。既存の順序、名前、encoder、詳細設定、他サービスの出力先は保持します。
 
-Node.jsはプラットフォームAPIと認証情報、C++はOBSネイティブ出力と `GlobalMultiOutputConfig()` を管理します。将来の橋渡しはローカル、認証付き、一時的とし、秘密情報をURL、ログ、通常イベント、ドキュメント、Gitへ流しません。詳細は [contexto.md](../contexto.md) を参照してください。実装は計画承認後に開始します。
+Node.jsはプラットフォームAPIと認証情報、C++はOBSネイティブ出力と `GlobalMultiOutputConfig()` を管理します。将来の橋渡しはローカル、認証付き、一時的とし、秘密情報をURL、ログ、通常イベント、ドキュメント、Gitへ流しません。詳細は [PLANOS/ARQUITETURA_E_CONTEXTO.md](../PLANOS/ARQUITETURA_E_CONTEXTO.md) を参照してください。実装は計画承認後に開始します。
 
 # OBS 同時配信プラグイン
 

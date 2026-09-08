@@ -1,0 +1,100 @@
+# StreamHub OBS Plugin
+
+Plugin nativo para OBS Studio, baseado em [`obs-multi-rtmp`](https://github.com/sorayuki/obs-multi-rtmp), expandido com chat unificado, gerenciamento de contas e identidade visual K4binho.
+
+## Recursos
+
+- Saídas RTMP nativas para múltiplas plataformas.
+- Transmissão principal do OBS exibida como primeiro cartão.
+- Docks nativos Qt para saídas, chat e informações da transmissão.
+- Chat unificado com filtros por plataforma, envio e deduplicação.
+- Moderação e recompensas pelo painel **ADM**, conforme autorização da conta.
+- Twitch OAuth para chat, dados da live, moderação e recompensas.
+- YouTube OAuth com callback local; leitura e edição da live ainda precisam de validação completa.
+- Overlay transparente para **Fonte de navegador** do OBS.
+- Runtime Node.js provisionado automaticamente, sem instalação externa obrigatória.
+- Servidor Node.js, locale, ícones, branding e tema embutidos na DLL via Qt Resource System.
+- Tema **K4binho — Má Fase** e fundo de cena 1920×1080.
+- Compatibilidade com OBS instalado e portátil por resolução dinâmica de caminhos.
+
+## Estado atual
+
+- Twitch: leitura, envio, dados da live, moderação e recompensas implementados.
+- YouTube: OAuth validado; consulta da transmissão apresenta erro conhecido ao combinar `mine` e `broadcastStatus`.
+- Kick: leitura de chat existente; OAuth oficial, envio autenticado, moderação e leitura autorizada de stream key ainda pendentes.
+- TikTok: experimental.
+- Facebook: destino RTMP disponível; chat ainda não possui conector funcional.
+- Sincronização automática de contas, servidor RTMP, stream key e destinos nativos ainda está no roadmap.
+- Transmissão RTMP real ainda não foi validada de ponta a ponta.
+
+## Instalação rápida
+
+1. Baixe ou compile o plugin.
+2. Feche OBS.
+3. Copie `obs-multi-rtmp.dll` para `obs-plugins\64bit` na instalação do OBS.
+4. Abra OBS e aguarde primeira extração do bundle e instalação das dependências Node.
+5. Abra **Painéis** e confirme:
+   - **Múltiplas saídas · K4**;
+   - **StreamHub Chat · K4**;
+   - **Informações de transmissão K4**.
+
+Não copie `data/` manualmente quando usar DLL com recursos embutidos. Não sobrescreva configuração, tokens ou `node_modules` existentes.
+
+## Build Windows
+
+Pré-requisitos:
+
+- Visual Studio Community 2026 com **Desenvolvimento para desktop com C++**;
+- CMake 3.28+;
+- Git.
+
+Na raiz do repositório:
+
+```powershell
+cmake --preset windows-x64
+```
+
+```powershell
+cmake --build --preset windows-x64 --config RelWithDebInfo
+```
+
+DLL gerada normalmente:
+
+```text
+build_x64\RelWithDebInfo\obs-multi-rtmp.dll
+```
+
+Node.js não é pré-requisito. Plugin usa Node do PATH ou baixa runtime portátil na primeira execução. QtWebSockets não é necessário; chat usa long-poll HTTP via `Qt6::Network`.
+
+## Overlay
+
+Abra engrenagem de **StreamHub Chat · K4**, selecione **Overlay** e clique **Copiar URL**. URL padrão:
+
+```text
+http://127.0.0.1:3000/overlay.html
+```
+
+Adicione URL como **Fonte de navegador** no OBS. Fundo permanece transparente.
+
+## Documentação
+
+- [Arquitetura, contexto, regras de desenvolvimento e roadmap](PLANOS/ARQUITETURA_E_CONTEXTO.md)
+- [Manual de uso, build, instalação, overlay, tema e Flatpak](PLANOS/MANUAL_E_BUILD.md)
+- [Build Flatpak especializado](FLATPAK.md)
+- [Instalação do tema](themes/INSTALACAO.md)
+- [Documentação do servidor](data/streamhub-server/README.md)
+
+## Segurança
+
+Nunca publique Client Secret, access token, refresh token, stream key ou URL OAuth contendo `code=`. Segredos não devem aparecer em logs, Markdown, screenshots, URLs, eventos comuns, commits ou releases.
+
+## Créditos
+
+- Projeto original: [SoraYuki](https://github.com/sorayuki/obs-multi-rtmp)
+- Melhorias StreamHub e tema: K4binho
+- Apoio ao StreamHub: [LivePix](https://livepix.gg/k4binho)
+- Apoio ao projeto original: [PayPal](https://paypal.me/sorayuki0)
+
+## Licença
+
+Consulte arquivos de licença do projeto original e dependências incluídas antes de redistribuir.
