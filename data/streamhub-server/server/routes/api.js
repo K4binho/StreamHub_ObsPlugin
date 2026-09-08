@@ -1,8 +1,37 @@
 const express = require('express');
+const fetch = require('node-fetch');
 const { readConfig, writeConfig } = require('../config-store');
 
 function createApiRouter(accounts) {
 const router = express.Router();
+
+function localBoxArtUrl(req, remoteUrl) {
+  if (!remoteUrl) return '';
+  return `${req.protocol}://${req.get('host')}/api/twitch/category-art?url=${encodeURIComponent(remoteUrl)}`;
+}
+
+async function activeYoutubeBroadcast() {
+  const result = await accounts.youtubeRequest(
+    '/liveBroadcasts?part=id,snippet,status,contentDetails&mine=true&maxResults=50'
+  );
+  const priority = new Map([
+    ['live', 0],
+    ['testing', 1],
+    ['ready', 2],
+    ['created', 3],
+  ]);
+  const broadcasts = (result.items || [])
+    .filter((item) => priority.has(item.status?.lifeCycleStatus))
+    .sort((left, right) => {
+      const rank = priority.get(left.status.lifeCycleStatus) - priority.get(right.status.lifeCycleStatus);
+      if (rank !== 0) return rank;
+      return String(right.snippet?.scheduledStartTime || '').localeCompare(
+        String(left.snippet?.scheduledStartTime || '')
+      );
+    });
+  if (broadcasts[0]) return broadcasts[0];
+  throw new Error('Nenhuma live ativa ou agendada foi encontrada no YouTube.');
+}
 
 // Retorna o config.json inteiro pro dashboard preencher os campos.
 router.get('/config', (req, res) => {
@@ -44,18 +73,70 @@ router.get('/accounts/twitch/connect/:flowId', async (req, res) => {
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-router.get('/twitch/channel', async (_req, res) => {
+router.get('/twitch/channel', async (req, res) => {
   try {
     const broadcasterId = await accounts.userId();
     const result = await accounts.request(`/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`);
     const channel = result.data?.[0];
     if (!channel) throw new Error('A Twitch não retornou as informações do canal.');
+    let boxArtUrl = '';
+    if (channel.game_id) {
+      try {
+        const games = await accounts.request(`/games?id=${encodeURIComponent(channel.game_id)}`);
+        const remoteArt = String(games.data?.[0]?.box_art_url || '')
+          .replace('{width}', '104').replace('{height}', '144');
+        boxArtUrl = localBoxArtUrl(req, remoteArt);
+      } catch (error) {
+        console.warn('[streamhub] não foi possível carregar a capa da categoria atual:', error.message);
+      }
+    }
     res.json({
       title: channel.title || '', gameId: channel.game_id || '', gameName: channel.game_name || '',
+      boxArtUrl,
       language: channel.broadcaster_language || 'pt', tags: channel.tags || [],
       classificationLabels: (channel.content_classification_labels || []).filter((item) => item.is_enabled).map((item) => item.id),
     });
   } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/accounts/youtube/status', (_req, res) => {
+  res.json(accounts.youtubeStatus());
+});
+
+router.post('/accounts/youtube/connect', async (req, res) => {
+  try {
+    const port = readConfig().server?.port || 3000;
+    const redirectUri = `http://127.0.0.1:${port}/api/accounts/youtube/callback`;
+    res.json(await accounts.startYoutube({ clientId: req.body?.clientId, clientSecret: req.body?.clientSecret, redirectUri }));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/accounts/youtube/callback', async (req, res) => {
+  try {
+    if (req.query.error) throw new Error(String(req.query.error_description || req.query.error));
+    await accounts.finishYoutube(req.query.state, req.query.code);
+    const config = readConfig();
+    config.youtube = { ...(config.youtube || {}), enabled: true };
+    writeConfig(config);
+    res.type('html').send('<!doctype html><meta charset="utf-8"><title>StreamHub</title><body style="background:#080c14;color:#fff;font:16px sans-serif;padding:32px"><h2>YouTube conectado ao StreamHub</h2><p>Você pode fechar esta janela e voltar ao OBS.</p></body>');
+  } catch (err) {
+    res.status(400).type('html').send(`<!doctype html><meta charset="utf-8"><title>StreamHub</title><body style="font:16px sans-serif;padding:32px"><h2>Não foi possível conectar</h2><p>${String(err.message).replace(/[<>&"]/g, '')}</p></body>`);
+  }
+});
+
+router.get('/twitch/category-art', async (req, res) => {
+  try {
+    const remoteUrl = new URL(String(req.query.url || ''));
+    if (remoteUrl.protocol !== 'https:' || remoteUrl.hostname !== 'static-cdn.jtvnw.net')
+      throw new Error('URL de capa inválida.');
+    const response = await fetch(remoteUrl.toString(), { timeout: 10000 });
+    if (!response.ok) throw new Error(`A Twitch não retornou a capa (HTTP ${response.status}).`);
+    res.set('Content-Type', response.headers.get('content-type') || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    response.body.pipe(res);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.get('/twitch/categories', async (req, res) => {
@@ -65,9 +146,45 @@ router.get('/twitch/categories', async (req, res) => {
     const result = await accounts.request(`/search/categories?query=${encodeURIComponent(query)}&first=10`);
     res.json({ data: (result.data || []).map((item) => ({
       id: item.id, name: item.name,
-      boxArtUrl: String(item.box_art_url || '').replace('{width}', '52').replace('{height}', '72'),
+      boxArtUrl: localBoxArtUrl(req, String(item.box_art_url || '').replace('{width}', '52').replace('{height}', '72')),
     })) });
   } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/broadcast/current', async (req, res) => {
+  try {
+    const broadcasterId = await accounts.userId();
+    const result = await accounts.request(`/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`);
+    const channel = result.data?.[0];
+    if (!channel) throw new Error('A Twitch não retornou as informações do canal.');
+    let boxArtUrl = '';
+    if (channel.game_id) {
+      try {
+        const games = await accounts.request(`/games?id=${encodeURIComponent(channel.game_id)}`);
+        const remoteArt = String(games.data?.[0]?.box_art_url || '').replace('{width}', '104').replace('{height}', '144');
+        boxArtUrl = localBoxArtUrl(req, remoteArt);
+      } catch (_) {}
+    }
+    return res.json({
+      platform: 'twitch', title: channel.title || '', gameId: channel.game_id || '', gameName: channel.game_name || '', boxArtUrl,
+      language: channel.broadcaster_language || 'pt', tags: channel.tags || [],
+      classificationLabels: (channel.content_classification_labels || []).filter((item) => item.is_enabled).map((item) => item.id),
+    });
+  } catch (twitchError) {
+    if (!accounts.youtubeStatus().connected) return res.status(400).json({ error: twitchError.message });
+    try {
+      const broadcast = await activeYoutubeBroadcast();
+      const current = await accounts.youtubeRequest(`/videos?part=snippet,status&id=${encodeURIComponent(broadcast.id)}`);
+      const video = current.items?.[0];
+      if (!video) throw new Error('A live do YouTube não foi encontrada.');
+      return res.json({
+        platform: 'youtube', title: video.snippet?.title || '', gameId: '',
+        gameName: video.snippet?.categoryId === '20' ? 'Jogos' : '', boxArtUrl: '',
+        language: video.snippet?.defaultLanguage || 'pt', tags: video.snippet?.tags || [],
+        classificationLabels: [], visibility: video.status?.privacyStatus || 'public',
+      });
+    } catch (youtubeError) { return res.status(400).json({ error: youtubeError.message }); }
+  }
 });
 
 router.patch('/twitch/channel', async (req, res) => {
@@ -113,14 +230,45 @@ router.post('/broadcast/apply', async (req, res) => {
     }
     await accounts.request(`/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`, { method: 'PATCH', body: JSON.stringify(body) });
     const ignored = [];
-    if (req.body?.notification) ignored.push('notificação');
-    if (Number(req.body?.visibility) !== 0) ignored.push('visibilidade');
-    results.push({ platform: 'Twitch', ok: true, message: ignored.length ? `Atualizada; ${ignored.join(' e ')} não existem na API da Twitch.` : 'Informações atualizadas.' });
+    if (req.body?.notification) ignored.push('notification');
+    if (Number(req.body?.visibility) !== 0) ignored.push('visibility');
+    const message = ignored.length
+      ? `Informações atualizadas. Campos ignorados pela API da Twitch: ${ignored.join(', ')}.`
+      : 'Informações atualizadas.';
+    results.push({ platform: 'Twitch', ok: true, message, ignored });
   } catch (err) {
     results.push({ platform: 'Twitch', ok: false, message: err.message });
   }
   const config = readConfig();
-  for (const [key, name] of [['youtube', 'YouTube'], ['kick', 'Kick'], ['tiktok', 'TikTok']]) {
+  if (accounts.youtubeStatus().connected) {
+    try {
+      const broadcast = await activeYoutubeBroadcast();
+      const current = await accounts.youtubeRequest(`/videos?part=snippet,status&id=${encodeURIComponent(broadcast.id)}`);
+      const video = current.items?.[0];
+      if (!video) throw new Error('A live ativa não foi encontrada como vídeo do YouTube.');
+      const snippet = {
+        title,
+        description: video.snippet?.description || '',
+        categoryId: category ? '20' : (video.snippet?.categoryId || '20'),
+        tags: Array.isArray(req.body?.tags) ? req.body.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 30) : (video.snippet?.tags || []),
+      };
+      if (req.body?.language && req.body.language !== 'other') snippet.defaultLanguage = req.body.language;
+      if (video.snippet?.defaultAudioLanguage) snippet.defaultAudioLanguage = video.snippet.defaultAudioLanguage;
+      const privacy = ['public', 'unlisted', 'private'][Number(req.body?.visibility)] || video.status?.privacyStatus || 'public';
+      const preservedStatus = {};
+      for (const key of ['license', 'embeddable', 'publicStatsViewable', 'publishAt', 'containsSyntheticMedia']) {
+        if (video.status?.[key] !== undefined) preservedStatus[key] = video.status[key];
+      }
+      await accounts.youtubeRequest('/videos?part=snippet,status', {
+        method: 'PUT',
+        body: JSON.stringify({ id: broadcast.id, snippet, status: { ...preservedStatus, privacyStatus: privacy, selfDeclaredMadeForKids: Boolean(video.status?.selfDeclaredMadeForKids) } }),
+      });
+      results.push({ platform: 'YouTube', ok: true, message: 'Título, categoria Gaming, tags, idioma e visibilidade atualizados.' });
+    } catch (err) { results.push({ platform: 'YouTube', ok: false, message: err.message }); }
+  } else if (config.youtube?.enabled) {
+    results.push({ platform: 'YouTube', ok: false, message: 'Conecte a conta do YouTube.' });
+  }
+  for (const [key, name] of [['kick', 'Kick'], ['tiktok', 'TikTok']]) {
     if (config[key]?.enabled) results.push({ platform: name, ok: false, message: 'OAuth desta plataforma ainda não está conectado.' });
   }
   res.json({ results });
@@ -131,21 +279,43 @@ router.post('/chat/send', async (req, res) => {
   const target = String(req.body?.target || 'all').toLowerCase();
   if (!message || message.length > 500) return res.status(400).json({ error: 'Digite uma mensagem com até 500 caracteres.' });
   if (!['all', 'twitch', 'kick', 'youtube', 'tiktok'].includes(target)) return res.status(400).json({ error: 'Chat de destino inválido.' });
-  if (target !== 'all' && target !== 'twitch') return res.status(400).json({ error: `O envio autenticado para ${target} ainda não está conectado.` });
-  try {
-    const config = readConfig();
-    const senderId = await accounts.userId();
-    let broadcasterId = senderId;
-    const channel = String(config.twitch?.channel || '').trim();
-    if (channel) {
-      const users = await accounts.request(`/users?login=${encodeURIComponent(channel)}`);
-      if (!users.data?.[0]) throw new Error('Canal da Twitch não encontrado.');
-      broadcasterId = users.data[0].id;
+  const results = [];
+  const config = readConfig();
+  if (target === 'all' || target === 'twitch') {
+    try {
+      const senderId = await accounts.userId();
+      let broadcasterId = senderId;
+      const channel = String(config.twitch?.channel || '').trim();
+      if (channel) {
+        const users = await accounts.request(`/users?login=${encodeURIComponent(channel)}`);
+        if (!users.data?.[0]) throw new Error('Canal da Twitch não encontrado.');
+        broadcasterId = users.data[0].id;
+      }
+      const result = await accounts.request('/chat/messages', { method: 'POST', body: JSON.stringify({ broadcaster_id: broadcasterId, sender_id: senderId, message }) });
+      if (!result.data?.[0]?.is_sent) throw new Error(result.data?.[0]?.drop_reason?.message || 'A Twitch recusou a mensagem.');
+      results.push({ platform: 'Twitch', ok: true });
+    } catch (err) { results.push({ platform: 'Twitch', ok: false, message: err.message }); }
+  }
+  if (target === 'all' || target === 'youtube') {
+    if (!accounts.youtubeStatus().connected) {
+      if (target === 'youtube') results.push({ platform: 'YouTube', ok: false, message: 'Conecte a conta do YouTube.' });
+    } else {
+      try {
+        const broadcast = await activeYoutubeBroadcast();
+        const liveChatId = broadcast.snippet?.liveChatId;
+        if (!liveChatId) throw new Error('A live do YouTube ainda não possui um chat ativo.');
+        await accounts.youtubeRequest('/liveChat/messages?part=snippet', {
+          method: 'POST',
+          body: JSON.stringify({ snippet: { liveChatId, type: 'textMessageEvent', textMessageDetails: { messageText: message } } }),
+        });
+        results.push({ platform: 'YouTube', ok: true });
+      } catch (err) { results.push({ platform: 'YouTube', ok: false, message: err.message }); }
     }
-    const result = await accounts.request('/chat/messages', { method: 'POST', body: JSON.stringify({ broadcaster_id: broadcasterId, sender_id: senderId, message }) });
-    if (!result.data?.[0]?.is_sent) throw new Error(result.data?.[0]?.drop_reason?.message || 'A Twitch recusou a mensagem.');
-    res.json({ results: [{ platform: 'Twitch', ok: true, message: 'Mensagem enviada.' }] });
-  } catch (err) { res.status(400).json({ error: err.message }); }
+  }
+  if (target === 'kick' || target === 'tiktok') results.push({ platform: target, ok: false, message: `O envio autenticado para ${target} ainda não está conectado.` });
+  const successes = results.filter((item) => item.ok);
+  if (!successes.length) return res.status(400).json({ error: results.map((item) => `${item.platform}: ${item.message}`).join('\n') || 'Nenhum chat conectado.' });
+  res.json({ results });
 });
 
 router.post('/twitch/moderation', async (req, res) => {

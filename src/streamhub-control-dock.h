@@ -25,6 +25,9 @@ private:
     void RefreshAccount();
     void StartTwitchLogin();
     void PollTwitchLogin(const QString &flowId, int intervalSeconds);
+    void RefreshYoutubeAccount();
+    void StartYoutubeLogin();
+    void PollYoutubeLogin();
     void LoadBroadcast();
     void ApplyBroadcast();
     void SearchCategories();
@@ -34,10 +37,16 @@ private:
     QNetworkAccessManager *network_ = nullptr;
     QTimer *loginTimer_ = nullptr;
     QTimer *categoryTimer_ = nullptr;
+    QTimer *youtubeLoginTimer_ = nullptr;
     QLabel *accountStatus_ = nullptr;
     QLabel *accountName_ = nullptr;
     QLabel *loginHelp_ = nullptr;
     QPushButton *connectButton_ = nullptr;
+    QLabel *youtubeAccountStatus_ = nullptr;
+    QLabel *youtubeAccountName_ = nullptr;
+    QPushButton *youtubeConnectButton_ = nullptr;
+    QLineEdit *youtubeClientId_ = nullptr;
+    QLineEdit *youtubeClientSecret_ = nullptr;
     QTextEdit *title_ = nullptr;
     QLabel *titleCount_ = nullptr;
     QTextEdit *notification_ = nullptr;

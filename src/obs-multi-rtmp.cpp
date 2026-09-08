@@ -560,23 +560,9 @@ public:
         auto *mainIcon = new QLabel(mainCard);
         mainIcon->setFixedSize(42, 42);
         mainIcon->setAlignment(Qt::AlignCenter);
-        QString mainServiceName = tr("Transmissão principal");
-        QString mainPlatform = "custom";
-        if (obs_service_t *service = obs_frontend_get_streaming_service()) {
-            obs_data_t *settings = obs_service_get_settings(service);
-            const QString configuredService = QString::fromUtf8(obs_data_get_string(settings, "service")).trimmed();
-            if (!configuredService.isEmpty()) mainServiceName = configuredService;
-            const QString lowered = mainServiceName.toLower();
-            if (lowered.contains("twitch")) mainPlatform = "twitch";
-            else if (lowered.contains("youtube")) mainPlatform = "youtube";
-            else if (lowered.contains("kick")) mainPlatform = "kick";
-            else if (lowered.contains("tiktok")) mainPlatform = "tiktok";
-            obs_data_release(settings);
-        }
-        mainIcon->setPixmap(QIcon(mainPlatform == "custom" ? ":/streamhub-ui/icons/camera.svg"
-                                                           : QString(":/streamhub-ui/icons/%1.svg").arg(mainPlatform)).pixmap(38, 38));
+        mainIcon->setPixmap(QIcon(":/streamhub-ui/icons/camera.svg").pixmap(38, 38));
         mainCardLayout->addWidget(mainIcon, 0, 0, 2, 1);
-        auto *mainName = new QLabel(QString("%1 · %2").arg(mainServiceName, tr("Principal")), mainCard);
+        auto *mainName = new QLabel(QString("%1 · %2").arg(tr("Transmissão principal"), tr("Principal")), mainCard);
         mainName->setObjectName("outputName");
         mainCardLayout->addWidget(mainName, 0, 1);
         auto *mainStatus = new QLabel(mainCard);
@@ -592,7 +578,30 @@ public:
         mainToggle->setCheckable(true);
         mainToggle->setFixedSize(66, 34);
         mainCardLayout->addWidget(mainToggle, 0, 3, 2, 1);
-        const auto updateMainCard = [mainStatus, mainToggle]() {
+        const auto updateMainCard = [mainStatus, mainToggle, mainName, mainIcon]() {
+            QString serviceName = QObject::tr("Transmissão principal");
+            QString platform = "custom";
+            if (obs_service_t *service = obs_frontend_get_streaming_service()) {
+                // A API do frontend devolve um ponteiro emprestado. Não chame
+                // obs_service_release() aqui; o OBS continua sendo o dono.
+                obs_data_t *settings = obs_service_get_settings(service);
+                const QString configuredService =
+                    QString::fromUtf8(obs_data_get_string(settings, "service")).trimmed();
+                const QString server =
+                    QString::fromUtf8(obs_data_get_string(settings, "server")).trimmed();
+                if (!configuredService.isEmpty())
+                    serviceName = configuredService;
+                const QString identity = configuredService + " " + server;
+                if (identity.contains("twitch", Qt::CaseInsensitive)) platform = "twitch";
+                else if (identity.contains("youtube", Qt::CaseInsensitive)) platform = "youtube";
+                else if (identity.contains("kick", Qt::CaseInsensitive)) platform = "kick";
+                else if (identity.contains("tiktok", Qt::CaseInsensitive)) platform = "tiktok";
+                else if (identity.contains("facebook", Qt::CaseInsensitive)) platform = "facebook";
+                obs_data_release(settings);
+            }
+            mainName->setText(QString("%1 · %2").arg(serviceName, QObject::tr("Principal")));
+            mainIcon->setPixmap(QIcon(platform == "custom" ? ":/streamhub-ui/icons/camera.svg"
+                                                            : QString(":/streamhub-ui/icons/%1.svg").arg(platform)).pixmap(38, 38));
             const bool active = obs_frontend_streaming_active();
             mainToggle->blockSignals(true);
             mainToggle->setChecked(active);

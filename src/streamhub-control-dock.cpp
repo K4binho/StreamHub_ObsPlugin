@@ -94,8 +94,30 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     loginHelp_->setTextInteractionFlags(Qt::TextBrowserInteraction);
     loginHelp_->setOpenExternalLinks(true);
     accountsLayout->addWidget(loginHelp_);
+
+    auto *youtubeCard = new QWidget(accounts);
+    youtubeCard->setObjectName("accountCard");
+    auto *youtubeCardRoot = new QVBoxLayout(youtubeCard);
+    auto *youtubeTop = new QHBoxLayout();
+    auto *youtubeIcon = new QLabel(youtubeCard);
+    youtubeIcon->setPixmap(QIcon(":/streamhub-ui/icons/youtube.svg").pixmap(44, 44));
+    youtubeIcon->setFixedSize(48, 48);
+    youtubeTop->addWidget(youtubeIcon);
+    auto *youtubeText = new QVBoxLayout();
+    youtubeAccountName_ = new QLabel(tr("YouTube"), youtubeCard); youtubeAccountName_->setObjectName("accountName");
+    youtubeAccountStatus_ = new QLabel(tr("● Verificando conta..."), youtubeCard); youtubeAccountStatus_->setObjectName("accountState");
+    youtubeText->addWidget(youtubeAccountName_); youtubeText->addWidget(youtubeAccountStatus_); youtubeTop->addLayout(youtubeText, 1);
+    youtubeConnectButton_ = new QPushButton(tr("Conectar"), youtubeCard); youtubeConnectButton_->setObjectName("accountAction");
+    connect(youtubeConnectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartYoutubeLogin);
+    youtubeTop->addWidget(youtubeConnectButton_); youtubeCardRoot->addLayout(youtubeTop);
+    youtubeClientId_ = new QLineEdit(youtubeCard); youtubeClientId_->setPlaceholderText(tr("Client ID OAuth do Google"));
+    youtubeClientSecret_ = new QLineEdit(youtubeCard); youtubeClientSecret_->setPlaceholderText(tr("Client Secret OAuth do Google")); youtubeClientSecret_->setEchoMode(QLineEdit::Password);
+    youtubeCardRoot->addWidget(youtubeClientId_); youtubeCardRoot->addWidget(youtubeClientSecret_);
+    auto *youtubeHelp = new QLabel(tr("Google Cloud: YouTube Data API v3 + cliente OAuth do tipo Aplicativo para computador."), youtubeCard);
+    youtubeHelp->setObjectName("controlStatus"); youtubeHelp->setWordWrap(true); youtubeCardRoot->addWidget(youtubeHelp);
+    accountsLayout->addWidget(youtubeCard);
     accountsLayout->addStretch();
-    tabs->addTab(accounts, QIcon(":/streamhub-ui/icons/twitch.svg"), tr("Contas"));
+    tabs->addTab(accounts, QIcon(":/streamhub-ui/branding/k4-logo.png"), tr("Contas"));
 
     auto *broadcastScroll = new QScrollArea(tabs);
     broadcastScroll->setWidgetResizable(true);
@@ -170,6 +192,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
 
     network_ = new QNetworkAccessManager(this);
     loginTimer_ = new QTimer(this); loginTimer_->setSingleShot(true);
+    youtubeLoginTimer_ = new QTimer(this); youtubeLoginTimer_->setSingleShot(true); youtubeLoginTimer_->setInterval(1500);
+    connect(youtubeLoginTimer_, &QTimer::timeout, this, &StreamHubControlDock::PollYoutubeLogin);
     categoryTimer_ = new QTimer(this); categoryTimer_->setSingleShot(true); categoryTimer_->setInterval(350);
     connect(category_, &QLineEdit::textEdited, this, [this]() { categoryId_.clear(); categoryTimer_->start(); UpdatePreview(); });
     connect(categoryTimer_, &QTimer::timeout, this, &StreamHubControlDock::SearchCategories);
@@ -208,7 +232,7 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     )");
 }
 
-void StreamHubControlDock::ConnectTo(int port) { port_ = port; RefreshAccount(); }
+void StreamHubControlDock::ConnectTo(int port) { port_ = port; RefreshAccount(); RefreshYoutubeAccount(); }
 
 void StreamHubControlDock::Request(const QByteArray &method, const QString &path, const QJsonObject &body, ReplyHandler handler)
 {
@@ -257,14 +281,84 @@ void StreamHubControlDock::PollTwitchLogin(const QString &flowId, int intervalSe
     }, Qt::SingleShotConnection);
 }
 
+void StreamHubControlDock::RefreshYoutubeAccount()
+{
+    Request("GET", "/api/accounts/youtube/status", {}, [this](const QJsonObject &o, int status) {
+        if (status != 200) { youtubeAccountStatus_->setText(tr("● Aguardando o serviço local...")); youtubeAccountStatus_->setProperty("connected", false); QTimer::singleShot(1500, this, &StreamHubControlDock::RefreshYoutubeAccount); return; }
+        const bool connected = o.value("connected").toBool();
+        const bool needsReconnect = o.value("needsReconnect").toBool();
+        const bool usable = connected && !needsReconnect;
+        const bool configured = o.value("configured").toBool();
+        youtubeAccountStatus_->setProperty("connected", usable); youtubeAccountStatus_->style()->unpolish(youtubeAccountStatus_); youtubeAccountStatus_->style()->polish(youtubeAccountStatus_);
+        if (youtubeClientId_->text().isEmpty()) youtubeClientId_->setText(o.value("clientId").toString());
+        youtubeAccountName_->setText(connected ? QString("YouTube · %1").arg(o.value("name").toString()) : tr("YouTube"));
+        if (!connected && configured) youtubeAccountStatus_->setText(tr("● Aguardando autorização"));
+        else if (!connected) youtubeAccountStatus_->setText(tr("● Não conectado"));
+        else if (needsReconnect) youtubeAccountStatus_->setText(tr("● Precisa reconectar"));
+        else youtubeAccountStatus_->setText(tr("● Conectado"));
+        youtubeConnectButton_->setText(connected ? (needsReconnect ? tr("Reconectar") : tr("Trocar conta")) : tr("Conectar"));
+        youtubeClientId_->setVisible(!usable); youtubeClientSecret_->setVisible(!usable); youtubeConnectButton_->setEnabled(true);
+        if (usable)
+            youtubeClientSecret_->clear();
+        youtubeLoginTimer_->stop();
+        if (needsReconnect)
+            youtubeAccountStatus_->setToolTip(tr("A autorização não contém refresh token. Conecte novamente para permitir renovação automática."));
+        else
+            youtubeAccountStatus_->setToolTip(QString());
+    });
+}
+
+void StreamHubControlDock::StartYoutubeLogin()
+{
+    const QString clientId = youtubeClientId_->text().trimmed();
+    if (clientId.isEmpty()) { youtubeAccountStatus_->setText(tr("Informe o Client ID OAuth do Google.")); return; }
+    youtubeConnectButton_->setEnabled(false); youtubeAccountStatus_->setText(tr("● Abrindo autorização do Google..."));
+    Request("POST", "/api/accounts/youtube/connect", {{"clientId", clientId}, {"clientSecret", youtubeClientSecret_->text().trimmed()}}, [this](const QJsonObject &o, int status) {
+        if (status != 200) { youtubeAccountStatus_->setText(o.value("error").toString()); youtubeConnectButton_->setEnabled(true); return; }
+        const QUrl authorizationUrl(o.value("authorizationUrl").toString());
+        if (!authorizationUrl.isValid() || authorizationUrl.scheme() != "https") {
+            youtubeAccountStatus_->setText(tr("URL de autorização do Google inválida."));
+            youtubeConnectButton_->setEnabled(true);
+            return;
+        }
+        QDesktopServices::openUrl(authorizationUrl); youtubeLoginTimer_->start();
+    });
+}
+
+void StreamHubControlDock::PollYoutubeLogin()
+{
+    Request("GET", "/api/accounts/youtube/status", {}, [this](const QJsonObject &o, int status) {
+        if (status == 200 && o.value("connected").toBool()) { RefreshYoutubeAccount(); return; }
+        youtubeAccountStatus_->setText(tr("● Aguardando autorização no navegador...")); youtubeLoginTimer_->start();
+    });
+}
+
 void StreamHubControlDock::LoadBroadcast()
 {
-    Request("GET", "/api/twitch/channel", {}, [this](const QJsonObject &o, int status) {
+    Request("GET", "/api/broadcast/current", {}, [this](const QJsonObject &o, int status) {
         if (status != 200) { broadcastStatus_->setText(o.value("error").toString()); return; }
         title_->setPlainText(o.value("title").toString()); category_->setText(o.value("gameName").toString()); categoryId_ = o.value("gameId").toString();
         QStringList tags; for (const auto &tag : o.value("tags").toArray()) tags << tag.toString(); tags_->setText(tags.join(", "));
         const int languageIndex = language_->findData(o.value("language").toString()); if (languageIndex >= 0) language_->setCurrentIndex(languageIndex);
         const auto labels = o.value("classificationLabels").toArray(); const int classificationIndex = labels.isEmpty() ? 0 : classification_->findData(labels.first().toString()); classification_->setCurrentIndex(qMax(0, classificationIndex));
+        const QString visibility = o.value("visibility").toString();
+        if (visibility == "unlisted") visibility_->setCurrentIndex(1);
+        else if (visibility == "private") visibility_->setCurrentIndex(2);
+        else if (!visibility.isEmpty()) visibility_->setCurrentIndex(0);
+        const QString platform = o.value("platform").toString("twitch");
+        const QString artUrl = o.value("boxArtUrl").toString();
+        if (artUrl.isEmpty()) {
+            previewCover_->setPixmap(QIcon(QString(":/streamhub-ui/icons/%1.svg").arg(platform)).pixmap(38, 38));
+        } else {
+            QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(artUrl)));
+            connect(imageReply, &QNetworkReply::finished, this, [this, imageReply]() {
+                QPixmap art;
+                art.loadFromData(imageReply->readAll());
+                imageReply->deleteLater();
+                if (!art.isNull())
+                    previewCover_->setPixmap(art.scaled(52, 72, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            });
+        }
         UpdatePreview(); broadcastStatus_->setText(tr("Informações atuais carregadas."));
     });
 }
@@ -288,7 +382,7 @@ void StreamHubControlDock::SearchCategories()
         for (const auto &value : o.value("data").toArray()) {
             const auto category = value.toObject(); auto *item = new QListWidgetItem(QIcon(":/streamhub-ui/icons/twitch.svg"), category.value("name").toString(), categoryResults_); item->setData(Qt::UserRole, category.value("id").toString());
             const QString artUrl = category.value("boxArtUrl").toString();
-            if (!artUrl.isEmpty()) { QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(artUrl))); const QString id = category.value("id").toString(); connect(imageReply, &QNetworkReply::finished, this, [this, imageReply, id]() { QPixmap art; art.loadFromData(imageReply->readAll()); imageReply->deleteLater(); if (art.isNull()) return; for (int row = 0; row < categoryResults_->count(); ++row) if (categoryResults_->item(row)->data(Qt::UserRole).toString() == id) categoryResults_->item(row)->setIcon(QIcon(art)); }); }
+            if (!artUrl.isEmpty()) { QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(artUrl))); const QString id = category.value("id").toString(); connect(imageReply, &QNetworkReply::finished, this, [this, imageReply, id]() { QPixmap art; art.loadFromData(imageReply->readAll()); imageReply->deleteLater(); if (art.isNull()) return; for (int row = 0; row < categoryResults_->count(); ++row) if (categoryResults_->item(row)->data(Qt::UserRole).toString() == id) categoryResults_->item(row)->setIcon(QIcon(art)); if (categoryId_ == id) previewCover_->setPixmap(art.scaled(52, 72, Qt::KeepAspectRatio, Qt::SmoothTransformation)); }); }
         }
         categoryResults_->setVisible(categoryResults_->count() > 0);
     });

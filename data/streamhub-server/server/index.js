@@ -143,9 +143,7 @@ async function main() {
     startTwitch(config.twitch, broadcastMessage, (state, detail) => updateConnectionStatus('twitch', state, detail));
   }
 
-  if (config.youtube?.enabled) {
-    await startYoutube(config.youtube, broadcastMessage, (state, detail) => updateConnectionStatus('youtube', state, detail));
-  }
+  await startYoutube(config.youtube || {}, broadcastMessage, (state, detail) => updateConnectionStatus('youtube', state, detail), accounts);
 
   if (config.kick?.enabled) {
     await startKick(config.kick, broadcastMessage, (state, detail) => updateConnectionStatus('kick', state, detail));
