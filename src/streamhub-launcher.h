@@ -1,20 +1,28 @@
 #pragma once
 
 #include <QObject>
+#include <QJsonObject>
 #include <QProcess>
 #include <QString>
+#include <QtGlobal>
 
+class QNetworkAccessManager;
+class QNetworkReply;
 class StreamHubNodeProvision;
 
-// Sobe o servidor Node.js (server/index.js do projeto StreamHub) como
-// processo filho assim que o OBS carrega o plugin, e derruba ele quando o
-// OBS fecha. Isso é o que faz "instalar o plugin já configura tudo" —
-// o usuário não precisa abrir terminal nenhum, instalar Node.js, nem
-// esperar o OBS travar na primeira abertura.
-//
-// Todo o trabalho pesado (resolver/baixar Node.js, rodar npm install) é
-// assíncrono — Start() retorna na hora e o OBS nunca fica travado, nem na
-// primeira execução. Use statusChanged() pra mostrar progresso numa dock.
+struct StreamHubRuntime {
+    qint64 nodePid = 0;
+    qint64 obsPid = 0;
+    int port = 0;
+    QString token;
+};
+
+bool StreamHubReadRuntime(const QString &path, StreamHubRuntime *runtime);
+bool StreamHubWriteRuntime(const QString &path, const StreamHubRuntime &runtime);
+void StreamHubRemoveRuntime(const QString &path);
+
+using StreamHubJobHandle = void *;
+
 class StreamHubLauncher : public QObject {
     Q_OBJECT
 
@@ -29,14 +37,18 @@ public:
     void Start(const QString &pluginDataDir, const QString &serverDir, int port);
     void Restart();
     void Stop();
+    void SyncKickTransmission();
+    void SyncYoutubeTransmission();
 
     int Port() const { return port_; }
     bool IsRunning() const;
 
 signals:
-    // Emitido em cada etapa (baixando Node, instalando deps, iniciando
-    // servidor...) pra quem quiser mostrar isso numa dock/label.
     void statusChanged(const QString &status);
+    void kickTransmissionReady(const QJsonObject &transmission);
+    void kickTransmissionFailed(const QString &error);
+    void youtubeTransmissionReady(const QJsonObject &transmission);
+    void youtubeTransmissionFailed(const QString &error);
 
 private:
     void OnNodeReady(const QString &nodePath, const QString &npmCliPath);
@@ -44,14 +56,30 @@ private:
     void StartServerProcess(const QString &nodePath);
     bool DependenciesAreComplete() const;
     bool SaveDependencyMarker() const;
+    bool PreparePreviousInstance();
+    bool RequestInternal(const QString &path, const QString &token, qint64 expectedPid,
+                         qint64 expectedObsPid, int port) const;
+    bool RequestInternalJson(const QString &path, const QString &token, qint64 expectedPid,
+                             qint64 expectedObsPid, int port, const QJsonObject &body,
+                             QJsonObject *response) const;
+    bool WriteRuntime(qint64 nodePid) const;
+    void RemoveOwnedRuntime() const;
+    QString NewInstanceToken() const;
+    void AttachJobObject(QProcess *process);
+    void CloseJobObject();
 
     StreamHubNodeProvision *provisioner_ = nullptr;
     QProcess *npmInstallProcess_ = nullptr;
     QProcess *process_ = nullptr;
+    bool kickSyncInFlight_ = false;
+    bool youtubeSyncInFlight_ = false;
 
     QString serverDir_;
     QString nodePath_;
-    int port_ = 3000;
+    QString runtimePath_;
+    QString instanceToken_;
+    int port_ = 605;
     bool restartPending_ = false;
     bool stopping_ = false;
+    StreamHubJobHandle jobHandle_ = nullptr;
 };

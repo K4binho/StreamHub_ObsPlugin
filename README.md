@@ -10,7 +10,7 @@ Plugin nativo para OBS Studio, baseado em [`obs-multi-rtmp`](https://github.com/
 - Chat unificado com filtros por plataforma, envio e deduplicação.
 - Moderação e recompensas pelo painel **ADM**, conforme autorização da conta.
 - Twitch OAuth para chat, dados da live, moderação e recompensas.
-- YouTube OAuth com callback local; leitura e edição da live ainda precisam de validação completa.
+- YouTube e Kick usam OAuth compartilhado por navegador quando broker HTTPS real está implantado e `STREAMHUB_OAUTH_BROKER_URL` está configurado: usuário clica **Conectar**, autoriza na página oficial e volta ao OBS. Broker OAuth mantém Client Secrets fora da DLL; configuração manual ou `.env` fica como fallback avançado até essa configuração.
 - Overlay transparente para **Fonte de navegador** do OBS.
 - Runtime Node.js provisionado automaticamente, sem instalação externa obrigatória.
 - Servidor Node.js, locale, ícones, branding e tema embutidos na DLL via Qt Resource System.
@@ -20,12 +20,15 @@ Plugin nativo para OBS Studio, baseado em [`obs-multi-rtmp`](https://github.com/
 ## Estado atual
 
 - Twitch: leitura, envio, dados da live, moderação e recompensas implementados.
-- YouTube: OAuth validado; consulta da transmissão apresenta erro conhecido ao combinar `mine` e `broadcastStatus`.
-- Kick: leitura de chat existente; OAuth oficial, envio autenticado, moderação e leitura autorizada de stream key ainda pendentes.
+- YouTube: OAuth compartilhado por broker, status, renovação, descoberta de transmissão e sincronização nativa integrados. Configuração manual ou `.env` permanece fallback avançado. Conta permanece **Conectada** mesmo quando sincronização manual não encontra live ou dados RTMP; Chat, consulta/edição da live e transmissão RTMP real ainda precisam validação.
+- Servidor Node: `localhost:605` por padrão, watchdog de 2 segundos e lifecycle interno autenticado por token em `runtime.json`. `server.port` explícita continua respeitada.
+- Launcher C++: shutdown gracioso, validação de instância anterior e Job Object Windows implementados. Teste real de encerramento anormal do OBS ainda pendente.
+- Kick: leitura de chat existente; OAuth e sincronização nativa preliminares integrados. Contrato oficial de endpoints, escopos e campos de stream key, envio autenticado, moderação e teste real ainda pendentes.
+- Twitch: OAuth não fornece stream key neste fluxo. Preencha chave manualmente no cartão Twitch e ative o toggle antes de usar **Iniciar tudo**.
 - TikTok: experimental.
 - Facebook: destino RTMP disponível; chat ainda não possui conector funcional.
-- Sincronização automática de contas, servidor RTMP, stream key e destinos nativos ainda está no roadmap.
-- Transmissão RTMP real ainda não foi validada de ponta a ponta.
+- Kick e YouTube conectados buscam servidor RTMP e stream key pelos canais internos autenticados e criam ou atualizam um único destino por plataforma, preservando configurações existentes. Credenciais manuais vazias usam `.env`; manual preenchida vence `.env`.
+- Transmissão RTMP real ainda não foi validada de ponta a ponta. Destino sem stream key fica **Pendente** e não inicia.
 
 ## Instalação rápida
 
@@ -71,7 +74,7 @@ Node.js não é pré-requisito. Plugin usa Node do PATH ou baixa runtime portát
 Abra engrenagem de **StreamHub Chat · K4**, selecione **Overlay** e clique **Copiar URL**. URL padrão:
 
 ```text
-http://127.0.0.1:3000/overlay.html
+http://localhost:605/overlay.html
 ```
 
 Adicione URL como **Fonte de navegador** no OBS. Fundo permanece transparente.

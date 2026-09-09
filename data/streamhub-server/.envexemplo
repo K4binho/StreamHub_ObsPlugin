@@ -1,0 +1,7 @@
+# Fallback OAuth avançado local. Fluxo normal usa broker HTTPS compartilhado.
+# Copie este arquivo para .env somente para desenvolvimento/operador.
+# Nunca commite .env nem distribua seus valores.
+KICK_CLIENT_ID=seu_client_id_kick
+KICK_CLIENT_SECRET=seu_client_secret_kick
+YOUTUBE_CLIENT_ID=seu_client_id_google
+YOUTUBE_CLIENT_SECRET=seu_client_secret_google

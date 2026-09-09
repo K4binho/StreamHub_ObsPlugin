@@ -75,7 +75,7 @@ private:
     QTimer *retryTimer_ = nullptr;
     QTimer *statusAnimationTimer_ = nullptr;
 
-    int port_ = 3000;
+    int port_ = 605;
     qint64 since_ = 0;
     bool connected_ = false;
     bool pollInFlight_ = false;

@@ -4,24 +4,22 @@ Esta distribuição acrescenta três painéis nativos ao OBS:
 
 - **Múltiplas saídas · K4**, com a transmissão principal primeiro e destinos adicionais abaixo;
 - **StreamHub Chat · K4**, com leitura, envio, filtros, moderação e recompensas;
-- **Informações de transmissão K4**, com autorização Twitch/YouTube e editor da live com prévia e busca visual de categoria.
+- **Informações de transmissão K4**, com contas Twitch, Kick e YouTube, OAuth, editor da live com prévia e busca visual de categoria.
 
 A DLL inclui recursos, ícones, traduções e servidor local. Configuração pública, tokens OAuth e stream keys permanecem separados. A autorização Twitch/YouTube é feita uma vez por instalação e renovada automaticamente.
 
-## Estado de desenvolvimento — 07/09/2026
+## Estado de desenvolvimento — 09/09/2026
 
-- OAuth YouTube validado no navegador externo; callback local retornou **YouTube conectado ao StreamHub**.
-- Painel de transmissão ainda precisa corrigir consulta YouTube com parâmetros incompatíveis `mine` e `broadcastStatus`.
-- Resultado Twitch ainda menciona notificação, embora esse campo não exista na API Twitch; resposta deve ser ajustada.
-- Próxima etapa: corrigir consulta YouTube/Twitch, integrar Kick OAuth oficial e sincronizar automaticamente servidor RTMP, stream key e destinos em **Múltiplas saídas** ao conectar plataformas, mesmo sem live ou destino pré-configurado. Preservar configurações existentes e nunca expor stream keys.
-- Kick deverá usar OAuth por navegador externo, callback local, refresh token e escopos oficiais para chat, moderação e leitura de `streamkey:read`.
-- Ponte futura Node/C++ deverá ser local, autenticada e temporária; chaves não serão enviadas em logs, documentação, URLs ou eventos comuns.
+- OAuth Kick e YouTube usam broker HTTPS compartilhado no fluxo normal: usuário clica **Conectar**, autoriza na página oficial e volta ao OBS. Client Secrets ficam fora da DLL; **Avançado** mantém credenciais local ou `.env` como fallback.
+- Build CMake passou após integração do OAuth broker compartilhado e incremento do bundle para `kBundleVersion` `22`; checks Node e `git diff --check` passaram. DLL nova foi reconstruída, mas ainda não foi instalada na cópia OBS. Broker HTTPS real e `STREAMHUB_OAUTH_BROKER_URL` ainda precisam ser configurados para ativar OAuth compartilhado.
+- Twitch OAuth não preenche stream key. Destino Twitch sem chave fica **Pendente**; informe chave manualmente e marque **Iniciar junto com a transmissão principal do OBS**.
+- **Sincronizar** Kick ou YouTube busca servidor RTMP e stream key somente por ação manual e cria ou atualiza um único destino da plataforma, preservando configurações existentes. Conectar conta não inicia RTMP sync. Falha de sincronização aparece como aviso separado; não troca estado OAuth **Conectada**. YouTube respondeu `HTTP 200` em teste interno com servidor e stream key presentes; Kick respondeu `HTTP 400` porque autorização atual não fornece dados RTMP. Nunca expor stream keys.
 
-Contexto detalhado: [PLANOS/ARQUITETURA_E_CONTEXTO.md](../PLANOS/ARQUITETURA_E_CONTEXTO.md). Implementação aguarda aprovação do plano.
+Contexto detalhado: [PLANOS/ARQUITETURA_E_CONTEXTO.md](../PLANOS/ARQUITETURA_E_CONTEXTO.md).
 
 <!-- registro histórico -->
 
-Esta documentação não representa conclusão da sincronização automática nem da transmissão real.
+Esta documentação registra integração preliminar da sincronização Kick. Contrato oficial Kick e transmissão real ainda não foram validados.
 
 <!-- Global site tag (gtag.js) - Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=UA-163314878-1"></script>
@@ -35,11 +33,11 @@ Esta documentação não representa conclusão da sincronização automática ne
 
 # StreamHub — 現在の統合状況
 
-2026-09-07時点で、YouTube OAuthは外部ブラウザとローカルコールバックを使って検証済みです。YouTubeの配信読み込みには、`mine` と `broadcastStatus` を同時指定している既知のAPIエラーがあります。Twitchの通知項目はAPIに存在しないため、更新失敗ではなく無視された項目として表示する必要があります。
+2026-09-08時点で、YouTube OAuthは外部ブラウザとローカルコールバックを使って検証済みです。チャット接続は `videos.list` で `activeLiveChatId` を取得し、`liveChatMessages.list` でメッセージを読み取ります。実ライブでの検証は未完了です。Twitchの通知項目はAPIに存在しないため、更新失敗ではなく制限事項として表示します。
 
-次の実装では、Kick公式OAuth、PKCE、ローカルコールバック、refresh token、認証済みチャット、権限がある場合のモデレーション、`streamkey:read` による認証済み配信キー取得を追加します。接続後、公式に取得できるRTMPサーバーと配信キーをネイティブ出力へ同期し、配信や出力先が事前設定されていなくても対応する出力先を作成します。既存の順序、名前、encoder、詳細設定、他サービスの出力先は保持します。
+Kick公式OAuth、PKCE、ローカルコールバック、refresh token、認証済み同期の暫定実装を追加しました。接続後、取得できるRTMPサーバーと配信キーをネイティブ出力へ同期し、出力先が事前設定されていなければKick出力先を一度だけ作成します。既存の順序、名前、encoder、詳細設定、他サービスの出力先は保持します。公式エンドポイント、スコープ、配信キー項目、実配信は未確認です。
 
-Node.jsはプラットフォームAPIと認証情報、C++はOBSネイティブ出力と `GlobalMultiOutputConfig()` を管理します。将来の橋渡しはローカル、認証付き、一時的とし、秘密情報をURL、ログ、通常イベント、ドキュメント、Gitへ流しません。詳細は [PLANOS/ARQUITETURA_E_CONTEXTO.md](../PLANOS/ARQUITETURA_E_CONTEXTO.md) を参照してください。実装は計画承認後に開始します。
+Node.jsはプラットフォームAPIと認証情報、C++はOBSネイティブ出力と `GlobalMultiOutputConfig()` を管理します。KickアカウントとRTMP出力を同期するローカル認証済み橋渡しは暫定実装済みです。公式契約と実配信の検証は未完了です。秘密情報をURL、ログ、通常イベント、ドキュメント、Gitへ流しません。詳細は [PLANOS/ARQUITETURA_E_CONTEXTO.md](../PLANOS/ARQUITETURA_E_CONTEXTO.md) を参照してください。
 
 # OBS 同時配信プラグイン
 

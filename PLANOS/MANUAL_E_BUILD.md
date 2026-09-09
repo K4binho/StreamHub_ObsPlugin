@@ -12,11 +12,11 @@ StreamHub é fork de `obs-multi-rtmp`, com saídas RTMP nativas, chat unificado,
 - **StreamHub Chat · K4:** leitura por plataforma, filtros, envio, deduplicação e status.
 - **ADM:** timeout, ban, unban, modo lento, seguidores, inscritos, emotes, recompensas e resgates conforme autorização.
 - **Informações de transmissão K4:** contas, OAuth, prévia, título, categoria, tags, idioma e visibilidade conforme API.
-- **Overlay:** fonte de navegador transparente em `http://127.0.0.1:3000/overlay.html`.
+- **Overlay:** fonte de navegador transparente em `http://localhost:605/overlay.html`.
 - **Node.js embutido:** runtime do sistema é usado quando disponível; caso contrário, plugin baixa runtime portátil e instala dependências.
 - **Tema:** **K4binho — Má Fase**, ícones, branding e fundo 1920×1080.
 
-Twitch está implementada. OAuth YouTube foi validado, mas consulta de transmissão ainda tem erro conhecido. Kick oficial, TikTok completo e chat Facebook permanecem pendentes.
+Twitch está implementada. OAuth Kick e YouTube usam broker HTTPS compartilhado no fluxo normal; Client Secrets ficam no broker, fora da DLL. **Avançado** mantém OAuth local com credenciais manual ou `.env` como fallback. Chat YouTube, consulta e atualização da live ainda precisam de validação em live real. Contrato oficial Kick e teste real ainda pendentes. TikTok completo e chat Facebook permanecem pendentes.
 
 ## 2. Build Windows
 
@@ -76,6 +76,20 @@ Depois, plugin valida `.dependencies-sha256` contra `package.json`. Marcador aus
 
 Se instalação for interrompida, abra OBS novamente. Plugin detecta dependências incompletas e repara.
 
+### Lifecycle local
+
+Launcher inicia servidor em `localhost` e grava `runtime.json` no diretório gravável do plugin. Arquivo contém PID Node, PID OBS, porta e token da instância. Token não aparece em URL, log ou resposta pública.
+
+Servidor expõe `GET /internal/status` e `POST /internal/shutdown` somente para loopback com header `X-StreamHub-Token` válido. Watchdog verifica PID OBS a cada 2 segundos. Ao fechar OBS, Node encerra conectores, long-polls, Socket.IO e HTTP antes de sair. Launcher tenta shutdown autenticado, espera encerramento, usa `terminate()` e reserva `kill()` para fallback.
+
+Job Object Windows usa `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` para associar Node ao launcher. Encerramento anormal do OBS e limpeza por Job Object ainda precisam de validação ponta a ponta.
+
+Porta padrão é `605`; configuração explícita em `config.json` continua respeitada. URL padrão do overlay:
+
+```text
+http://localhost:605/overlay.html
+```
+
 ## 4. Docks
 
 ### Múltiplas saídas · K4
@@ -85,12 +99,18 @@ Se instalação for interrompida, abra OBS novamente. Plugin detecta dependênci
 3. Escolha Twitch, Kick, YouTube, TikTok, Facebook ou RTMP personalizado.
 4. Informe servidor RTMP e stream key.
 5. Use **Configurações avançadas** para encoder, vídeo, áudio, `outputParam`, sincronização e opções disponíveis.
-6. Marque destinos desejados.
+6. Marque **Iniciar junto com a transmissão principal do OBS** no destino desejado.
 7. Use **Iniciar tudo** ou controles individuais.
+
+OAuth Twitch não fornece stream key neste fluxo. Para Twitch, cole chave obtida no Twitch Creator Dashboard no campo **Stream key**. Destino sem servidor ou chave mostra **Pendente**, fica desligado e não inicia.
 
 Servidor e stream key ficam ocultos por padrão. Use **Ver/Ocultar** e **Copiar** com cuidado.
 
-Sincronização automática por OAuth ainda não está disponível. Até implementação da ponte Node/C++, configurar destinos manualmente.
+Twitch: em **Múltiplas saídas · K4**, abra configurações do destino, mantenha servidor RTMP oficial, cole a **Stream key** obtida no Twitch Creator Dashboard e marque **Iniciar junto com a transmissão principal do OBS**. OAuth Twitch não entrega stream key. Sem chave, cartão mostra **Pendente** e não inicia.
+
+Kick: em **Contas**, clique **Conectar** e autorize na página oficial. Broker faz callback público HTTPS, troca o código e entrega autorização ao Node local por transação curta. **Avançado** mantém credenciais locais e callback loopback como fallback. Use **Sincronizar** separadamente para buscar dados Kick pelo canal interno autenticado e criar ou atualizar um único cartão Kick em **Múltiplas saídas · K4**. Atualização altera somente servidor e stream key; nome, ordem, encoders, áudio, vídeo e opções avançadas permanecem.
+
+Se API não retornar valores oficiais válidos, destino permanece sem alteração e UI mostra falha. Não envie credenciais ou stream key por chat, URL, log ou documentação. Fluxo Kick ainda exige confirmação do contrato oficial e teste real; YouTube ainda precisa validação de transmissão RTMP real.
 
 ### StreamHub Chat · K4
 
@@ -105,11 +125,11 @@ Em **Todos**, mensagem local aparece uma vez com selo **Todos**. Ecos retornados
 ### Informações de transmissão K4
 
 1. Abra **Painéis > Informações de transmissão K4**.
-2. Em **Contas**, conecte Twitch ou YouTube conforme configuração OAuth.
+2. Em **Contas**, conecte Twitch, Kick e YouTube. Kick e YouTube usam **Conectar** e **Sincronizar**; **Avançado** fica reservado para fallback local.
 3. Em **Transmissão**, carregue dados atuais, busque categoria e edite campos disponíveis.
 4. Salve alterações.
 
-OAuth YouTube validado no navegador externo e callback local. Fluxo de carregamento ainda falha com `Parâmetros incompatíveis especificados na solicitação: mine, broadcastStatus`; correção está no roadmap.
+YouTube usa OAuth compartilhado HTTPS no fluxo normal, navegador externo e escopo `https://www.googleapis.com/auth/youtube.force-ssl`. Broker mantém Client Secret. **Avançado** mantém credenciais locais e `.env` como fallback; valor manual preenchido vence `.env`. Após conexão, **Sincronizar** busca dados oficiais e atualiza/cria destino YouTube nativo sem duplicação. O conector de chat descobre `activeLiveChatId` por `videos.list` e lê mensagens por `liveChatMessages.list`; leitura real, consulta/edição da live e RTMP ainda precisam validação em live real.
 
 ## 5. Overlay
 
@@ -123,7 +143,7 @@ OAuth YouTube validado no navegador externo e callback local. Fluxo de carregame
 URL padrão:
 
 ```text
-http://127.0.0.1:3000/overlay.html
+http://localhost:605/overlay.html
 ```
 
 Parâmetros temporários podem ajustar fonte:
@@ -138,14 +158,9 @@ Overlay usa fundo transparente, ícone/cor por plataforma, badges, destaque de m
 
 ### YouTube
 
-1. Crie projeto no Google Cloud.
-2. Ative **YouTube Data API v3**.
-3. Configure Google Auth Platform com público **Externo**.
-4. Adicione usuários de teste durante desenvolvimento.
-5. Adicione escopo `https://www.googleapis.com/auth/youtube.force-ssl`.
-6. Crie cliente OAuth **Aplicativo para computador**.
-7. Informe Client ID e Client Secret em **Informações de transmissão K4 > Contas**.
-8. Clique **Conectar** e autorize no navegador.
+Fluxo normal não exige criação de app, cópia de Client ID, Client Secret, `.env` ou abertura de **Avançado**. O operador do broker registra aplicativo OAuth Google, callback HTTPS e mantém Client Secret no serviço. Usuário final clica **Conectar** e autoriza no navegador. Para desenvolvimento/operador, **Avançado** aceita credenciais locais e `.env` como fallback.
+
+Para usar `.env`, copie `data/streamhub-server/.envexemplo` para `.env` no diretório runtime extraído pelo plugin. Use `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, `YOUTUBE_CLIENT_ID` e `YOUTUBE_CLIENT_SECRET`. Não adicione `.env` ao QRC, Git ou documentação. Kick e YouTube podem conectar simultaneamente; falha ou sincronização de uma não altera outra. Falha de sincronização não desfaz estado OAuth conectado; aviso aparece separado no cartão da plataforma.
 
 Tokens ficam em armazenamento privado local. Não compartilhe URL de callback contendo `code=`. Aplicativo em teste pode exigir nova autorização; distribuição pública pode exigir verificação Google.
 
@@ -153,13 +168,13 @@ Tokens ficam em armazenamento privado local. Não compartilhe URL de callback co
 
 Twitch usa autorização própria do plugin. Leitura, envio, dados da live, moderação e recompensas dependem de conta e escopos autorizados.
 
-Mensagem antiga `Twitch: Atualizada; notificação não existem na API da Twitch.` indica campo inexistente e será corrigida para resultado ignorado, não erro.
+Mensagem `Twitch: Atualizada; notificação não existem na API da Twitch.` indica campo inexistente. Resultado deve ser tratado como limitação ignorada, não erro.
 
 ### Kick
 
-Leitura atual de chat pode funcionar pelo protocolo usado pelo site. OAuth oficial, envio autenticado, moderação e `streamkey:read` ainda estão pendentes.
+Leitura atual de chat pode funcionar pelo protocolo usado pelo site. Fluxo normal usa broker OAuth HTTPS, callback público, PKCE, `state`, refresh token e armazenamento em `accounts-private.json`. **Avançado** mantém OAuth local, callback loopback e configuração de Client ID/Client Secret somente para fallback; nada vai para `config.json`.
 
-Roadmap usa navegador externo, callback local, PKCE, refresh token e escopos oficiais disponíveis no aplicativo Kick. Não informe stream key por chat ou URL.
+Após OAuth, sincronização interna autenticada busca servidor e stream key e atualiza/cria cartão Kick sem duplicação. Endpoints, escopos e campos de stream key ainda precisam confirmação na documentação oficial Kick; não declarar fluxo como validado antes de teste real. Não informe stream key por chat ou URL.
 
 ### TikTok e Facebook
 

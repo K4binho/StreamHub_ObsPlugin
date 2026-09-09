@@ -97,6 +97,15 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent)
     adminButton->setFixedSize(42, 25);
     connect(adminButton, &QPushButton::clicked, this, &StreamHubChatDock::OnAdminClicked);
     headerActionsLayout->addWidget(adminButton, 0, Qt::AlignHCenter);
+    auto *donateLink = new QLabel(
+        "<a style=\"color:#00c8ff;text-decoration:none\" href=\"https://livepix.gg/k4binho\">Donate</a>",
+        headerActions);
+    donateLink->setObjectName("donateLink");
+    donateLink->setTextFormat(Qt::RichText);
+    donateLink->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    donateLink->setOpenExternalLinks(true);
+    donateLink->setToolTip(tr("Apoiar K4binho pelo LivePix"));
+    headerActionsLayout->addWidget(donateLink, 0, Qt::AlignHCenter);
     headerLayout->addWidget(headerActions, 0, Qt::AlignTop);
     layout->addWidget(header);
 
@@ -193,19 +202,6 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent)
         });
         socialsLayout->addWidget(button);
     }
-    auto *donateLink = new QLabel(
-        "<a style=\"color:#00c8ff;text-decoration:none\" href=\"https://livepix.gg/k4binho\">Donate</a>",
-        socials);
-    donateLink->setObjectName("donateLink");
-    donateLink->setTextFormat(Qt::RichText);
-    donateLink->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    donateLink->setOpenExternalLinks(true);
-    donateLink->setWordWrap(false);
-    donateLink->setAlignment(Qt::AlignCenter);
-    donateLink->setMinimumWidth(62);
-    donateLink->setMinimumHeight(28);
-    donateLink->setToolTip(tr("Apoiar K4binho pelo LivePix"));
-    socialsLayout->addWidget(donateLink, 0, Qt::AlignVCenter);
     layout->addWidget(socials);
 
     container->setStyleSheet(R"(
@@ -220,7 +216,7 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent)
         QPushButton#iconButton:hover { background: #15233a; border-color: #00c8ff; }
         QPushButton#adminButton { background:#17283a; border:1px solid #29496f; border-radius:6px; color:#00c8ff; font-size:9px; font-weight:800; }
         QPushButton#adminButton:hover { border-color:#00c8ff; }
-        QLabel#donateLink { font-size: 12px; font-weight: 700; padding: 4px 8px; }
+        QLabel#donateLink { font-size: 10px; }
         QLabel#donateLink a { color: #00c8ff; text-decoration: none; }
         QPushButton#filterChip { background: #101a2a; border: 1px solid #29496f;
             border-radius: 14px; padding: 5px 11px; color: #9eb2cb; }
@@ -362,7 +358,7 @@ void StreamHubChatDock::SendMessage()
     sendStatus_->show();
     sendStatus_->setText(tr("Enviando..."));
 
-    QNetworkRequest request{QUrl(QString("http://127.0.0.1:%1/api/chat/send").arg(port_))};
+    QNetworkRequest request{QUrl(QString("http://localhost:%1/api/chat/send").arg(port_))};
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     const QJsonObject body{{"message", message}, {"target", target}};
     QNetworkReply *reply = actionNet_->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
@@ -379,18 +375,8 @@ void StreamHubChatDock::SendMessage()
         AppendChatLine(target == "all" ? "all" : target, tr("Você"), message, {},
                        QDateTime::currentMSecsSinceEpoch());
         messageInput_->clear();
-        QStringList failures;
-        for (const auto &value : result.value("results").toArray()) {
-            const QJsonObject platformResult = value.toObject();
-            if (!platformResult.value("ok").toBool())
-                failures << QString("%1: %2").arg(platformResult.value("platform").toString(),
-                                                   platformResult.value("message").toString());
-        }
-        if (!failures.isEmpty())
-            sendStatus_->setText(tr("Enviada parcialmente. %1").arg(failures.join(" · ")));
-        else
-            sendStatus_->setText(target == "all" ? tr("Enviada para os chats conectados.")
-                                                   : tr("Mensagem enviada."));
+        sendStatus_->setText(target == "all" ? tr("Enviada para os chats conectados.")
+                                               : tr("Mensagem enviada."));
         QTimer::singleShot(2500, sendStatus_, &QWidget::hide);
     });
 }
@@ -402,7 +388,7 @@ void StreamHubChatDock::PollOnce()
     }
     pollInFlight_ = true;
 
-    QUrl url(QString("http://127.0.0.1:%1/api/chat/poll?since=%2").arg(port_).arg(since_));
+    QUrl url(QString("http://localhost:%1/api/chat/poll?since=%2").arg(port_).arg(since_));
     QNetworkRequest request(url);
     // Um pouco acima do tempo que o servidor segura a resposta (~25s) pra
     // não competir com o próprio long-poll do lado do servidor.

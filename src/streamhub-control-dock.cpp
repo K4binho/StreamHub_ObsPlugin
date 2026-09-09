@@ -2,6 +2,8 @@
 
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -90,34 +92,83 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     connect(connectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartTwitchLogin);
     accountCardLayout->addWidget(connectButton_);
     accountsLayout->addWidget(accountCard);
+
+    auto *kickCard = new QWidget(accounts);
+    kickCard->setObjectName("accountCard");
+    auto *kickCardLayout = new QHBoxLayout(kickCard);
+    auto *kickIcon = new QLabel(kickCard);
+    kickIcon->setPixmap(QIcon(":/streamhub-ui/icons/kick.svg").pixmap(44, 44));
+    kickIcon->setFixedSize(48, 48);
+    kickCardLayout->addWidget(kickIcon);
+    auto *kickText = new QVBoxLayout();
+    kickAccountName_ = new QLabel(tr("Kick"), kickCard);
+    kickAccountName_->setObjectName("accountName");
+    kickAccountStatus_ = new QLabel(tr("● Verificando conta..."), kickCard);
+    kickAccountStatus_->setObjectName("accountState");
+    kickText->addWidget(kickAccountName_);
+    kickText->addWidget(kickAccountStatus_);
+    kickCardLayout->addLayout(kickText, 1);
+    auto *kickActions = new QVBoxLayout();
+    kickConfigureButton_ = new QPushButton(tr("Avançado"), kickCard);
+    kickConfigureButton_->setObjectName("accountSecondary");
+    kickConnectButton_ = new QPushButton(tr("Conectar"), kickCard);
+    kickSyncButton_ = new QPushButton(tr("Sincronizar"), kickCard);
+    kickConnectButton_->setObjectName("accountAction");
+    kickSyncButton_->setObjectName("accountAction");
+    connect(kickConfigureButton_, &QPushButton::clicked, this, &StreamHubControlDock::ConfigureKick);
+    connect(kickConnectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartKickLogin);
+    connect(kickSyncButton_, &QPushButton::clicked, this, &StreamHubControlDock::SyncKickTransmission);
+    kickActions->addWidget(kickConfigureButton_);
+    kickActions->addWidget(kickConnectButton_);
+    kickActions->addWidget(kickSyncButton_);
+    kickCardLayout->addLayout(kickActions);
+    accountsLayout->addWidget(kickCard);
+
+    auto *youtubeCard = new QWidget(accounts);
+    youtubeCard->setObjectName("accountCard");
+    auto *youtubeCardLayout = new QHBoxLayout(youtubeCard);
+    auto *youtubeIcon = new QLabel(youtubeCard);
+    youtubeIcon->setPixmap(QIcon(":/streamhub-ui/icons/youtube.svg").pixmap(44, 44));
+    youtubeIcon->setFixedSize(48, 48);
+    youtubeCardLayout->addWidget(youtubeIcon);
+    auto *youtubeText = new QVBoxLayout();
+    youtubeAccountName_ = new QLabel(tr("YouTube"), youtubeCard);
+    youtubeAccountName_->setObjectName("accountName");
+    youtubeAccountStatus_ = new QLabel(tr("● Verificando conta..."), youtubeCard);
+    youtubeAccountStatus_->setObjectName("accountState");
+    youtubeText->addWidget(youtubeAccountName_);
+    youtubeText->addWidget(youtubeAccountStatus_);
+    youtubeCardLayout->addLayout(youtubeText, 1);
+    auto *youtubeActions = new QVBoxLayout();
+    youtubeConfigureButton_ = new QPushButton(tr("Avançado"), youtubeCard);
+    youtubeConfigureButton_->setObjectName("accountSecondary");
+    youtubeConnectButton_ = new QPushButton(tr("Conectar"), youtubeCard);
+    youtubeSyncButton_ = new QPushButton(tr("Sincronizar"), youtubeCard);
+    youtubeConnectButton_->setObjectName("accountAction");
+    youtubeSyncButton_->setObjectName("accountAction");
+    connect(youtubeConfigureButton_, &QPushButton::clicked, this, &StreamHubControlDock::ConfigureYoutube);
+    connect(youtubeConnectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartYoutubeLogin);
+    connect(youtubeSyncButton_, &QPushButton::clicked, this, &StreamHubControlDock::SyncYoutubeTransmission);
+    youtubeActions->addWidget(youtubeConfigureButton_);
+    youtubeActions->addWidget(youtubeConnectButton_);
+    youtubeActions->addWidget(youtubeSyncButton_);
+    youtubeCardLayout->addLayout(youtubeActions);
+    accountsLayout->addWidget(youtubeCard);
+
     loginHelp_ = StatusLabel(accounts);
     loginHelp_->setTextInteractionFlags(Qt::TextBrowserInteraction);
     loginHelp_->setOpenExternalLinks(true);
     accountsLayout->addWidget(loginHelp_);
-
-    auto *youtubeCard = new QWidget(accounts);
-    youtubeCard->setObjectName("accountCard");
-    auto *youtubeCardRoot = new QVBoxLayout(youtubeCard);
-    auto *youtubeTop = new QHBoxLayout();
-    auto *youtubeIcon = new QLabel(youtubeCard);
-    youtubeIcon->setPixmap(QIcon(":/streamhub-ui/icons/youtube.svg").pixmap(44, 44));
-    youtubeIcon->setFixedSize(48, 48);
-    youtubeTop->addWidget(youtubeIcon);
-    auto *youtubeText = new QVBoxLayout();
-    youtubeAccountName_ = new QLabel(tr("YouTube"), youtubeCard); youtubeAccountName_->setObjectName("accountName");
-    youtubeAccountStatus_ = new QLabel(tr("● Verificando conta..."), youtubeCard); youtubeAccountStatus_->setObjectName("accountState");
-    youtubeText->addWidget(youtubeAccountName_); youtubeText->addWidget(youtubeAccountStatus_); youtubeTop->addLayout(youtubeText, 1);
-    youtubeConnectButton_ = new QPushButton(tr("Conectar"), youtubeCard); youtubeConnectButton_->setObjectName("accountAction");
-    connect(youtubeConnectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartYoutubeLogin);
-    youtubeTop->addWidget(youtubeConnectButton_); youtubeCardRoot->addLayout(youtubeTop);
-    youtubeClientId_ = new QLineEdit(youtubeCard); youtubeClientId_->setPlaceholderText(tr("Client ID OAuth do Google"));
-    youtubeClientSecret_ = new QLineEdit(youtubeCard); youtubeClientSecret_->setPlaceholderText(tr("Client Secret OAuth do Google")); youtubeClientSecret_->setEchoMode(QLineEdit::Password);
-    youtubeCardRoot->addWidget(youtubeClientId_); youtubeCardRoot->addWidget(youtubeClientSecret_);
-    auto *youtubeHelp = new QLabel(tr("Google Cloud: YouTube Data API v3 + cliente OAuth do tipo Aplicativo para computador."), youtubeCard);
-    youtubeHelp->setObjectName("controlStatus"); youtubeHelp->setWordWrap(true); youtubeCardRoot->addWidget(youtubeHelp);
-    accountsLayout->addWidget(youtubeCard);
+    kickLoginHelp_ = StatusLabel(accounts);
+    kickLoginHelp_->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    kickLoginHelp_->setOpenExternalLinks(true);
+    accountsLayout->addWidget(kickLoginHelp_);
+    youtubeLoginHelp_ = StatusLabel(accounts);
+    youtubeLoginHelp_->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    youtubeLoginHelp_->setOpenExternalLinks(true);
+    accountsLayout->addWidget(youtubeLoginHelp_);
     accountsLayout->addStretch();
-    tabs->addTab(accounts, QIcon(":/streamhub-ui/branding/k4-logo.png"), tr("Contas"));
+    tabs->addTab(accounts, QIcon(":/streamhub-ui/icons/twitch.svg"), tr("Contas"));
 
     auto *broadcastScroll = new QScrollArea(tabs);
     broadcastScroll->setWidgetResizable(true);
@@ -192,8 +243,6 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
 
     network_ = new QNetworkAccessManager(this);
     loginTimer_ = new QTimer(this); loginTimer_->setSingleShot(true);
-    youtubeLoginTimer_ = new QTimer(this); youtubeLoginTimer_->setSingleShot(true); youtubeLoginTimer_->setInterval(1500);
-    connect(youtubeLoginTimer_, &QTimer::timeout, this, &StreamHubControlDock::PollYoutubeLogin);
     categoryTimer_ = new QTimer(this); categoryTimer_->setSingleShot(true); categoryTimer_->setInterval(350);
     connect(category_, &QLineEdit::textEdited, this, [this]() { categoryId_.clear(); categoryTimer_->start(); UpdatePreview(); });
     connect(categoryTimer_, &QTimer::timeout, this, &StreamHubControlDock::SearchCategories);
@@ -205,6 +254,12 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     connect(notification_, &QTextEdit::textChanged, this, [this]() { LimitText(notification_, notificationCount_, 140); UpdatePreview(); });
     connect(tags_, &QLineEdit::textChanged, this, &StreamHubControlDock::UpdatePreview);
     connect(language_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
+    kickLoginTimer_ = new QTimer(this);
+    kickLoginTimer_->setSingleShot(true);
+    youtubeLoginTimer_ = new QTimer(this);
+    youtubeLoginTimer_->setSingleShot(true);
+    RefreshKickAccount();
+    RefreshYoutubeAccount();
 
     setStyleSheet(R"(
         QWidget#streamHubControl { background:#080c14; color:#f2f7ff; }
@@ -232,11 +287,22 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     )");
 }
 
-void StreamHubControlDock::ConnectTo(int port) { port_ = port; RefreshAccount(); RefreshYoutubeAccount(); }
+void StreamHubControlDock::ConnectTo(int port)
+{
+    port_ = port;
+    RefreshAccounts();
+}
+
+void StreamHubControlDock::RefreshAccounts()
+{
+    RefreshAccount();
+    RefreshKickAccount();
+    RefreshYoutubeAccount();
+}
 
 void StreamHubControlDock::Request(const QByteArray &method, const QString &path, const QJsonObject &body, ReplyHandler handler)
 {
-    QNetworkRequest request{QUrl(QString("http://127.0.0.1:%1%2").arg(port_).arg(path))};
+    QNetworkRequest request{QUrl(QString("http://localhost:%1%2").arg(port_).arg(path))};
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     QNetworkReply *reply = method == "GET" ? network_->get(request) : network_->sendCustomRequest(request, method, QJsonDocument(body).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [reply, handler]() {
@@ -253,7 +319,12 @@ void StreamHubControlDock::RefreshAccount()
         accountStatus_->setProperty("connected", connected && !reconnect); accountStatus_->style()->unpolish(accountStatus_); accountStatus_->style()->polish(accountStatus_);
         if (!connected) { accountName_->setText(tr("Twitch")); accountStatus_->setText(tr("● Não conectada")); connectButton_->setText(tr("Conectar")); }
         else if (reconnect) { accountName_->setText(QString("Twitch · %1").arg(o.value("name").toString())); accountStatus_->setText(tr("● Precisa de novas permissões")); connectButton_->setText(tr("Reconectar")); }
-        else { accountName_->setText(QString("Twitch · %1").arg(o.value("name").toString())); accountStatus_->setText(tr("● Conectada")); connectButton_->setText(tr("Trocar conta")); }
+        else {
+            accountName_->setText(QString("Twitch · %1").arg(o.value("name").toString()));
+            accountStatus_->setText(tr("● Conectada"));
+            connectButton_->setText(tr("Trocar conta"));
+            emit twitchConnected();
+        }
         connectButton_->setEnabled(true);
     });
 }
@@ -281,84 +352,301 @@ void StreamHubControlDock::PollTwitchLogin(const QString &flowId, int intervalSe
     }, Qt::SingleShotConnection);
 }
 
-void StreamHubControlDock::RefreshYoutubeAccount()
+void StreamHubControlDock::RefreshKickAccount()
 {
-    Request("GET", "/api/accounts/youtube/status", {}, [this](const QJsonObject &o, int status) {
-        if (status != 200) { youtubeAccountStatus_->setText(tr("● Aguardando o serviço local...")); youtubeAccountStatus_->setProperty("connected", false); QTimer::singleShot(1500, this, &StreamHubControlDock::RefreshYoutubeAccount); return; }
-        const bool connected = o.value("connected").toBool();
-        const bool needsReconnect = o.value("needsReconnect").toBool();
-        const bool usable = connected && !needsReconnect;
+    Request("GET", "/api/accounts/kick/status", {}, [this](const QJsonObject &o, int status) {
+        if (status != 200) {
+            kickAccountStatus_->setText(tr("● Aguardando o serviço local..."));
+            kickAccountStatus_->setProperty("connected", false);
+            QTimer::singleShot(1500, this, &StreamHubControlDock::RefreshKickAccount);
+            return;
+        }
         const bool configured = o.value("configured").toBool();
-        youtubeAccountStatus_->setProperty("connected", usable); youtubeAccountStatus_->style()->unpolish(youtubeAccountStatus_); youtubeAccountStatus_->style()->polish(youtubeAccountStatus_);
-        if (youtubeClientId_->text().isEmpty()) youtubeClientId_->setText(o.value("clientId").toString());
-        youtubeAccountName_->setText(connected ? QString("YouTube · %1").arg(o.value("name").toString()) : tr("YouTube"));
-        if (!connected && configured) youtubeAccountStatus_->setText(tr("● Aguardando autorização"));
-        else if (!connected) youtubeAccountStatus_->setText(tr("● Não conectado"));
-        else if (needsReconnect) youtubeAccountStatus_->setText(tr("● Precisa reconectar"));
-        else youtubeAccountStatus_->setText(tr("● Conectado"));
-        youtubeConnectButton_->setText(connected ? (needsReconnect ? tr("Reconectar") : tr("Trocar conta")) : tr("Conectar"));
-        youtubeClientId_->setVisible(!usable); youtubeClientSecret_->setVisible(!usable); youtubeConnectButton_->setEnabled(true);
-        if (usable)
-            youtubeClientSecret_->clear();
-        youtubeLoginTimer_->stop();
-        if (needsReconnect)
-            youtubeAccountStatus_->setToolTip(tr("A autorização não contém refresh token. Conecte novamente para permitir renovação automática."));
-        else
-            youtubeAccountStatus_->setToolTip(QString());
+        const bool connected = o.value("connected").toBool();
+        const bool reconnect = o.value("needsReconnect").toBool();
+        kickAccountStatus_->setProperty("connected", connected && !reconnect);
+        kickAccountStatus_->style()->unpolish(kickAccountStatus_);
+        kickAccountStatus_->style()->polish(kickAccountStatus_);
+        if (!configured) {
+            kickAccountName_->setText(tr("Kick"));
+            kickAccountStatus_->setText(tr("● OAuth compartilhado indisponível · use Avançado"));
+            kickConnectButton_->setEnabled(false);
+            kickSyncButton_->setEnabled(false);
+        } else if (!connected) {
+            kickAccountName_->setText(tr("Kick"));
+            kickAccountStatus_->setText(tr("● Não conectada"));
+            kickConnectButton_->setText(tr("Conectar"));
+            kickConnectButton_->setEnabled(true);
+            kickSyncButton_->setEnabled(false);
+        } else if (reconnect) {
+            kickAccountName_->setText(QString("Kick · %1").arg(o.value("name").toString()));
+            kickAccountStatus_->setText(tr("● Precisa de novas permissões"));
+            kickConnectButton_->setText(tr("Reconectar"));
+            kickConnectButton_->setEnabled(true);
+            kickSyncButton_->setEnabled(false);
+        } else {
+            kickAccountName_->setText(QString("Kick · %1").arg(o.value("name").toString()));
+            kickAccountStatus_->setText(tr("● Conectada"));
+            kickConnectButton_->setText(tr("Trocar conta"));
+            kickConnectButton_->setEnabled(true);
+            kickSyncButton_->setEnabled(true);
+        }
     });
+}
+
+void StreamHubControlDock::ConfigureKick()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Configurar Kick"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hint = new QLabel(tr("Deixe campo vazio para usar valor correspondente de .env. Credenciais ficam armazenadas somente no arquivo privado local. Nunca envie Client Secret por chat ou documentação."), &dialog);
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+    auto *form = new QFormLayout();
+    auto *clientId = new QLineEdit(&dialog);
+    auto *clientSecret = new QLineEdit(&dialog);
+    clientSecret->setEchoMode(QLineEdit::Password);
+    clientId->setPlaceholderText(tr("Client ID da aplicação Kick"));
+    clientSecret->setPlaceholderText(tr("Client Secret da aplicação Kick"));
+    form->addRow(tr("Client ID"), clientId);
+    form->addRow(tr("Client Secret"), clientSecret);
+    layout->addLayout(form);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    kickConfigureButton_->setEnabled(false);
+    Request("POST", "/api/accounts/kick/configure",
+            {{"clientId", clientId->text().trimmed()}, {"clientSecret", clientSecret->text()}},
+            [this](const QJsonObject &o, int status) {
+                kickConfigureButton_->setEnabled(true);
+                if (status != 200) {
+                    kickLoginHelp_->setText(o.value("error").toString());
+                    return;
+                }
+                kickLoginHelp_->setText(tr("Credenciais salvas localmente. Agora conecte sua conta Kick."));
+                RefreshKickAccount();
+            });
+}
+
+void StreamHubControlDock::StartKickLogin()
+{
+    kickConnectButton_->setEnabled(false);
+    kickAccountStatus_->setText(tr("● Preparando autorização..."));
+    Request("POST", "/api/accounts/kick/connect", {}, [this](const QJsonObject &o, int status) {
+        if (status != 200) {
+            kickAccountStatus_->setText(o.value("error").toString());
+            kickConnectButton_->setEnabled(true);
+            return;
+        }
+        const QString url = o.value("authorizationUri").toString();
+        kickLoginHelp_->setText(tr("Autorize Kick em <a href=\"%1\">%1</a>. Esta janela pode fechar após autorização.").arg(url));
+        QDesktopServices::openUrl(QUrl(url));
+        PollKickLogin(o.value("flowId").toString());
+    });
+}
+
+void StreamHubControlDock::PollKickLogin(const QString &flowId)
+{
+    kickLoginTimer_->start(3000);
+    connect(kickLoginTimer_, &QTimer::timeout, this, [this, flowId]() {
+        Request("GET", "/api/accounts/kick/connect/" + flowId, {}, [this, flowId](const QJsonObject &o, int status) {
+            if (status != 200) {
+                kickAccountStatus_->setText(o.value("error").toString());
+                kickConnectButton_->setEnabled(true);
+                return;
+            }
+            if (o.value("state").toString() == "connected") {
+                kickLoginHelp_->clear();
+                RefreshKickAccount();
+                return;
+            }
+            PollKickLogin(flowId);
+        });
+    }, Qt::SingleShotConnection);
+}
+
+void StreamHubControlDock::SyncKickTransmission()
+{
+    kickSyncButton_->setEnabled(false);
+    kickLoginHelp_->setText(tr("Buscando dados oficiais da Kick..."));
+    emit kickTransmissionRequested();
+}
+
+void StreamHubControlDock::SetKickTransmission(const QJsonObject &transmission)
+{
+    const QString server = transmission.value("server").toString().trimmed();
+    const QString key = transmission.value("streamKey").toString().trimmed();
+    if (server.isEmpty() || key.isEmpty()) {
+        SetKickTransmissionError(tr("Kick não forneceu servidor RTMP e stream key válidos."));
+        return;
+    }
+    kickTransmission_ = transmission;
+    kickSyncButton_->setEnabled(true);
+    kickLoginHelp_->setText(tr("Transmissão Kick sincronizada com Múltiplas saídas."));
+    emit kickTransmissionReceived(kickTransmission_);
+}
+
+void StreamHubControlDock::SetKickTransmissionError(const QString &error)
+{
+    kickSyncButton_->setEnabled(true);
+    kickLoginHelp_->setText(tr("Sincronização Kick: %1").arg(error));
 }
 
 void StreamHubControlDock::StartYoutubeLogin()
 {
-    const QString clientId = youtubeClientId_->text().trimmed();
-    if (clientId.isEmpty()) { youtubeAccountStatus_->setText(tr("Informe o Client ID OAuth do Google.")); return; }
-    youtubeConnectButton_->setEnabled(false); youtubeAccountStatus_->setText(tr("● Abrindo autorização do Google..."));
-    Request("POST", "/api/accounts/youtube/connect", {{"clientId", clientId}, {"clientSecret", youtubeClientSecret_->text().trimmed()}}, [this](const QJsonObject &o, int status) {
-        if (status != 200) { youtubeAccountStatus_->setText(o.value("error").toString()); youtubeConnectButton_->setEnabled(true); return; }
-        const QUrl authorizationUrl(o.value("authorizationUrl").toString());
-        if (!authorizationUrl.isValid() || authorizationUrl.scheme() != "https") {
-            youtubeAccountStatus_->setText(tr("URL de autorização do Google inválida."));
+    youtubeConnectButton_->setEnabled(false);
+    youtubeAccountStatus_->setText(tr("● Preparando autorização..."));
+    Request("POST", "/api/accounts/youtube/connect", {}, [this](const QJsonObject &o, int status) {
+        if (status != 200) {
+            youtubeAccountStatus_->setText(o.value("error").toString());
             youtubeConnectButton_->setEnabled(true);
             return;
         }
-        QDesktopServices::openUrl(authorizationUrl); youtubeLoginTimer_->start();
+        const QString url = o.value("authorizationUri").toString();
+        youtubeLoginHelp_->setText(tr("Autorize YouTube em <a href=\"%1\">%1</a>. Esta janela pode fechar após autorização.").arg(url));
+        QDesktopServices::openUrl(QUrl(url));
+        PollYoutubeLogin(o.value("flowId").toString());
     });
 }
 
-void StreamHubControlDock::PollYoutubeLogin()
+void StreamHubControlDock::PollYoutubeLogin(const QString &flowId)
+{
+    youtubeLoginTimer_->start(3000);
+    connect(youtubeLoginTimer_, &QTimer::timeout, this, [this, flowId]() {
+        Request("GET", "/api/accounts/youtube/connect/" + flowId, {}, [this, flowId](const QJsonObject &o, int status) {
+            if (status != 200) {
+                youtubeAccountStatus_->setText(o.value("error").toString());
+                youtubeConnectButton_->setEnabled(true);
+                return;
+            }
+            if (o.value("state").toString() == "connected") {
+                youtubeLoginHelp_->clear();
+                RefreshYoutubeAccount();
+                return;
+            }
+            PollYoutubeLogin(flowId);
+        });
+    }, Qt::SingleShotConnection);
+}
+
+void StreamHubControlDock::RefreshYoutubeAccount()
 {
     Request("GET", "/api/accounts/youtube/status", {}, [this](const QJsonObject &o, int status) {
-        if (status == 200 && o.value("connected").toBool()) { RefreshYoutubeAccount(); return; }
-        youtubeAccountStatus_->setText(tr("● Aguardando autorização no navegador...")); youtubeLoginTimer_->start();
+        if (status != 200) {
+            youtubeAccountStatus_->setText(tr("● Aguardando o serviço local..."));
+            youtubeAccountStatus_->setProperty("connected", false);
+            QTimer::singleShot(1500, this, &StreamHubControlDock::RefreshYoutubeAccount);
+            return;
+        }
+        const bool configured = o.value("configured").toBool();
+        const bool connected = o.value("connected").toBool();
+        const bool reconnect = o.value("needsReconnect").toBool();
+        const QString source = o.value("credentialSource").toString();
+        youtubeAccountStatus_->setProperty("connected", connected && !reconnect);
+        youtubeAccountStatus_->style()->unpolish(youtubeAccountStatus_);
+        youtubeAccountStatus_->style()->polish(youtubeAccountStatus_);
+        if (!configured) {
+            youtubeAccountName_->setText(tr("YouTube"));
+            youtubeAccountStatus_->setText(tr("● OAuth compartilhado indisponível · use Avançado"));
+            youtubeConnectButton_->setEnabled(false);
+            youtubeSyncButton_->setEnabled(false);
+        } else if (!connected) {
+            youtubeAccountName_->setText(tr("YouTube"));
+            youtubeAccountStatus_->setText(source == "env" ? tr("● Não conectada · credenciais de .env") : tr("● Não conectada"));
+            youtubeConnectButton_->setText(tr("Conectar"));
+            youtubeConnectButton_->setEnabled(true);
+            youtubeSyncButton_->setEnabled(false);
+        } else if (reconnect) {
+            youtubeAccountName_->setText(QString("YouTube · %1").arg(o.value("name").toString()));
+            youtubeAccountStatus_->setText(tr("● Precisa de novas permissões"));
+            youtubeConnectButton_->setText(tr("Reconectar"));
+            youtubeConnectButton_->setEnabled(true);
+            youtubeSyncButton_->setEnabled(false);
+        } else {
+            youtubeAccountName_->setText(QString("YouTube · %1").arg(o.value("name").toString()));
+            youtubeAccountStatus_->setText(tr("● Conectada"));
+            youtubeConnectButton_->setText(tr("Trocar conta"));
+            youtubeConnectButton_->setEnabled(true);
+            youtubeSyncButton_->setEnabled(true);
+        }
     });
+}
+
+void StreamHubControlDock::ConfigureYoutube()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Configurar YouTube"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hint = new QLabel(tr("Deixe campos vazios para usar valores de .env. Client Secret fica oculto e nunca deve ser compartilhado."), &dialog);
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+    auto *form = new QFormLayout();
+    auto *clientId = new QLineEdit(&dialog);
+    auto *clientSecret = new QLineEdit(&dialog);
+    clientSecret->setEchoMode(QLineEdit::Password);
+    clientId->setPlaceholderText(tr("Client ID OAuth do Google"));
+    clientSecret->setPlaceholderText(tr("Client Secret OAuth do Google"));
+    form->addRow(tr("Client ID"), clientId);
+    form->addRow(tr("Client Secret"), clientSecret);
+    layout->addLayout(form);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    youtubeConfigureButton_->setEnabled(false);
+    Request("POST", "/api/accounts/youtube/configure",
+            {{"clientId", clientId->text().trimmed()}, {"clientSecret", clientSecret->text()}},
+            [this](const QJsonObject &o, int status) {
+                youtubeConfigureButton_->setEnabled(true);
+                if (status != 200) {
+                    youtubeLoginHelp_->setText(o.value("error").toString());
+                    return;
+                }
+                youtubeLoginHelp_->setText(tr("Configuração salva localmente. Agora conecte sua conta YouTube."));
+                RefreshYoutubeAccount();
+            });
+}
+
+void StreamHubControlDock::SyncYoutubeTransmission()
+{
+    youtubeSyncButton_->setEnabled(false);
+    youtubeLoginHelp_->setText(tr("Buscando dados oficiais do YouTube..."));
+    emit youtubeTransmissionRequested();
+}
+
+void StreamHubControlDock::SetYoutubeTransmission(const QJsonObject &transmission)
+{
+    const QString server = transmission.value("server").toString().trimmed();
+    const QString key = transmission.value("streamKey").toString().trimmed();
+    if (server.isEmpty() || key.isEmpty()) {
+        SetYoutubeTransmissionError(tr("YouTube não forneceu servidor RTMP e stream key válidos."));
+        return;
+    }
+    youtubeTransmission_ = transmission;
+    youtubeSyncButton_->setEnabled(true);
+    youtubeLoginHelp_->setText(tr("Transmissão YouTube sincronizada com Múltiplas saídas."));
+    emit youtubeTransmissionReceived(youtubeTransmission_);
+}
+
+void StreamHubControlDock::SetYoutubeTransmissionError(const QString &error)
+{
+    youtubeSyncButton_->setEnabled(true);
+    youtubeLoginHelp_->setText(tr("Sincronização YouTube: %1").arg(error));
 }
 
 void StreamHubControlDock::LoadBroadcast()
 {
-    Request("GET", "/api/broadcast/current", {}, [this](const QJsonObject &o, int status) {
+    Request("GET", "/api/twitch/channel", {}, [this](const QJsonObject &o, int status) {
         if (status != 200) { broadcastStatus_->setText(o.value("error").toString()); return; }
         title_->setPlainText(o.value("title").toString()); category_->setText(o.value("gameName").toString()); categoryId_ = o.value("gameId").toString();
         QStringList tags; for (const auto &tag : o.value("tags").toArray()) tags << tag.toString(); tags_->setText(tags.join(", "));
         const int languageIndex = language_->findData(o.value("language").toString()); if (languageIndex >= 0) language_->setCurrentIndex(languageIndex);
         const auto labels = o.value("classificationLabels").toArray(); const int classificationIndex = labels.isEmpty() ? 0 : classification_->findData(labels.first().toString()); classification_->setCurrentIndex(qMax(0, classificationIndex));
-        const QString visibility = o.value("visibility").toString();
-        if (visibility == "unlisted") visibility_->setCurrentIndex(1);
-        else if (visibility == "private") visibility_->setCurrentIndex(2);
-        else if (!visibility.isEmpty()) visibility_->setCurrentIndex(0);
-        const QString platform = o.value("platform").toString("twitch");
-        const QString artUrl = o.value("boxArtUrl").toString();
-        if (artUrl.isEmpty()) {
-            previewCover_->setPixmap(QIcon(QString(":/streamhub-ui/icons/%1.svg").arg(platform)).pixmap(38, 38));
-        } else {
-            QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(artUrl)));
-            connect(imageReply, &QNetworkReply::finished, this, [this, imageReply]() {
-                QPixmap art;
-                art.loadFromData(imageReply->readAll());
-                imageReply->deleteLater();
-                if (!art.isNull())
-                    previewCover_->setPixmap(art.scaled(52, 72, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            });
-        }
         UpdatePreview(); broadcastStatus_->setText(tr("Informações atuais carregadas."));
     });
 }
@@ -382,7 +670,7 @@ void StreamHubControlDock::SearchCategories()
         for (const auto &value : o.value("data").toArray()) {
             const auto category = value.toObject(); auto *item = new QListWidgetItem(QIcon(":/streamhub-ui/icons/twitch.svg"), category.value("name").toString(), categoryResults_); item->setData(Qt::UserRole, category.value("id").toString());
             const QString artUrl = category.value("boxArtUrl").toString();
-            if (!artUrl.isEmpty()) { QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(artUrl))); const QString id = category.value("id").toString(); connect(imageReply, &QNetworkReply::finished, this, [this, imageReply, id]() { QPixmap art; art.loadFromData(imageReply->readAll()); imageReply->deleteLater(); if (art.isNull()) return; for (int row = 0; row < categoryResults_->count(); ++row) if (categoryResults_->item(row)->data(Qt::UserRole).toString() == id) categoryResults_->item(row)->setIcon(QIcon(art)); if (categoryId_ == id) previewCover_->setPixmap(art.scaled(52, 72, Qt::KeepAspectRatio, Qt::SmoothTransformation)); }); }
+            if (!artUrl.isEmpty()) { QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(artUrl))); const QString id = category.value("id").toString(); connect(imageReply, &QNetworkReply::finished, this, [this, imageReply, id]() { QPixmap art; art.loadFromData(imageReply->readAll()); imageReply->deleteLater(); if (art.isNull()) return; for (int row = 0; row < categoryResults_->count(); ++row) if (categoryResults_->item(row)->data(Qt::UserRole).toString() == id) categoryResults_->item(row)->setIcon(QIcon(art)); }); }
         }
         categoryResults_->setVisible(categoryResults_->count() > 0);
     });

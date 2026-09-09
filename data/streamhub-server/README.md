@@ -11,26 +11,28 @@ Na engrenagem do chat, abra a aba **Overlay**. Ela permite definir o tempo de ex
 Adicione a URL como **Fonte de navegador** no OBS. O caminho padrão é:
 
 ```text
-http://127.0.0.1:3000/overlay.html
+http://localhost:605/overlay.html
 ```
 
 O overlay tem fundo transparente, ícone e cor fixa por plataforma, badges de mod/sub/vip, destaque de menções e expiração automática. Estados comuns de conexão não são desenhados sobre a live. A opção **Abrir prévia** mostra mensagens de demonstração para ajustar a cena.
 
 ## Conectores
 
-- **Twitch:** leitura pública; envio, dados da live, moderação e recompensas usam autorização OAuth persistente pelo Device Code Flow.
-- **Kick:** leitura atual pelo protocolo usado pelo site; OAuth oficial, envio autenticado, moderação e leitura autorizada de stream key ainda estão pendentes.
-- A próxima etapa usará navegador externo, callback local, PKCE, refresh token e escopos oficiais, incluindo `streamkey:read` quando liberado pelo aplicativo Kick.
-- A sincronização de servidor RTMP, stream key e destino nativo exigirá ponte local autenticada entre Node e C++. Nunca enviar chave por long-poll, Socket.IO, URL, log ou documentação.
+- **Twitch:** leitura pública; envio, dados da live, moderação e recompensas usam autorização OAuth persistente pelo Device Code Flow. Este fluxo não fornece stream key; configure a chave manualmente no destino nativo Twitch.
+- **Kick e YouTube:** fluxo normal usa OAuth compartilhado quando broker HTTPS real está implantado e `STREAMHUB_OAUTH_BROKER_URL` está configurado: clique **Conectar**, autorize na página oficial e volte ao OBS. Broker mantém Client Secrets fora da DLL e troca o código OAuth. **Avançado** mantém OAuth local com credenciais manual ou `.env` como fallback.
+- As UI Kick e YouTube permitem conectar pelo broker sem Client ID ou Client Secret local. **Avançado** permite configurar credenciais localmente; tokens continuam privados em `accounts-private.json`.
+- Sincronização usa ponte local autenticada entre Node e C++ com nonce de uso único. Busca dados oficiais e cria ou atualiza um único destino da plataforma, sem enviar chave por long-poll, Socket.IO, URL, log ou documentação. Erro de sincronização aparece na mensagem auxiliar do cartão; estado OAuth **Conectada** permanece separado.
+- Credenciais manuais preenchidas vencem `.env`; campos manuais vazios usam `KICK_*` ou `YOUTUBE_*` correspondente. Kick e YouTube resolvem credenciais e fluxos independentemente.
+- Endpoints, escopos e campos de stream key Kick ainda precisam confirmação oficial e teste real; envio autenticado e moderação permanecem pendentes.
 
 Contexto detalhado: [PLANOS/ARQUITETURA_E_CONTEXTO.md](../../PLANOS/ARQUITETURA_E_CONTEXTO.md).
 
-**Implementação aguarda aprovação do plano detalhado.**
+O servidor é iniciado pelo launcher do plugin com `STREAMHUB_OBS_PID`, `STREAMHUB_INSTANCE_TOKEN` e porta configurada. O servidor escuta em `localhost`, com porta padrão `605`. O lifecycle local usa `runtime.json`, `GET /internal/status` e `POST /internal/shutdown`; ambos endpoints exigem loopback e `X-StreamHub-Token`. Watchdog verifica o PID do OBS a cada 2 segundos. Sincronização Kick usa `POST /internal/kick-sync/nonce` e `POST /internal/kick-sync`; YouTube usa `POST /internal/youtube-sync/nonce` e `POST /internal/youtube-sync`. Ambas usam mesmo handshake e nonce temporário.
 
 <!-- histórico -->
 
 - **Kick:** canal público por protocolo usado pelo site; validado ponta a ponta. (Registro histórico; implementação atual descrita acima.)
-- **YouTube:** OAuth persistente pelo navegador para descobrir a live, ler/enviar no chat e atualizar os dados da transmissão. A antiga chave de API + ID da live continua aceita como compatibilidade somente para leitura.
+- **YouTube:** OAuth persistente e descoberta de `activeLiveChatId` por `videos.list`; leitura usa `liveChatMessages.list`. Consulta, atualização e leitura em live real ainda precisam de validação.
 - **TikTok:** requer o usuário sem `@`; permanece experimental até validação ponta a ponta em uma live real.
 - **Facebook:** ainda não possui conector de chat.
 
@@ -38,43 +40,50 @@ Kick e TikTok dependem de protocolos não oficiais e podem exigir manutenção c
 
 ### OAuth do YouTube
 
-Ative a YouTube Data API v3 no Google Cloud, configure o consentimento externo, adicione o escopo `youtube.force-ssl` e crie um cliente OAuth do tipo **Aplicativo para computador**. O Client ID e o Client Secret são informados no cartão do YouTube em **Informações de transmissão K4 > Contas**. O retorno usa uma URL loopback em `127.0.0.1`, e os tokens são salvos apenas em `accounts-private.json`.
+Fluxo normal YouTube usa broker OAuth HTTPS compartilhado. O operador do broker configura a aplicação OAuth, callback público e Client Secret; usuário final não cria app nem informa credenciais. **Avançado** mantém cliente OAuth local, callback loopback e credenciais somente para desenvolvimento/fallback. Tokens são salvos apenas em `accounts-private.json`.
 
 O modo de teste do Google deve listar cada usuário autorizado. Para uso por qualquer pessoa, publique o aplicativo e conclua a verificação que o Google solicitar para o escopo. A API normalmente usa cota gratuita diária, sem cobrança por chamada pelo StreamHub.
 
-OAuth YouTube já foi validado no navegador externo e retornou a página **YouTube conectado ao StreamHub**. O carregamento dos dados da live ainda precisa corrigir uma consulta que combina parâmetros incompatíveis `mine` e `broadcastStatus`.
+OAuth YouTube já foi validado no navegador externo e retornou a página **YouTube conectado ao StreamHub**. O conector de chat agora descobre `activeLiveChatId` por `videos.list` e lê mensagens por `liveChatMessages.list`; carregamento e atualização dos dados da live ainda precisam de validação em live real.
 
-Stream keys não pertencem ao servidor de chat. Qualquer sincronização futura de servidor RTMP e stream key com **Múltiplas saídas** precisa usar API ou credencial oficial, preservar destinos existentes e manter chaves fora de logs, documentação e controle de versão. Se uma plataforma não fornecer chave de modo autorizado, o servidor deve solicitar configuração segura em vez de salvar valor inventado.
+Stream keys não pertencem ao fluxo comum de chat. Sincronização de servidor RTMP e stream key com **Múltiplas saídas** precisa usar API ou credencial oficial, preservar destinos existentes e manter chaves fora de logs, documentação e controle de versão. Kick possui ponte preliminar; outras plataformas só devem sincronizar quando fornecerem chave de modo autorizado. Sem valor oficial, servidor deve solicitar configuração segura em vez de salvar valor inventado.
 
-## Estado de validação — 07/09/2026
+## Estado de validação — 09/09/2026
 
 - OAuth YouTube: concluído com conta de teste.
 - Leitura/envio de chat e atualização de live: implementados no código, ainda sem validação em live real.
-- Painel de transmissão: erro conhecido na consulta YouTube `Parâmetros incompatíveis especificados na solicitação: mine, broadcastStatus`.
+- Painel de transmissão: consulta, atualização da live e leitura real do chat YouTube ainda não foram validadas em live real.
 - Painel Twitch: mensagem atual informa `Twitch: Atualizada; notificação não existem na API da Twitch.`; notificação não é campo da API Twitch e deve ser reportada como ignorada, não como falha.
-- Sincronização automática de servidor/chave e criação de destinos sem configuração prévia: requisito pendente.
-
+- Kick OAuth/sincronização: código integrado, mas endpoints, escopos e campos oficiais de stream key ainda não confirmados; teste real pendente.
+- YouTube OAuth, configuração por `.env` ou manual, sincronização Node/C++ e destino nativo estão integrados; teste interno retornou `HTTP 200` com servidor e stream key presentes. Teste RTMP real e validação em live real continuam pendentes.
+- Destino nativo sem servidor ou stream key fica **Pendente** e não inicia. Para Twitch, informe a stream key manualmente e ative o destino no cartão de **Múltiplas saídas · K4**.
 ## Execução manual para desenvolvimento
+
+O servidor foi projetado para ser iniciado pelo plugin OBS, que injeta `PORT`, `STREAMHUB_OBS_PID` e `STREAMHUB_INSTANCE_TOKEN`. Execução manual exige ambiente standalone explícito; use somente em desenvolvimento local.
 
 ```powershell
 npm install
 Copy-Item config.example.json config.json
+$env:STREAMHUB_ALLOW_STANDALONE = "1"
 npm start
 ```
 
-O painel de múltiplas saídas é nativo em C++ e compartilha os recursos do OBS. O servidor Node cuida dos chats, overlay e chamadas autenticadas das plataformas; ele não recebe nem controla stream keys. A sincronização futura usará ponte local autenticada e temporária, com chave transitando somente no canal privado necessário para atualizar o destino nativo.
+No modo standalone, endpoints internos continuam sem token válido e watchdog não inicia. Launcher OBS permanece caminho suportado.
 
-A implementação da próxima etapa começa somente após aprovação do plano detalhado. Ver [PLANOS/ARQUITETURA_E_CONTEXTO.md](../../PLANOS/ARQUITETURA_E_CONTEXTO.md) para estado, arquitetura, requisitos e critérios de validação.
+O painel de múltiplas saídas é nativo em C++ e compartilha os recursos do OBS. O servidor Node cuida dos chats, overlay, OAuth e chamadas autenticadas das plataformas; C++ controla destinos RTMP. Durante sincronização Kick ou YouTube, stream key transita somente na resposta HTTP interna autenticada e fica em memória para atualizar o destino; não é registrada em log ou resposta pública.
+
+A execução pelo plugin OBS é caminho suportado. Ver [PLANOS/ARQUITETURA_E_CONTEXTO.md](../../PLANOS/ARQUITETURA_E_CONTEXTO.md) para estado, arquitetura, requisitos e critérios de validação.
 
 **Segurança:** nunca registrar Client Secret, tokens ou stream keys em logs, URLs, documentação, screenshots ou Git.
 
 ## Plano de ação pendente
 
-1. Corrigir consulta YouTube e resultado Twitch.
-2. Integrar OAuth Kick, refresh, chat e moderação.
-3. Ler credenciais oficiais de transmissão quando escopos permitirem.
-4. Criar ponte Node/C++ e sincronização idempotente sem duplicação.
-5. Testar compatibilidade, segurança, criação sem live/destino prévio e transmissão real.
+1. Confirmar contrato oficial Kick: endpoints, escopos, PKCE e campos de servidor RTMP/stream key.
+2. Revogar Client Secret Kick fornecido anteriormente e criar substituto antes de teste real.
+3. Validar OAuth Kick, refresh, busca oficial de transmissão, criação/atualização idempotente de destino e transmissão RTMP.
+4. Integrar envio autenticado, chat OAuth e moderação Kick somente conforme capacidades oficiais confirmadas.
+5. Validar watchdog, Job Object, instalação limpa e testes automatizados de segurança e preservação de configuração.
+6. Validar YouTube em live real, consulta/edição da live e transmissão RTMP ponta a ponta.
 
 <!-- histórico -->
 

@@ -4,6 +4,7 @@
 #include <regex>
 #include <filesystem>
 #include <unordered_map>
+#include <vector>
 #include <cstring>
 
 #include "push-widget.h"
@@ -557,14 +558,13 @@ public:
         auto *mainCardLayout = new QGridLayout(mainCard);
         mainCardLayout->setContentsMargins(13, 10, 13, 10);
         mainCardLayout->setHorizontalSpacing(10);
+        auto *mainName = new QLabel(mainCard);
+        mainName->setObjectName("outputName");
+        mainCardLayout->addWidget(mainName, 0, 1);
         auto *mainIcon = new QLabel(mainCard);
         mainIcon->setFixedSize(42, 42);
         mainIcon->setAlignment(Qt::AlignCenter);
-        mainIcon->setPixmap(QIcon(":/streamhub-ui/icons/camera.svg").pixmap(38, 38));
         mainCardLayout->addWidget(mainIcon, 0, 0, 2, 1);
-        auto *mainName = new QLabel(QString("%1 · %2").arg(tr("Transmissão principal"), tr("Principal")), mainCard);
-        mainName->setObjectName("outputName");
-        mainCardLayout->addWidget(mainName, 0, 1);
         auto *mainStatus = new QLabel(mainCard);
         mainStatus->setObjectName("outputStatus");
         mainCardLayout->addWidget(mainStatus, 1, 1);
@@ -579,29 +579,22 @@ public:
         mainToggle->setFixedSize(66, 34);
         mainCardLayout->addWidget(mainToggle, 0, 3, 2, 1);
         const auto updateMainCard = [mainStatus, mainToggle, mainName, mainIcon]() {
-            QString serviceName = QObject::tr("Transmissão principal");
-            QString platform = "custom";
+            QString mainServiceName = QObject::tr("Transmissão principal");
+            QString mainPlatform = "custom";
             if (obs_service_t *service = obs_frontend_get_streaming_service()) {
-                // A API do frontend devolve um ponteiro emprestado. Não chame
-                // obs_service_release() aqui; o OBS continua sendo o dono.
                 obs_data_t *settings = obs_service_get_settings(service);
-                const QString configuredService =
-                    QString::fromUtf8(obs_data_get_string(settings, "service")).trimmed();
-                const QString server =
-                    QString::fromUtf8(obs_data_get_string(settings, "server")).trimmed();
-                if (!configuredService.isEmpty())
-                    serviceName = configuredService;
-                const QString identity = configuredService + " " + server;
-                if (identity.contains("twitch", Qt::CaseInsensitive)) platform = "twitch";
-                else if (identity.contains("youtube", Qt::CaseInsensitive)) platform = "youtube";
-                else if (identity.contains("kick", Qt::CaseInsensitive)) platform = "kick";
-                else if (identity.contains("tiktok", Qt::CaseInsensitive)) platform = "tiktok";
-                else if (identity.contains("facebook", Qt::CaseInsensitive)) platform = "facebook";
+                const QString configuredService = QString::fromUtf8(obs_data_get_string(settings, "service")).trimmed();
+                if (!configuredService.isEmpty()) mainServiceName = configuredService;
+                const QString lowered = mainServiceName.toLower();
+                if (lowered.contains("twitch")) mainPlatform = "twitch";
+                else if (lowered.contains("youtube")) mainPlatform = "youtube";
+                else if (lowered.contains("kick")) mainPlatform = "kick";
+                else if (lowered.contains("tiktok")) mainPlatform = "tiktok";
                 obs_data_release(settings);
             }
-            mainName->setText(QString("%1 · %2").arg(serviceName, QObject::tr("Principal")));
-            mainIcon->setPixmap(QIcon(platform == "custom" ? ":/streamhub-ui/icons/camera.svg"
-                                                            : QString(":/streamhub-ui/icons/%1.svg").arg(platform)).pixmap(38, 38));
+            mainName->setText(QString("%1 · %2").arg(mainServiceName, QObject::tr("Principal")));
+            mainIcon->setPixmap(QIcon(mainPlatform == "custom" ? ":/streamhub-ui/icons/camera.svg"
+                                                                  : QString(":/streamhub-ui/icons/%1.svg").arg(mainPlatform)).pixmap(38, 38));
             const bool active = obs_frontend_streaming_active();
             mainToggle->blockSignals(true);
             mainToggle->setChecked(active);
@@ -667,6 +660,14 @@ public:
             "}"
         );
         LoadConfig();
+        const QString primaryPlatform = PrimaryPlatform();
+        if (!primaryPlatform.isEmpty())
+            EnsurePlatformTarget(primaryPlatform);
+        QTimer::singleShot(1500, this, [this]() {
+            const QString delayedPrimaryPlatform = PrimaryPlatform();
+            if (!delayedPrimaryPlatform.isEmpty())
+                EnsurePlatformTarget(delayedPrimaryPlatform);
+        });
         connect(
             outputsContainer_->model(),
             &QAbstractItemModel::rowsMoved,
@@ -861,6 +862,167 @@ public:
     void SaveConfig()
     {
         SaveMultiOutputConfig();
+    }
+
+    QString PrimaryPlatform() const
+    {
+        obs_service_t *service = obs_frontend_get_streaming_service();
+        if (!service)
+            return {};
+
+        obs_data_t *settings = obs_service_get_settings(service);
+        const QString serviceName = QString::fromUtf8(obs_data_get_string(settings, "service")).trimmed();
+        obs_data_release(settings);
+        if (serviceName.isEmpty())
+            return {};
+
+        for (const auto &preset : StreamHubPlatformPresets()) {
+            if (preset.id == "custom")
+                continue;
+            if (serviceName.compare(preset.id, Qt::CaseInsensitive) == 0 ||
+                serviceName.compare(preset.name, Qt::CaseInsensitive) == 0 ||
+                serviceName.toLower().contains(preset.id.toLower()))
+                return preset.id;
+        }
+        return {};
+    }
+
+    void SyncPlatformTransmission(const QString &platform, const QJsonObject &transmission)
+    {
+        const QString server = transmission.value("server").toString().trimmed();
+        const QString key = transmission.value("streamKey").toString().trimmed();
+        if (server.isEmpty() || key.isEmpty())
+            return;
+
+        auto &global = GlobalMultiOutputConfig();
+        OutputTargetConfigPtr target;
+        for (const auto &candidate : global.targets) {
+            if (candidate && QString::fromStdString(candidate->platform).compare(platform, Qt::CaseInsensitive) == 0) {
+                target = candidate;
+                break;
+            }
+        }
+
+        bool primaryIsPlatform = false;
+        if (obs_service_t *service = obs_frontend_get_streaming_service()) {
+            obs_data_t *settings = obs_service_get_settings(service);
+            const QString serviceName = QString::fromUtf8(obs_data_get_string(settings, "service"));
+            primaryIsPlatform = serviceName.toLower().contains(platform.toLower());
+            obs_data_release(settings);
+        }
+        if (!target && primaryIsPlatform)
+            return;
+
+        bool created = false;
+        if (!target) {
+            target = std::make_shared<OutputTargetConfig>();
+            target->id = GenerateId(global);
+            StreamHubApplyPlatformPreset(*target, platform);
+            global.targets.emplace_back(target);
+            created = true;
+        }
+
+        target->serviceParam["server"] = server.toStdString();
+        target->serviceParam["key"] = key.toStdString();
+        SaveConfig();
+
+        PushWidget *pushWidget = nullptr;
+        for (int row = 0; row < outputsContainer_->count(); ++row) {
+            auto item = outputsContainer_->item(row);
+            if (!item || item->data(Qt::UserRole).toString().toStdString() != target->id)
+                continue;
+            pushWidget = dynamic_cast<PushWidget *>(outputsContainer_->itemWidget(item));
+            break;
+        }
+        if (created)
+            pushWidget = AddPushWidget(target->id);
+        if (pushWidget)
+            pushWidget->ReloadConfig();
+        outputsContainer_->doItemsLayout();
+    }
+
+    void EnsurePlatformTarget(const QString &platform)
+    {
+        auto &global = GlobalMultiOutputConfig();
+        const auto preset = [&platform]() {
+            for (const auto &candidate : StreamHubPlatformPresets()) {
+                if (candidate.id.compare(platform, Qt::CaseInsensitive) == 0)
+                    return candidate;
+            }
+            return StreamHubPlatformPreset{};
+        }();
+
+        bool primaryIsPlatform = false;
+        if (obs_service_t *service = obs_frontend_get_streaming_service()) {
+            obs_data_t *settings = obs_service_get_settings(service);
+            const QString serviceName = QString::fromUtf8(obs_data_get_string(settings, "service"));
+            primaryIsPlatform = serviceName.compare(platform, Qt::CaseInsensitive) == 0 ||
+                                serviceName.toLower().contains(platform.toLower());
+            obs_data_release(settings);
+        }
+
+        if (primaryIsPlatform) {
+            std::vector<std::string> automaticDuplicateIds;
+            for (const auto &candidate : global.targets) {
+                if (!candidate || StreamHubPlatformForTarget(*candidate).id.compare(platform, Qt::CaseInsensitive) != 0)
+                    continue;
+
+                const auto server = QString::fromStdString(
+                    candidate->serviceParam.value("server", std::string{}));
+                const auto key = QString::fromStdString(
+                    candidate->serviceParam.value("key", std::string{}));
+                const bool automaticIncomplete =
+                    !preset.id.isEmpty() &&
+                    QString::fromStdString(candidate->name) == preset.name &&
+                    server == preset.server && key.isEmpty() &&
+                    QString::fromStdString(candidate->customIcon) == "settings" &&
+                    QString::fromStdString(candidate->customAccent).compare(preset.accent, Qt::CaseInsensitive) == 0 &&
+                    candidate->outputParam.is_object() && candidate->outputParam.empty() &&
+                    !candidate->videoConfig.has_value() && !candidate->audioConfig.has_value() &&
+                    !candidate->syncStart && !candidate->syncStop;
+                if (automaticIncomplete)
+                    automaticDuplicateIds.push_back(candidate->id);
+            }
+
+            for (const auto &id : automaticDuplicateIds)
+                DeletePushWidget(id);
+            if (!automaticDuplicateIds.empty()) {
+                SaveConfig();
+                outputsContainer_->doItemsLayout();
+                blog(LOG_INFO, TAG "removed %zu auxiliary %s target(s); platform is OBS primary service",
+                     automaticDuplicateIds.size(), platform.toUtf8().constData());
+            }
+            return;
+        }
+
+        OutputTargetConfigPtr target;
+        for (const auto &candidate : global.targets) {
+            if (candidate && StreamHubPlatformForTarget(*candidate).id.compare(platform, Qt::CaseInsensitive) == 0) {
+                target = candidate;
+                break;
+            }
+        }
+
+        if (!target) {
+            target = std::make_shared<OutputTargetConfig>();
+            target->id = GenerateId(global);
+            StreamHubApplyPlatformPreset(*target, platform);
+            global.targets.emplace_back(target);
+            SaveConfig();
+            AddPushWidget(target->id);
+            blog(LOG_INFO, TAG "created %s output target after account connection", platform.toUtf8().constData());
+        }
+        outputsContainer_->doItemsLayout();
+    }
+
+    void SyncKickTransmission(const QJsonObject &transmission)
+    {
+        SyncPlatformTransmission("kick", transmission);
+    }
+
+    void SyncYoutubeTransmission(const QJsonObject &transmission)
+    {
+        SyncPlatformTransmission("youtube", transmission);
     }
 
     void OnOutputMoved(
@@ -1177,7 +1339,7 @@ bool obs_module_load()
 
     // --- StreamHub: sobe o servidor de chat + o dock nativo que mostra ele ---
 
-    int chatPort = 3000;
+    int chatPort = 605;
     {
         QFile cfgFile(serverDir + "/config.json");
         if (!cfgFile.exists()) {
@@ -1186,7 +1348,7 @@ bool obs_module_load()
         }
         if (cfgFile.open(QIODevice::ReadOnly)) {
             auto doc = QJsonDocument::fromJson(cfgFile.readAll());
-            chatPort = doc.object().value("server").toObject().value("port").toInt(3000);
+            chatPort = doc.object().value("server").toObject().value("port").toInt(605);
         }
     }
 
@@ -1209,6 +1371,24 @@ bool obs_module_load()
 
     auto *controlDock = new StreamHubControlDock();
     controlDock->setObjectName("streamhub-control-dock");
+    QObject::connect(controlDock, &StreamHubControlDock::twitchConnected,
+                     dock, [dock]() { dock->EnsurePlatformTarget("twitch"); });
+    QObject::connect(controlDock, &StreamHubControlDock::kickTransmissionRequested,
+                     s_launcher, &StreamHubLauncher::SyncKickTransmission);
+    QObject::connect(s_launcher, &StreamHubLauncher::kickTransmissionReady,
+                     controlDock, &StreamHubControlDock::SetKickTransmission);
+    QObject::connect(s_launcher, &StreamHubLauncher::kickTransmissionFailed,
+                     controlDock, &StreamHubControlDock::SetKickTransmissionError);
+    QObject::connect(controlDock, &StreamHubControlDock::kickTransmissionReceived,
+                     dock, &MultiOutputWidget::SyncKickTransmission);
+    QObject::connect(controlDock, &StreamHubControlDock::youtubeTransmissionRequested,
+                     s_launcher, &StreamHubLauncher::SyncYoutubeTransmission);
+    QObject::connect(s_launcher, &StreamHubLauncher::youtubeTransmissionReady,
+                     controlDock, &StreamHubControlDock::SetYoutubeTransmission);
+    QObject::connect(s_launcher, &StreamHubLauncher::youtubeTransmissionFailed,
+                     controlDock, &StreamHubControlDock::SetYoutubeTransmissionError);
+    QObject::connect(controlDock, &StreamHubControlDock::youtubeTransmissionReceived,
+                     dock, &MultiOutputWidget::SyncYoutubeTransmission);
     controlDock->ConnectTo(chatPort);
     if (!obs_frontend_add_dock_by_id("streamhub-control-dock", "Informações de transmissão K4", controlDock))
         delete controlDock;
@@ -1228,9 +1408,8 @@ bool obs_module_load()
                 x->OnOBSEvent(event);
 
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
-            {   
+            {
                 dock->SaveConfig();
-                s_launcher->Stop();
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
             {

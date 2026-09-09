@@ -18,6 +18,18 @@ class StreamHubControlDock : public QWidget {
 public:
     explicit StreamHubControlDock(QWidget *parent = nullptr);
     void ConnectTo(int port);
+    void RefreshAccounts();
+    void SetKickTransmission(const QJsonObject &transmission);
+    void SetKickTransmissionError(const QString &error);
+    void SetYoutubeTransmission(const QJsonObject &transmission);
+    void SetYoutubeTransmissionError(const QString &error);
+
+signals:
+    void twitchConnected();
+    void kickTransmissionRequested();
+    void kickTransmissionReceived(const QJsonObject &transmission);
+    void youtubeTransmissionRequested();
+    void youtubeTransmissionReceived(const QJsonObject &transmission);
 
 private:
     using ReplyHandler = std::function<void(const QJsonObject &, int)>;
@@ -25,28 +37,47 @@ private:
     void RefreshAccount();
     void StartTwitchLogin();
     void PollTwitchLogin(const QString &flowId, int intervalSeconds);
-    void RefreshYoutubeAccount();
+    void StartKickLogin();
+    void PollKickLogin(const QString &flowId);
+    void RefreshKickAccount();
+    void ConfigureKick();
+    void SyncKickTransmission();
     void StartYoutubeLogin();
-    void PollYoutubeLogin();
+    void PollYoutubeLogin(const QString &flowId);
+    void RefreshYoutubeAccount();
+    void ConfigureYoutube();
+    void SyncYoutubeTransmission();
     void LoadBroadcast();
     void ApplyBroadcast();
     void SearchCategories();
     void UpdatePreview();
 
-    int port_ = 3000;
+    int port_ = 605;
     QNetworkAccessManager *network_ = nullptr;
     QTimer *loginTimer_ = nullptr;
-    QTimer *categoryTimer_ = nullptr;
+    QTimer *kickLoginTimer_ = nullptr;
     QTimer *youtubeLoginTimer_ = nullptr;
+    QTimer *categoryTimer_ = nullptr;
     QLabel *accountStatus_ = nullptr;
     QLabel *accountName_ = nullptr;
     QLabel *loginHelp_ = nullptr;
     QPushButton *connectButton_ = nullptr;
+    QLabel *kickAccountStatus_ = nullptr;
+    QLabel *kickAccountName_ = nullptr;
+    QLabel *kickLoginHelp_ = nullptr;
+    QPushButton *kickConnectButton_ = nullptr;
+    QPushButton *kickConfigureButton_ = nullptr;
+    QLineEdit *kickClientId_ = nullptr;
+    QLineEdit *kickClientSecret_ = nullptr;
+    QPushButton *kickSyncButton_ = nullptr;
+    QJsonObject kickTransmission_;
     QLabel *youtubeAccountStatus_ = nullptr;
     QLabel *youtubeAccountName_ = nullptr;
+    QLabel *youtubeLoginHelp_ = nullptr;
     QPushButton *youtubeConnectButton_ = nullptr;
-    QLineEdit *youtubeClientId_ = nullptr;
-    QLineEdit *youtubeClientSecret_ = nullptr;
+    QPushButton *youtubeConfigureButton_ = nullptr;
+    QPushButton *youtubeSyncButton_ = nullptr;
+    QJsonObject youtubeTransmission_;
     QTextEdit *title_ = nullptr;
     QLabel *titleCount_ = nullptr;
     QTextEdit *notification_ = nullptr;

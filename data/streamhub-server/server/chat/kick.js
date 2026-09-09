@@ -26,54 +26,80 @@ async function getChatroomId(channel) {
  * @param {(msg: object) => void} onMessage
  */
 async function startKick(cfg, onMessage, onStatus = () => {}) {
-  onStatus('connecting', 'Kick conectando...');
+  let retryTimer = null;
+  let stopped = false;
+  let pusher = null;
   let chatroomId = cfg.chatroomId;
 
-  if (!chatroomId) {
-    try {
-      chatroomId = await getChatroomId(cfg.channel);
-    } catch (err) {
-      console.error('[kick] não consegui achar o chatroom automaticamente:', err.message);
-      console.error('[kick] pegue o chatroom_id manualmente e cole em config.kick.chatroomId');
-      onStatus('reconnecting', 'Kick desconectado — reconectando');
-      setTimeout(() => startKick(cfg, onMessage, onStatus), 10000);
-      return null;
+  const scheduleConnect = () => {
+    if (stopped || retryTimer) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      void connect();
+    }, 10000);
+  };
+
+  const connect = async () => {
+    if (stopped) return;
+    onStatus('connecting', 'Kick conectando...');
+
+    if (!chatroomId) {
+      try {
+        chatroomId = await getChatroomId(cfg.channel);
+      } catch (err) {
+        console.error('[kick] não consegui achar o chatroom automaticamente:', err.message);
+        console.error('[kick] pegue o chatroom_id manualmente e cole em config.kick.chatroomId');
+        onStatus('reconnecting', 'Kick desconectado — reconectando');
+        scheduleConnect();
+        return;
+      }
     }
-  }
 
-  const pusher = new Pusher(PUSHER_APP_KEY, { cluster: PUSHER_CLUSTER });
-  const channel = pusher.subscribe(`chatrooms.${chatroomId}.v2`);
+    pusher = new Pusher(PUSHER_APP_KEY, { cluster: PUSHER_CLUSTER });
+    const channel = pusher.subscribe(`chatrooms.${chatroomId}.v2`);
 
-  channel.bind('App\\Events\\ChatMessageEvent', (data) => {
-    onMessage({
-      platform: 'kick',
-      id: data.id,
-      user: data.sender?.username,
-      color: data.sender?.identity?.color || '#53FC18',
-      message: data.content,
-      badges: (data.sender?.identity?.badges || []).map((b) => b.type),
-      timestamp: Date.now(),
+    channel.bind('App\\Events\\ChatMessageEvent', (data) => {
+      onMessage({
+        platform: 'kick',
+        id: data.id,
+        user: data.sender?.username,
+        color: data.sender?.identity?.color || '#53FC18',
+        message: data.content,
+        badges: (data.sender?.identity?.badges || []).map((b) => b.type),
+        timestamp: Date.now(),
+      });
     });
-  });
 
-  pusher.connection.bind('connected', () => {
-    console.log(`[kick] conectado ao chat de ${cfg.channel}`);
-    onStatus('connected', 'Kick conectado');
-  });
+    pusher.connection.bind('connected', () => {
+      console.log(`[kick] conectado ao chat de ${cfg.channel}`);
+      onStatus('connected', 'Kick conectado');
+    });
 
-  pusher.connection.bind('error', (err) => {
-    console.error('[kick] erro de conexão:', err);
-    onStatus('reconnecting', 'Kick desconectado — reconectando');
-  });
-
-  pusher.connection.bind('state_change', ({ current }) => {
-    if (['unavailable', 'failed', 'disconnected'].includes(current)) {
+    pusher.connection.bind('error', (err) => {
+      console.error('[kick] erro de conexão:', err);
       onStatus('reconnecting', 'Kick desconectado — reconectando');
-    }
-  });
+    });
 
+    pusher.connection.bind('state_change', ({ current }) => {
+      if (['unavailable', 'failed', 'disconnected'].includes(current)) {
+        onStatus('reconnecting', 'Kick desconectado — reconectando');
+      }
+    });
+  };
+
+  await connect();
   return {
-    stop: () => pusher.disconnect(),
+    stop: () => {
+      stopped = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      if (pusher) {
+        pusher.disconnect();
+        pusher = null;
+      }
+    },
   };
 }
 

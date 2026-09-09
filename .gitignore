@@ -13,17 +13,18 @@
 # (não é mais usada pelo projeto — long-poll HTTP substituiu o WebSocket —
 # mas se a pasta ainda existir no seu disco, não precisa versionar)
 
-# --- Arquivos gerados localmente ---
-cmake/.CMakeBuildNumber
-
 # --- Node (servidor StreamHub embutido) ---
 data/streamhub-server/node_modules/
 data/streamhub-server/npm-debug.log*
 
+# --- OAuth broker externo ---
+oauth-broker/node_modules/
+oauth-broker/.env
+oauth-broker/npm-debug.log*
+
 # --- Configuração e credenciais do usuário: NUNCA commitar ---
 data/streamhub-server/config.json
-data/streamhub-server/accounts-private.json
-data/streamhub-server/accounts-private.json.tmp
+data/streamhub-server/.env
 
 # --- Artefatos de release/instalador ---
 /release/

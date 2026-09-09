@@ -79,7 +79,7 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
     const QJsonObject overlay = config.value("overlay").toObject();
     const QJsonObject hideCommands = overlay.value("hideCommands").toObject();
     const QJsonObject chat = config.value("chat").toObject();
-    const int port = config.value("server").toObject().value("port").toInt(3000);
+    const int port = config.value("server").toObject().value("port").toInt(605);
 
     QDialog dialog(parent);
     dialog.setWindowTitle(QObject::tr("Configurar chats do StreamHub"));

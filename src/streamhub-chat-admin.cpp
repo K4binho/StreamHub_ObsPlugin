@@ -91,7 +91,7 @@ StreamHubChatAdminDialog::StreamHubChatAdminDialog(int port, QWidget *parent) : 
 
 void StreamHubChatAdminDialog::Request(const QByteArray &method, const QString &path, const QJsonObject &body, ReplyHandler handler)
 {
-    QNetworkRequest request{QUrl(QString("http://127.0.0.1:%1%2").arg(port_).arg(path))}; request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkRequest request{QUrl(QString("http://localhost:%1%2").arg(port_).arg(path))}; request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     QNetworkReply *reply = method == "GET" ? network_->get(request) : network_->sendCustomRequest(request, method, QJsonDocument(body).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [reply, handler]() { const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(); const auto object = QJsonDocument::fromJson(reply->readAll()).object(); reply->deleteLater(); handler(object, status); });
 }
