@@ -99,4 +99,7 @@ Nunca publique Client Secret, access token, refresh token, stream key ou URL OAu
 
 ## Licença
 
-Consulte arquivos de licença do projeto original e dependências incluídas antes de redistribuir.
+- [GPL-2.0 — tradução para português do Brasil](LICENSE.pt-BR)
+- [GPL-2.0 — texto original em inglês](LICENSE)
+
+A tradução PT-BR é não oficial e pode conter erros por ter sido traduzida do inglês. Em caso de divergência, `LICENSE` contém versão juridicamente válida. Consulte também licenças de dependências incluídas antes de redistribuir.
