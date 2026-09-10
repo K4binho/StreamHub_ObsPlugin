@@ -32,7 +32,7 @@ Render can host this service as Node web service. Service must bind `0.0.0.0` th
 - Same paths for `youtube`.
 - `GET /healthz`
 
-`start` may receive public `clientId` for allowlist validation; broker provider configuration remains authoritative. `poll` needs `Authorization: Bearer <claimToken>`. Tokens return only once from `poll`, then transaction becomes claimed.
+`start` receives no OAuth credentials from desktop clients; broker provider configuration remains authoritative. `poll` needs `Authorization: Bearer <claimToken>`. Tokens return only once from `poll`, then transaction becomes claimed.
 
 ## Security
 

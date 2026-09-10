@@ -240,10 +240,8 @@ function createBroker(options = {}) {
 
     app.post(`${prefix}/start`, rateLimit(`${platform}:start`, 10, 60000), (req, res) => {
       if (!configured()) return publicError(res, 503, 'OAuth compartilhado indisponível.');
-      const suppliedClientId = String(req.body?.clientId || '').trim();
-      if (suppliedClientId && suppliedClientId !== provider.clientId) {
-        return publicError(res, 400, 'Aplicação OAuth inválida.');
-      }
+      // Broker credentials stay authoritative; desktop clients send no client secret
+      // and do not need to match a locally stored Client ID.
       const verifier = randomToken(48);
       const state = randomToken(32);
       const transactionId = randomToken(24);
@@ -324,10 +322,6 @@ function createBroker(options = {}) {
 
     app.post(`${prefix}/refresh`, rateLimit(`${platform}:refresh`, 30, 60000), async (req, res) => {
       if (!configured()) return publicError(res, 503, 'OAuth compartilhado indisponível.');
-      const suppliedClientId = String(req.body?.clientId || '').trim();
-      if (suppliedClientId && suppliedClientId !== provider.clientId) {
-        return publicError(res, 400, 'Aplicação OAuth inválida.');
-      }
       const refreshTokenValue = String(req.body?.refreshToken || '').trim();
       if (!refreshTokenValue || refreshTokenValue.length > 4096) {
         return publicError(res, 400, 'Refresh token inválido.');
