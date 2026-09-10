@@ -41,14 +41,31 @@ void LimitText(QTextEdit *edit, QLabel *counter, int maximum)
     }
     counter->setText(QString("%1/%2").arg(text.size()).arg(maximum));
 }
+
+QString FriendlyPlatformError(const QString &platform, const QString &error)
+{
+    const QString normalized = error.toLower();
+    if (normalized.contains("http 400") || normalized.contains("invalid request") ||
+        normalized.contains("live não está ativa")) {
+        return QObject::tr("%1: live offline ou dados indisponíveis.").arg(platform);
+    }
+    return QObject::tr("%1: não foi possível atualizar agora.").arg(platform);
+}
+
+QString PlatformApplyResult(const QString &platform, bool ok, const QString &message)
+{
+    if (ok)
+        return QObject::tr("%1 atualizada.").arg(platform);
+    return FriendlyPlatformError(platform, message);
+}
 }
 
 StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
 {
     setObjectName("streamHubControl");
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(12, 12, 12, 12);
-    root->setSpacing(10);
+    root->setContentsMargins(8, 8, 8, 8);
+    root->setSpacing(7);
 
     auto *header = new QHBoxLayout();
     auto *logo = new QLabel(this);
@@ -66,9 +83,9 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
 
     auto *accounts = new QWidget(tabs);
     auto *accountsLayout = new QVBoxLayout(accounts);
-    accountsLayout->setContentsMargins(6, 8, 6, 6);
-    accountsLayout->setSpacing(6);
-    auto *accountIntro = new QLabel(tr("Conecte uma vez. O StreamHub renova a autorização automaticamente."), accounts);
+    accountsLayout->setContentsMargins(4, 6, 4, 4);
+    accountsLayout->setSpacing(4);
+    auto *accountIntro = new QLabel(tr("Conecte contas. Dados atualizam automaticamente."), accounts);
     accountIntro->setWordWrap(true);
     accountsLayout->addWidget(accountIntro);
     auto *accountCard = new QWidget(accounts);
@@ -88,10 +105,16 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     accountText->addWidget(accountName_);
     accountText->addWidget(accountStatus_);
     accountCardLayout->addLayout(accountText, 1);
+    auto *twitchActions = new QHBoxLayout();
     connectButton_ = new QPushButton(tr("Conectar"), accountCard);
+    twitchSyncButton_ = new QPushButton(tr("Sincronizar"), accountCard);
     connectButton_->setObjectName("accountAction");
+    twitchSyncButton_->setObjectName("accountAction");
     connect(connectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartTwitchLogin);
-    accountCardLayout->addWidget(connectButton_);
+    connect(twitchSyncButton_, &QPushButton::clicked, this, &StreamHubControlDock::SyncTwitchTransmission);
+    twitchActions->addWidget(connectButton_);
+    twitchActions->addWidget(twitchSyncButton_);
+    accountCardLayout->addLayout(twitchActions);
     accountsLayout->addWidget(accountCard);
 
     auto *kickCard = new QWidget(accounts);
@@ -173,14 +196,16 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     broadcastScroll->setFrameShape(QFrame::NoFrame);
     auto *broadcast = new QWidget(broadcastScroll);
     auto *broadcastLayout = new QVBoxLayout(broadcast);
-    broadcastLayout->setContentsMargins(8, 14, 8, 8);
-    broadcastLayout->setSpacing(10);
+    broadcastLayout->setContentsMargins(6, 6, 6, 6);
+    broadcastLayout->setSpacing(6);
 
     auto *preview = new QWidget(broadcast);
     preview->setObjectName("livePreview");
     auto *previewLayout = new QHBoxLayout(preview);
+    previewLayout->setContentsMargins(7, 6, 7, 6);
+    previewLayout->setSpacing(8);
     previewCover_ = new QLabel(preview);
-    previewCover_->setFixedSize(58, 78);
+    previewCover_->setFixedSize(50, 64);
     previewCover_->setAlignment(Qt::AlignCenter);
     previewCover_->setPixmap(QIcon(":/streamhub-ui/icons/twitch.svg").pixmap(38, 38));
     previewLayout->addWidget(previewCover_);
@@ -196,6 +221,25 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     previewText->addWidget(previewCaption); previewText->addWidget(previewTitle_); previewText->addWidget(previewCategory_); previewText->addWidget(previewNotification_);
     previewLayout->addLayout(previewText, 1);
     broadcastLayout->addWidget(preview);
+
+    auto *syncCard = new QWidget(broadcast);
+    syncCard->setObjectName("formCard");
+    auto *syncLayout = new QVBoxLayout(syncCard);
+    syncLayout->setContentsMargins(10, 8, 10, 8);
+    syncLayout->setSpacing(4);
+    auto *syncTitle = new QLabel(tr("Sincronização das lives"), syncCard);
+    syncTitle->setObjectName("previewCaption");
+    syncLayout->addWidget(syncTitle);
+    twitchTransmissionStatus_ = StatusLabel(syncCard);
+    kickTransmissionStatus_ = StatusLabel(syncCard);
+    youtubeTransmissionStatus_ = StatusLabel(syncCard);
+    twitchTransmissionStatus_->setText(tr("Twitch: aguardando sincronização."));
+    kickTransmissionStatus_->setText(tr("Kick: aguardando sincronização."));
+    youtubeTransmissionStatus_->setText(tr("YouTube: aguardando sincronização."));
+    syncLayout->addWidget(twitchTransmissionStatus_);
+    syncLayout->addWidget(kickTransmissionStatus_);
+    syncLayout->addWidget(youtubeTransmissionStatus_);
+    broadcastLayout->addWidget(syncCard);
 
     auto *formCard = new QWidget(broadcast);
     formCard->setObjectName("formCard");
@@ -235,7 +279,9 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     connect(applyButton, &QPushButton::clicked, this, &StreamHubControlDock::ApplyBroadcast);
     buttons->addStretch(); buttons->addWidget(loadButton); buttons->addWidget(applyButton);
     broadcastLayout->addLayout(buttons);
-    broadcastStatus_ = StatusLabel(broadcast); broadcastLayout->addWidget(broadcastStatus_); broadcastLayout->addStretch();
+    broadcastStatus_ = StatusLabel(broadcast);
+    broadcastLayout->addWidget(broadcastStatus_);
+    broadcastLayout->addStretch();
     broadcastScroll->setWidget(broadcast);
     tabs->addTab(broadcastScroll, QIcon(":/streamhub-ui/icons/camera.svg"), tr("Transmissão"));
 
@@ -246,7 +292,9 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     connect(categoryTimer_, &QTimer::timeout, this, &StreamHubControlDock::SearchCategories);
     connect(categoryResults_, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
         categoryId_ = item->data(Qt::UserRole).toString(); category_->setText(item->text()); categoryResults_->hide();
-        previewCover_->setPixmap(item->icon().pixmap(52, 72)); UpdatePreview();
+        previewCover_->setPixmap(item->icon().pixmap(52, 72));
+        LoadCategoryCover(categoryId_);
+        UpdatePreview();
     });
     connect(title_, &QTextEdit::textChanged, this, [this]() { LimitText(title_, titleCount_, 140); UpdatePreview(); });
     connect(notification_, &QTextEdit::textChanged, this, [this]() { LimitText(notification_, notificationCount_, 140); UpdatePreview(); });
@@ -291,8 +339,31 @@ void StreamHubControlDock::ConnectTo(int port)
     RefreshAccounts();
 }
 
+void StreamHubControlDock::SetPrimaryPlatform(const QString &platform)
+{
+    const QString normalized = platform.trimmed().toLower();
+    if (normalized != "twitch" && normalized != "kick" && normalized != "youtube")
+        return;
+    if (primaryPlatform_ == normalized)
+        return;
+
+    primaryPlatform_ = normalized;
+    const QJsonObject *transmission = nullptr;
+    if (normalized == "twitch" && !twitchTransmission_.isEmpty())
+        transmission = &twitchTransmission_;
+    else if (normalized == "kick" && !kickTransmission_.isEmpty())
+        transmission = &kickTransmission_;
+    else if (normalized == "youtube" && !youtubeTransmission_.isEmpty())
+        transmission = &youtubeTransmission_;
+
+    if (transmission)
+        ApplyTransmissionMetadata(*transmission, primaryPlatform_);
+}
+
 void StreamHubControlDock::RefreshAccounts()
 {
+    kickLoginHelp_->clear();
+    youtubeLoginHelp_->clear();
     RefreshAccount();
     RefreshKickAccount();
     RefreshYoutubeAccount();
@@ -315,13 +386,15 @@ void StreamHubControlDock::RefreshAccount()
         if (status != 200) { accountStatus_->setText(tr("● Aguardando o serviço local...")); accountStatus_->setProperty("connected", false); QTimer::singleShot(1500, this, &StreamHubControlDock::RefreshAccount); return; }
         const bool connected = o.value("connected").toBool(); const bool reconnect = o.value("needsReconnect").toBool();
         accountStatus_->setProperty("connected", connected && !reconnect); accountStatus_->style()->unpolish(accountStatus_); accountStatus_->style()->polish(accountStatus_);
-        if (!connected) { accountName_->setText(tr("Twitch")); accountStatus_->setText(tr("● Não conectada")); connectButton_->setText(tr("Conectar")); }
-        else if (reconnect) { accountName_->setText(QString("Twitch · %1").arg(o.value("name").toString())); accountStatus_->setText(tr("● Precisa de novas permissões")); connectButton_->setText(tr("Reconectar")); }
+        if (!connected) { accountName_->setText(tr("Twitch")); accountStatus_->setText(tr("● Não conectada")); connectButton_->setText(tr("Conectar")); twitchSyncButton_->setEnabled(false); }
+        else if (reconnect) { accountName_->setText(QString("Twitch · %1").arg(o.value("name").toString())); accountStatus_->setText(tr("● Precisa de novas permissões")); connectButton_->setText(tr("Reconectar")); twitchSyncButton_->setEnabled(false); }
         else {
             accountName_->setText(QString("Twitch · %1").arg(o.value("name").toString()));
             accountStatus_->setText(tr("● Conectada"));
             connectButton_->setText(tr("Trocar conta"));
+            twitchSyncButton_->setEnabled(true);
             emit twitchConnected();
+            QTimer::singleShot(0, this, &StreamHubControlDock::SyncTwitchTransmission);
         }
         connectButton_->setEnabled(true);
     });
@@ -348,6 +421,115 @@ void StreamHubControlDock::PollTwitchLogin(const QString &flowId, int intervalSe
             PollTwitchLogin(flowId, o.value("interval").toInt(intervalSeconds));
         });
     }, Qt::SingleShotConnection);
+}
+
+void StreamHubControlDock::SyncTwitchTransmission()
+{
+    twitchSyncButton_->setEnabled(false);
+    SetTransmissionSyncNotice("twitch", tr("Twitch: sincronizando informações da transmissão..."));
+    loginHelp_->setText(tr("Buscando dados oficiais da Twitch..."));
+    emit twitchTransmissionRequested();
+}
+
+void StreamHubControlDock::ApplyTransmissionMetadata(const QJsonObject &transmission,
+                                                       const QString &platform)
+{
+    const QString title = transmission.value("title").toString().trimmed();
+    const QString category = transmission.value("category").toString().trimmed();
+    const QString language = transmission.value("language").toString().trimmed();
+    if (!title.isEmpty())
+        title_->setPlainText(title);
+    if (!category.isEmpty())
+        category_->setText(category);
+    if (platform.compare("twitch", Qt::CaseInsensitive) == 0) {
+        categoryId_ = transmission.value("categoryId").toString().trimmed();
+        const QJsonArray labels = transmission.value("classificationLabels").toArray();
+        const int classificationIndex = labels.isEmpty()
+                                            ? 0
+                                            : classification_->findData(labels.first().toString());
+        classification_->setCurrentIndex(qMax(0, classificationIndex));
+        LoadCategoryCover(categoryId_);
+    } else {
+        categoryId_.clear();
+    }
+
+    const QJsonArray tags = transmission.value("tags").toArray();
+    if (!tags.isEmpty()) {
+        QStringList values;
+        for (const auto &tag : tags)
+            values << tag.toString().trimmed();
+        tags_->setText(values.join(", "));
+    }
+
+    const int languageIndex = language_->findData(language);
+    if (languageIndex >= 0)
+        language_->setCurrentIndex(languageIndex);
+
+    const QString visibility = transmission.value("visibility").toString().trimmed().toLower();
+    if (!visibility.isEmpty()) {
+        const int visibilityIndex = visibility == "public" ? 0 : visibility == "unlisted" ? 1 : 2;
+        visibility_->setCurrentIndex(visibilityIndex);
+    }
+    UpdatePreview();
+}
+
+void StreamHubControlDock::SetTransmissionSyncNotice(const QString &platform,
+                                                           const QString &message)
+{
+    if (platform.compare("twitch", Qt::CaseInsensitive) == 0)
+        twitchSyncNotice_ = message;
+    else if (platform.compare("kick", Qt::CaseInsensitive) == 0)
+        kickSyncNotice_ = message;
+    else if (platform.compare("youtube", Qt::CaseInsensitive) == 0)
+        youtubeSyncNotice_ = message;
+    UpdateTransmissionSyncNotice();
+}
+
+void StreamHubControlDock::UpdateTransmissionSyncNotice()
+{
+    const QString twitch = twitchSyncNotice_.isEmpty()
+                               ? tr("Twitch: aguardando sincronização.")
+                               : twitchSyncNotice_;
+    const QString kick = kickSyncNotice_.isEmpty()
+                             ? tr("Kick: aguardando sincronização.")
+                             : kickSyncNotice_;
+    const QString youtube = youtubeSyncNotice_.isEmpty()
+                                ? tr("YouTube: aguardando sincronização.")
+                                : youtubeSyncNotice_;
+
+    if (twitchTransmissionStatus_)
+        twitchTransmissionStatus_->setText(twitch);
+    if (kickTransmissionStatus_)
+        kickTransmissionStatus_->setText(kick);
+    if (youtubeTransmissionStatus_)
+        youtubeTransmissionStatus_->setText(youtube);
+    Q_UNUSED(twitch);
+    Q_UNUSED(kick);
+    Q_UNUSED(youtube);
+}
+
+void StreamHubControlDock::SetTwitchTransmission(const QJsonObject &transmission)
+{
+    const QString server = transmission.value("server").toString().trimmed();
+    const QString key = transmission.value("streamKey").toString().trimmed();
+    if (server.isEmpty() || key.isEmpty()) {
+        SetTwitchTransmissionError(tr("Twitch não forneceu servidor RTMP e stream key válidos."));
+        return;
+    }
+    twitchTransmission_ = transmission;
+    if (primaryPlatform_ == "twitch")
+        ApplyTransmissionMetadata(twitchTransmission_, "twitch");
+    SetTransmissionSyncNotice("twitch", tr("Twitch: sincronizada."));
+    twitchSyncButton_->setEnabled(true);
+    loginHelp_->clear();
+    emit twitchTransmissionReceived(twitchTransmission_);
+}
+
+void StreamHubControlDock::SetTwitchTransmissionError(const QString &error)
+{
+    twitchSyncButton_->setEnabled(true);
+    SetTransmissionSyncNotice("twitch", tr("Twitch: falha na sincronização: %1").arg(error));
+    loginHelp_->setText(tr("Sincronização Twitch: %1").arg(error));
 }
 
 void StreamHubControlDock::RefreshKickAccount()
@@ -385,9 +567,11 @@ void StreamHubControlDock::RefreshKickAccount()
         } else {
             kickAccountName_->setText(QString("Kick · %1").arg(o.value("name").toString()));
             kickAccountStatus_->setText(tr("● Conectada"));
+            kickLoginHelp_->clear();
             kickConnectButton_->setText(tr("Trocar conta"));
             kickConnectButton_->setEnabled(true);
             kickSyncButton_->setEnabled(true);
+            QTimer::singleShot(0, this, &StreamHubControlDock::SyncKickTransmission);
         }
     });
 }
@@ -441,6 +625,7 @@ void StreamHubControlDock::PollKickLogin(const QString &flowId)
 void StreamHubControlDock::SyncKickTransmission()
 {
     kickSyncButton_->setEnabled(false);
+    SetTransmissionSyncNotice("kick", tr("Kick: sincronizando informações da transmissão..."));
     kickLoginHelp_->setText(tr("Buscando dados oficiais da Kick..."));
     emit kickTransmissionRequested();
 }
@@ -454,14 +639,19 @@ void StreamHubControlDock::SetKickTransmission(const QJsonObject &transmission)
         return;
     }
     kickTransmission_ = transmission;
+    const bool isLive = kickTransmission_.value("isLive").toBool();
+    if (primaryPlatform_ == "kick")
+        ApplyTransmissionMetadata(kickTransmission_, "kick");
+    SetTransmissionSyncNotice("kick", isLive ? tr("Kick: sincronizada.") : tr("Kick: offline."));
     kickSyncButton_->setEnabled(true);
-    kickLoginHelp_->setText(tr("Transmissão Kick sincronizada com Múltiplas saídas."));
+    kickLoginHelp_->clear();
     emit kickTransmissionReceived(kickTransmission_);
 }
 
 void StreamHubControlDock::SetKickTransmissionError(const QString &error)
 {
     kickSyncButton_->setEnabled(true);
+    SetTransmissionSyncNotice("kick", tr("Kick: falha na sincronização: %1").arg(error));
     kickLoginHelp_->setText(tr("Sincronização Kick: %1").arg(error));
 }
 
@@ -547,9 +737,11 @@ void StreamHubControlDock::RefreshYoutubeAccount()
         } else {
             youtubeAccountName_->setText(QString("YouTube · %1").arg(o.value("name").toString()));
             youtubeAccountStatus_->setText(tr("● Conectada"));
+            youtubeLoginHelp_->clear();
             youtubeConnectButton_->setText(tr("Trocar conta"));
             youtubeConnectButton_->setEnabled(true);
             youtubeSyncButton_->setEnabled(true);
+            QTimer::singleShot(0, this, &StreamHubControlDock::SyncYoutubeTransmission);
         }
     });
 }
@@ -557,6 +749,7 @@ void StreamHubControlDock::RefreshYoutubeAccount()
 void StreamHubControlDock::SyncYoutubeTransmission()
 {
     youtubeSyncButton_->setEnabled(false);
+    SetTransmissionSyncNotice("youtube", tr("YouTube: sincronizando informações da transmissão..."));
     youtubeLoginHelp_->setText(tr("Buscando dados oficiais do YouTube..."));
     emit youtubeTransmissionRequested();
 }
@@ -570,6 +763,21 @@ void StreamHubControlDock::SetYoutubeTransmission(const QJsonObject &transmissio
         return;
     }
     youtubeTransmission_ = transmission;
+    const QString title = youtubeTransmission_.value("title").toString().trimmed();
+    const QString category = youtubeTransmission_.value("category").toString().trimmed();
+    const bool isLive = youtubeTransmission_.value("isLive").toBool();
+    if (primaryPlatform_ == "youtube")
+        ApplyTransmissionMetadata(youtubeTransmission_, "youtube");
+    QStringList details;
+    if (isLive && !title.isEmpty())
+        details << tr("título: %1").arg(title);
+    if (isLive && !category.isEmpty())
+        details << tr("categoria: %1").arg(category);
+    SetTransmissionSyncNotice(
+        "youtube",
+        isLive && !details.isEmpty()
+            ? tr("YouTube: sincronizada · %1").arg(details.join(tr(" · ")))
+            : tr("YouTube: RTMP e stream key sincronizados · live não está ativa."));
     youtubeSyncButton_->setEnabled(true);
     youtubeLoginHelp_->setText(tr("Transmissão YouTube sincronizada com Múltiplas saídas."));
     emit youtubeTransmissionReceived(youtubeTransmission_);
@@ -578,29 +786,75 @@ void StreamHubControlDock::SetYoutubeTransmission(const QJsonObject &transmissio
 void StreamHubControlDock::SetYoutubeTransmissionError(const QString &error)
 {
     youtubeSyncButton_->setEnabled(true);
+    SetTransmissionSyncNotice("youtube", tr("YouTube: falha na sincronização: %1").arg(error));
     youtubeLoginHelp_->setText(tr("Sincronização YouTube: %1").arg(error));
+}
+
+void StreamHubControlDock::LoadCategoryCover(const QString &categoryId)
+{
+    const QString id = categoryId.trimmed();
+    if (id.isEmpty()) {
+        previewCover_->setPixmap(QIcon(":/streamhub-ui/icons/twitch.svg").pixmap(38, 38));
+        return;
+    }
+
+    const QString path = QString("http://localhost:%1/api/twitch/category-cover?id=%2")
+                             .arg(port_)
+                             .arg(QString::fromUtf8(QUrl::toPercentEncoding(id)));
+    QNetworkReply *reply = network_->get(QNetworkRequest(QUrl(path)));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, id]() {
+        const QByteArray payload = reply->readAll();
+        QPixmap art;
+        art.loadFromData(payload);
+        const bool valid = reply->error() == QNetworkReply::NoError && !art.isNull();
+        reply->deleteLater();
+        if (valid && categoryId_ == id)
+            previewCover_->setPixmap(art.scaled(previewCover_->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    });
 }
 
 void StreamHubControlDock::LoadBroadcast()
 {
-    Request("GET", "/api/twitch/channel", {}, [this](const QJsonObject &o, int status) {
+    if (primaryPlatform_.isEmpty()) {
+        broadcastStatus_->setText(tr("Serviço principal OBS não identificado."));
+        return;
+    }
+    Request("GET", "/api/broadcast/current?platform=" + primaryPlatform_, {}, [this](const QJsonObject &o, int status) {
         if (status != 200) { broadcastStatus_->setText(o.value("error").toString()); return; }
-        title_->setPlainText(o.value("title").toString()); category_->setText(o.value("gameName").toString()); categoryId_ = o.value("gameId").toString();
-        QStringList tags; for (const auto &tag : o.value("tags").toArray()) tags << tag.toString(); tags_->setText(tags.join(", "));
-        const int languageIndex = language_->findData(o.value("language").toString()); if (languageIndex >= 0) language_->setCurrentIndex(languageIndex);
-        const auto labels = o.value("classificationLabels").toArray(); const int classificationIndex = labels.isEmpty() ? 0 : classification_->findData(labels.first().toString()); classification_->setCurrentIndex(qMax(0, classificationIndex));
-        UpdatePreview(); broadcastStatus_->setText(tr("Informações atuais carregadas."));
+        ApplyTransmissionMetadata(o, primaryPlatform_);
+        broadcastStatus_->setText(tr("Informações atuais de %1 carregadas.").arg(primaryPlatform_));
     });
 }
 
 void StreamHubControlDock::ApplyBroadcast()
 {
-    QJsonArray tags; for (const QString &tag : tags_->text().split(',', Qt::SkipEmptyParts)) tags.append(tag.trimmed());
-    const QJsonObject body{{"title", title_->toPlainText().trimmed()}, {"notification", notification_->toPlainText().trimmed()}, {"category", category_->text().trimmed()}, {"categoryId", categoryId_}, {"visibility", visibility_->currentIndex()}, {"tags", tags}, {"language", language_->currentData().toString()}, {"classification", classification_->currentData().toString()}};
-    broadcastStatus_->setText(tr("Aplicando..."));
+    QJsonArray tags;
+    for (const QString &tag : tags_->text().split(',', Qt::SkipEmptyParts))
+        tags.append(tag.trimmed());
+    const QJsonObject body{
+        {"title", title_->toPlainText().trimmed()},
+        {"notification", notification_->toPlainText().trimmed()},
+        {"category", category_->text().trimmed()},
+        {"categoryId", categoryId_},
+        {"visibility", visibility_->currentIndex()},
+        {"tags", tags},
+        {"language", language_->currentData().toString()},
+        {"classification", classification_->currentData().toString()},
+        {"sourcePlatform", primaryPlatform_},
+    };
+    if (primaryPlatform_.isEmpty()) {
+        broadcastStatus_->setText(tr("Serviço principal OBS não identificado."));
+        return;
+    }
+    broadcastStatus_->setText(tr("Aplicando em Twitch, Kick e YouTube..."));
     Request("POST", "/api/broadcast/apply", body, [this](const QJsonObject &o, int status) {
         if (status != 200) { broadcastStatus_->setText(o.value("error").toString()); return; }
-        QStringList lines; for (const auto &v : o.value("results").toArray()) { const auto r = v.toObject(); lines << QString("%1: %2").arg(r.value("platform").toString(), r.value("message").toString()); } broadcastStatus_->setText(lines.join('\n'));
+        QStringList lines;
+        for (const auto &v : o.value("results").toArray()) {
+            const auto result = v.toObject();
+            lines << QString("%1: %2").arg(result.value("platform").toString(), result.value("message").toString());
+        }
+        broadcastStatus_->setText(lines.join('\n'));
     });
 }
 
@@ -610,9 +864,26 @@ void StreamHubControlDock::SearchCategories()
     Request("GET", "/api/twitch/categories?q=" + QString::fromUtf8(QUrl::toPercentEncoding(query)), {}, [this](const QJsonObject &o, int status) {
         categoryResults_->clear(); if (status != 200) { categoryResults_->hide(); broadcastStatus_->setText(o.value("error").toString()); return; }
         for (const auto &value : o.value("data").toArray()) {
-            const auto category = value.toObject(); auto *item = new QListWidgetItem(QIcon(":/streamhub-ui/icons/twitch.svg"), category.value("name").toString(), categoryResults_); item->setData(Qt::UserRole, category.value("id").toString());
-            const QString artUrl = category.value("boxArtUrl").toString();
-            if (!artUrl.isEmpty()) { QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(artUrl))); const QString id = category.value("id").toString(); connect(imageReply, &QNetworkReply::finished, this, [this, imageReply, id]() { QPixmap art; art.loadFromData(imageReply->readAll()); imageReply->deleteLater(); if (art.isNull()) return; for (int row = 0; row < categoryResults_->count(); ++row) if (categoryResults_->item(row)->data(Qt::UserRole).toString() == id) categoryResults_->item(row)->setIcon(QIcon(art)); }); }
+            const auto category = value.toObject();
+            const QString id = category.value("id").toString();
+            auto *item = new QListWidgetItem(QIcon(":/streamhub-ui/icons/twitch.svg"), category.value("name").toString(), categoryResults_);
+            item->setData(Qt::UserRole, id);
+            const QString path = QString("http://localhost:%1/api/twitch/category-cover?id=%2")
+                                     .arg(port_)
+                                     .arg(QString::fromUtf8(QUrl::toPercentEncoding(id)));
+            QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(path)));
+            connect(imageReply, &QNetworkReply::finished, this, [this, imageReply, id]() {
+                QPixmap art;
+                art.loadFromData(imageReply->readAll());
+                const bool valid = imageReply->error() == QNetworkReply::NoError && !art.isNull();
+                imageReply->deleteLater();
+                if (!valid) return;
+                for (int row = 0; row < categoryResults_->count(); ++row) {
+                    auto *result = categoryResults_->item(row);
+                    if (result->data(Qt::UserRole).toString() == id)
+                        result->setIcon(QIcon(art));
+                }
+            });
         }
         categoryResults_->setVisible(categoryResults_->count() > 0);
     });

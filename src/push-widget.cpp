@@ -822,6 +822,7 @@ public:
     void ReloadConfig() override { LoadConfig(); }
 
     bool IsEnabledForAll() const override { return config_ && config_->syncStart; }
+    bool IsRunningForAggregate() const override { return IsRunning(); }
     double CurrentBitrateBps() const override { return IsRunning() ? current_bps_ : 0.0; }
 
     void ResetInfo()

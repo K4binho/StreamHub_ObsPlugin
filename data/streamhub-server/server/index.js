@@ -121,6 +121,24 @@ function consumeInternalSyncNonce(nonce) {
   return Boolean(expiresAt && expiresAt > Date.now());
 }
 
+app.post('/internal/twitch-sync/nonce', authorizeInternal, (_req, res) => {
+  res.json({ nonce: issueInternalSyncNonce(), pid: process.pid, obsPid: validPid(OBS_PID) ? OBS_PID : null });
+});
+
+app.post('/internal/twitch-sync', authorizeInternal, async (req, res) => {
+  const nonce = String(req.body?.nonce || '');
+  if (!consumeInternalSyncNonce(nonce)) {
+    res.status(401).json({ error: 'Nonce inválido ou expirado.' });
+    return;
+  }
+  try {
+    const transmission = await accounts.twitchTransmission();
+    res.json({ ...transmission, pid: process.pid, obsPid: validPid(OBS_PID) ? OBS_PID : null });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.post('/internal/kick-sync/nonce', authorizeInternal, (_req, res) => {
   res.json({ nonce: issueInternalSyncNonce(), pid: process.pid, obsPid: validPid(OBS_PID) ? OBS_PID : null });
 });

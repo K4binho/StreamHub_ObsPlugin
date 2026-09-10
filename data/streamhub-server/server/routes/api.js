@@ -1,4 +1,5 @@
 const express = require('express');
+const fetch = require('node-fetch');
 const { readConfig, writeConfig } = require('../config-store');
 
 function createApiRouter(accounts) {
@@ -146,12 +147,37 @@ router.get('/twitch/channel', async (_req, res) => {
     const result = await accounts.request(`/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`);
     const channel = result.data?.[0];
     if (!channel) throw new Error('A Twitch não retornou as informações do canal.');
+    let boxArtUrl = '';
+    if (channel.game_id) {
+      const games = await accounts.request(`/games?id=${encodeURIComponent(channel.game_id)}`);
+      const game = games.data?.[0];
+      boxArtUrl = String(game?.box_art_url || '')
+        .replace('{width}', '104')
+        .replace('{height}', '144');
+    }
     res.json({
-      title: channel.title || '', gameId: channel.game_id || '', gameName: channel.game_name || '',
+      title: channel.title || '', gameId: channel.game_id || '', gameName: channel.game_name || '', boxArtUrl,
       language: channel.broadcaster_language || 'pt', tags: channel.tags || [],
       classificationLabels: (channel.content_classification_labels || []).filter((item) => item.is_enabled).map((item) => item.id),
     });
   } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.get('/twitch/category-cover', async (req, res) => {
+  const gameId = String(req.query.id || '').trim();
+  if (!/^\d+$/.test(gameId)) return res.status(400).json({ error: 'ID de categoria Twitch inválido.' });
+  try {
+    const result = await accounts.request(`/games?id=${encodeURIComponent(gameId)}`);
+    const boxArtUrl = String(result.data?.[0]?.box_art_url || '')
+      .replace('{width}', '104')
+      .replace('{height}', '144');
+    if (!boxArtUrl) return res.status(404).json({ error: 'Capa da categoria não encontrada.' });
+    const image = await fetch(boxArtUrl);
+    if (!image.ok) return res.status(502).json({ error: 'CDN da Twitch recusou a capa.' });
+    res.type(image.headers.get('content-type') || 'image/jpeg').send(await image.buffer());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.get('/twitch/categories', async (req, res) => {
@@ -183,41 +209,68 @@ router.patch('/twitch/channel', async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
+router.get('/broadcast/current', async (req, res) => {
+  const platform = String(req.query.platform || '').trim().toLowerCase();
+  const loaders = {
+    twitch: () => accounts.twitchTransmission(),
+    kick: () => accounts.kickTransmission(),
+    youtube: () => accounts.youtubeTransmission(),
+  };
+  if (!loaders[platform]) return res.status(400).json({ error: 'Plataforma primária inválida.' });
+  try {
+    const transmission = await loaders[platform]();
+    res.json({
+      platform,
+      title: String(transmission.title || ''),
+      category: String(transmission.category || ''),
+      categoryId: String(transmission.categoryId || ''),
+      tags: Array.isArray(transmission.tags) ? transmission.tags : [],
+      language: String(transmission.language || ''),
+      visibility: String(transmission.visibility || ''),
+      classificationLabels: Array.isArray(transmission.classificationLabels)
+        ? transmission.classificationLabels
+        : [],
+      isLive: Boolean(transmission.isLive),
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.post('/broadcast/apply', async (req, res) => {
   const title = String(req.body?.title || '').trim();
-  const category = String(req.body?.category || '').trim();
-  const categoryId = String(req.body?.categoryId || '').trim();
   if (!title) return res.status(400).json({ error: 'Informe o título da transmissão.' });
   if (title.length > 140) return res.status(400).json({ error: 'O título pode ter no máximo 140 caracteres.' });
+
+  const input = {
+    ...req.body,
+    title,
+    sourcePlatform: String(req.body?.sourcePlatform || '').trim().toLowerCase(),
+  };
+  const platforms = [
+    ['twitch', 'Twitch'],
+    ['kick', 'Kick'],
+    ['youtube', 'YouTube'],
+  ];
   const results = [];
-  try {
-    const broadcasterId = await accounts.userId();
-    const body = { title };
-    if (categoryId) {
-      body.game_id = categoryId;
-    } else if (category) {
-      const found = await accounts.request(`/search/categories?query=${encodeURIComponent(category)}&first=10`);
-      const exact = (found.data || []).find((item) => item.name.toLowerCase() === category.toLowerCase());
-      if (!exact) throw new Error('Selecione uma categoria existente da Twitch.');
-      body.game_id = exact.id;
+  for (const [platform, name] of platforms) {
+    try {
+      await accounts.updateTransmission(platform, input);
+      const ignored = [];
+      if (input.notification) ignored.push('notificação');
+      if (platform === 'twitch' && Number(input.visibility) !== 0) ignored.push('visibilidade');
+      if (platform === 'kick') ignored.push('marcações, idioma, classificação e visibilidade');
+      if (platform === 'youtube' && input.notification) ignored.push('notificação');
+      results.push({
+        platform: name,
+        ok: true,
+        message: ignored.length
+          ? `Informações atualizadas; ${ignored.join(' e ')} não são suportadas nesta API.`
+          : 'Informações atualizadas.',
+      });
+    } catch (err) {
+      results.push({ platform: name, ok: false, message: err.message });
     }
-    if (Array.isArray(req.body?.tags)) body.tags = req.body.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 10);
-    if (typeof req.body?.language === 'string' && req.body.language) body.broadcaster_language = req.body.language;
-    const classificationIds = ['ProfanityVulgarity', 'ViolentGraphic', 'DebatedSocialIssuesAndPolitics', 'Gambling'];
-    if (typeof req.body?.classification === 'string') {
-      body.content_classification_labels = classificationIds.map((id) => ({ id, is_enabled: id === req.body.classification }));
-    }
-    await accounts.request(`/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`, { method: 'PATCH', body: JSON.stringify(body) });
-    const ignored = [];
-    if (req.body?.notification) ignored.push('notificação');
-    if (Number(req.body?.visibility) !== 0) ignored.push('visibilidade');
-    results.push({ platform: 'Twitch', ok: true, message: ignored.length ? `Atualizada; ${ignored.join(' e ')} não existem na API da Twitch.` : 'Informações atualizadas.' });
-  } catch (err) {
-    results.push({ platform: 'Twitch', ok: false, message: err.message });
-  }
-  const config = readConfig();
-  for (const [key, name] of [['youtube', 'YouTube'], ['kick', 'Kick'], ['tiktok', 'TikTok']]) {
-    if (config[key]?.enabled) results.push({ platform: name, ok: false, message: 'OAuth desta plataforma ainda não está conectado.' });
   }
   res.json({ results });
 });

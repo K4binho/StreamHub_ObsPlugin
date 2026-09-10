@@ -1,6 +1,6 @@
 # StreamHub OBS Plugin — Arquitetura, Contexto e Plano de Ação
 
-**Última atualização:** 09/09/2026
+**Última atualização:** 10/09/2026
 
 ## 1. Escopo
 
@@ -42,17 +42,16 @@ Componentes principais:
 - Leitura do chat YouTube, consulta de transmissão e atualização de live ainda não foram validadas em live real. O conector atual descobre `activeLiveChatId` por `videos.list` e lê mensagens por `liveChatMessages.list`; rotas de contas e edição ainda precisam de validação ponta a ponta.
 - Resultado Twitch ainda informa notificação como limitação da API; esse campo não é enviado à Twitch.
 - Transmissão RTMP real ainda não foi validada de ponta a ponta.
-- Kick OAuth preliminar, refresh token, callback loopback, PKCE e armazenamento privado foram integrados; contrato oficial de endpoints, escopos e campos de stream key ainda não foi confirmado.
 - Kick envio autenticado, moderação e chat OAuth permanecem pendentes. Chat atual continua experimental.
 - TikTok continua experimental. Facebook possui modelo de destino RTMP, sem conector de chat funcional.
 - Fluxo normal Kick/YouTube usa broker OAuth HTTPS compartilhado: usuário abre página oficial, autoriza e volta ao OBS. Broker mantém Client Secrets fora da DLL; Node local recebe tokens somente por transação curta e claim token. Fallback avançado mantém credenciais manual ou `.env`.
-- Sincronização Kick e YouTube Node/C++ foi integrada com loopback, token de instância, nonce de uso único e escopo interno mínimo. YouTube respondeu `HTTP 200` em teste interno com servidor e stream key presentes; Kick respondeu `HTTP 400` sem dados RTMP oficiais. Teste RTMP real ainda pendente.
-- UI Kick e YouTube em **Informações de transmissão K4** atualiza estado e inicia OAuth pelo broker. **Sincronizar** continua ação manual separada. Estado OAuth **Conectada** fica separado de erro ou ausência de dados RTMP; aviso de sincronização usa mensagem auxiliar do cartão.
+- UI Kick, YouTube e Twitch em **Informações de transmissão K4** atualiza estado e inicia OAuth pelo broker. **Sincronizar** continua ação manual separada. Estado OAuth **Conectada** fica separado de erro ou ausência de dados RTMP; aviso de sincronização usa mensagem auxiliar do cartão.
 - Sincronização cria um único destino por plataforma ausente ou atualiza somente `serviceParam.server` e `serviceParam.key`, preservando demais configurações.
-- Twitch OAuth não entrega stream key neste fluxo; destino Twitch sem `serviceParam.key` permanece **Pendente** até configuração manual e não inicia.
+- Twitch usa escopo `channel:read:stream_key`, endpoint `/helix/streams/key` e servidor fixo `rtmps://live.twitch.tv/app`. Sync interno respondeu `HTTP 200` com plataforma, servidor, chave e PIDs válidos; teste pelo botão e transmissão RTMP real ainda pendentes.
+- Kick usa escopo `streamkey:read`; API respondeu servidor RTMP e stream key em `channel.stream.url` e `channel.stream.key`. Sync interno respondeu `HTTP 200`; transmissão RTMP real ainda pendente.
+- YouTube respondeu `HTTP 200` em teste interno com servidor e stream key presentes; transmissão RTMP real ainda pendente.
 - Credenciais Kick e YouTube aceitam `.env` como fallback independente; valores manuais preenchidos têm prioridade e campos vazios removem configuração manual.
 - Watchdog e Job Object estão implementados no código, mas teste de encerramento anormal do OBS, PID reutilizado e garantia de limpeza por Job Object ainda estão pendentes.
-- Client Secret Kick fornecido anteriormente deve ser revogado e recriado antes de teste real.
 
 Não marcar item pendente como implementado sem teste correspondente.
 
@@ -258,7 +257,7 @@ Objetivo da Etapa 2: manter o servidor Node ligado somente enquanto a instância
 - Não substituir `config.json`, `accounts-private.json`, `node_modules` ou configurações do usuário durante extração e runtime.
 - Versionar reextração por `kBundleVersion` quando conteúdo de `qrc/streamhub-data.qrc` mudar.
 
-**Estado:** launcher usa `QCoreApplication::applicationPid()` e bundle usa extração versionada. `src/streamhub-bundle.cpp` preserva `streamhub-server/config.json`; arquivos privados e dependências existentes não devem ser substituídos. O servidor embutido escuta `127.0.0.1` e anuncia `localhost` na porta `605` por padrão. `kBundleVersion` está em `22` após mudanças em arquivos Node embutidos; futuras mudanças em arquivo embutido exigem novo incremento antes de distribuir a DLL.
+**Estado:** launcher usa `QCoreApplication::applicationPid()` e bundle usa extração versionada. `src/streamhub-bundle.cpp` preserva `streamhub-server/config.json`; arquivos privados e dependências existentes não devem ser substituídos. O servidor embutido escuta `127.0.0.1` e anuncia `localhost` na porta `605` por padrão. `kBundleVersion` está em `32` após mudanças Twitch, Kick e YouTube; futuras mudanças em arquivo embutido exigem novo incremento antes de distribuir a DLL.
 
 #### Fase 6 — Validação integrada
 
@@ -271,9 +270,9 @@ Objetivo da Etapa 2: manter o servidor Node ligado somente enquanto a instância
 5. Testar DLL carregada pelo OBS, criação/preservação de bundle, `runtime.json` e encerramento.
 6. Conferir diff, caminhos dinâmicos e ausência de `taskkill /IM node.exe`.
 
-**Resultado atual:** `node --check` passou para `accounts.js`, `routes/api.js`, `index.js` e `oauth-broker/server.js`; `git diff --check` não encontrou erros de whitespace; `cmake --preset windows-x64` e `cmake --build --preset windows-x64 --config RelWithDebInfo` passaram; DLL foi reconstruída com bundle `22`; sync interno YouTube respondeu `200` com PID validado; sync interno Kick responde `400` porque autorização atual não fornece servidor RTMP e stream key. Teste anterior de lifecycle confirmou `401` sem autorização, `200` com token correto, shutdown Node e remoção de `runtime.json`, mantendo OBS aberto. Broker OAuth ainda precisa hospedagem HTTPS real e configuração de `STREAMHUB_OAUTH_BROKER_URL` antes do fluxo compartilhado funcionar em instalação final.
+**Resultado atual:** `node --check` passou para `accounts.js`, `routes/api.js`, `index.js` e `oauth-broker/server.js`; `git diff --check` não encontrou erros de whitespace; `cmake --preset windows-x64` e `cmake --build --preset windows-x64 --config RelWithDebInfo` passaram; DLL foi reconstruída com bundle `32` e carregada pelo OBS; sync interno Twitch respondeu `200` com servidor `rtmps://live.twitch.tv/app`, chave presente e PIDs validados; sync interno Kick respondeu `200` com servidor e chave presentes; sync interno YouTube respondeu `200` com servidor e chave presentes. Teste anterior de lifecycle confirmou `401` sem autorização, `200` com token correto, shutdown Node e remoção de `runtime.json`, mantendo OBS aberto. Broker OAuth ainda precisa hospedagem HTTPS real e configuração de `STREAMHUB_OAUTH_BROKER_URL` antes do fluxo compartilhado funcionar em instalação final.
 
-**Pendências:** smoke runtime nesta cópia sem `config.json` e `node_modules`; watchdog após fechamento real do OBS; PID reutilizado; Job Object após crash; restart completo; instalação OBS não portátil; chat YouTube/Kick em live real; transmissão RTMP ponta a ponta; contrato oficial Kick e teste real da sincronização Node/C++.
+**Pendências:** watchdog após fechamento real do OBS; PID reutilizado; Job Object após crash; restart completo; instalação OBS não portátil; chat YouTube/Kick em live real; transmissão RTMP ponta a ponta; teste do botão Twitch no fluxo visual; preservação completa de metadados em todas as plataformas.
 
 #### Ordem de execução usada
 
@@ -282,19 +281,19 @@ Objetivo da Etapa 2: manter o servidor Node ligado somente enquanto a instância
 3. Launcher C++ e limpeza segura de instância anterior.
 4. Job Object Windows.
 5. Integração OBS e bundle.
-6. OAuth e sincronização Kick preliminares.
-7. Checks de sintaxe, testes e build.
+6. OAuth e sincronização Twitch, Kick e YouTube.
+7. Checks de sintaxe, testes, instalação OBS e build.
 
 ### 6.2 Próximas entregas
 
-1. Confirmar contrato oficial Kick: endpoints, escopos, PKCE, campos de servidor RTMP e stream key. Corrigir implementação conforme documentação e teste real.
-2. Revogar Client Secret Kick fornecido anteriormente e criar substituto antes de qualquer teste real.
-3. Validar OAuth Kick completo: navegador, callback `localhost:605`, `state`, PKCE, refresh token, identificação de conta e permissões.
-4. Validar sincronização Kick em conta autorizada: busca oficial, atualização de destino existente, criação idempotente de destino ausente e preservação de configurações avançadas.
-5. Validar Kick RTMP real, incluindo início/parada, sem registrar stream key.
+1. Validar OAuth Kick completo: navegador, callback `localhost:605`, `state`, PKCE, refresh token, identificação de conta e permissões.
+2. Validar sincronização Kick pelo botão: busca oficial, atualização de destino existente, criação idempotente de destino ausente e preservação de configurações avançadas.
+3. Validar sincronização Twitch pelo botão após OAuth com `channel:read:stream_key`, incluindo regra de Twitch como transmissão principal sem destino duplicado.
+4. Validar Kick RTMP real, incluindo início/parada, sem registrar stream key.
+5. Validar YouTube em live real: descoberta de `activeLiveChatId`, leitura de chat, consulta, edição e RTMP.
 6. Validar watchdog e Job Object após encerramento anormal do OBS, PID reutilizado, restart e instalação OBS não portátil.
 7. Adicionar testes automatizados para nonce, autorização interna, respostas inválidas e preservação/criação de destinos.
-8. Validar YouTube em live real: descoberta de `activeLiveChatId`, leitura de chat, consulta e edição da live. Definir fluxo oficial para servidor e stream key ou solicitar configuração segura.
+8. Validar metadados de título, categoria, tags, idioma e visibilidade para cada plataforma.
 9. Corrigir resultado Twitch para tratar notificação inexistente como limitação ignorada, não falha.
 10. Validar build, instalação limpa, chats, sincronização, início/parada e transmissão real ponta a ponta.
 

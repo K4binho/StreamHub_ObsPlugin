@@ -37,6 +37,7 @@ public:
     void Start(const QString &pluginDataDir, const QString &serverDir, int port);
     void Restart();
     void Stop();
+    void SyncTwitchTransmission();
     void SyncKickTransmission();
     void SyncYoutubeTransmission();
 
@@ -45,6 +46,8 @@ public:
 
 signals:
     void statusChanged(const QString &status);
+    void twitchTransmissionReady(const QJsonObject &transmission);
+    void twitchTransmissionFailed(const QString &error);
     void kickTransmissionReady(const QJsonObject &transmission);
     void kickTransmissionFailed(const QString &error);
     void youtubeTransmissionReady(const QJsonObject &transmission);
@@ -71,6 +74,7 @@ private:
     StreamHubNodeProvision *provisioner_ = nullptr;
     QProcess *npmInstallProcess_ = nullptr;
     QProcess *process_ = nullptr;
+    bool twitchSyncInFlight_ = false;
     bool kickSyncInFlight_ = false;
     bool youtubeSyncInFlight_ = false;
 

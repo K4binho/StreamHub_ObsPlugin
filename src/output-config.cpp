@@ -1,5 +1,6 @@
 #include "output-config.h"
 #include "pch.h"
+#include "streamhub-paths.h"
 
 #include <obs.h>
 #include <obs-frontend-api.h>
@@ -247,7 +248,9 @@ static MultiOutputConfig LoadMultiOutputConfig(const std::string& content) {
 void SaveMultiOutputConfig() {
     auto profiledir = obs_frontend_get_current_profile_path();
     if (profiledir) {
-        std::string filename = profiledir;
+        const QString absoluteProfileDir = StreamHubAbsolutePath(
+            QString::fromUtf8(profiledir));
+        std::string filename = absoluteProfileDir.toStdString();
         filename += "/obs-multi-rtmp.json";
         auto content = SaveMultiOutputConfig(GlobalMultiOutputConfig());
         os_quick_write_utf8_file_safe(filename.c_str(), content.c_str(), content.size(), true, "tmp", "bak");
@@ -261,7 +264,9 @@ bool LoadMultiOutputConfig() {
     auto profiledir = obs_frontend_get_current_profile_path();
     bool ret = false;
     if (profiledir) {
-        std::string filename = profiledir;
+        const QString absoluteProfileDir = StreamHubAbsolutePath(
+            QString::fromUtf8(profiledir));
+        std::string filename = absoluteProfileDir.toStdString();
         filename += "/obs-multi-rtmp.json";
         auto content = os_quick_read_utf8_file(filename.c_str());
         if (content) {

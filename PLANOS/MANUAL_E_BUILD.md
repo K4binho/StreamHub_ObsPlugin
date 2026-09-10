@@ -1,6 +1,7 @@
 # StreamHub OBS Plugin — Manual e Build
 
 **Versão base:** OBS Studio 32.2.1+
+**Bundle StreamHub:** 34
 
 StreamHub é fork de `obs-multi-rtmp`, com saídas RTMP nativas, chat unificado, contas, moderação, recompensas, editor de transmissão, overlay e tema K4binho — Má Fase.
 
@@ -16,7 +17,7 @@ StreamHub é fork de `obs-multi-rtmp`, com saídas RTMP nativas, chat unificado,
 - **Node.js embutido:** runtime do sistema é usado quando disponível; caso contrário, plugin baixa runtime portátil e instala dependências.
 - **Tema:** **K4binho — Má Fase**, ícones, branding e fundo 1920×1080.
 
-Twitch está implementada. OAuth Kick e YouTube usam broker HTTPS compartilhado no fluxo normal; Client Secrets ficam no broker, fora da DLL. **Avançado** mantém OAuth local com credenciais manual ou `.env` como fallback. Chat YouTube, consulta e atualização da live ainda precisam de validação em live real. Contrato oficial Kick e teste real ainda pendentes. TikTok completo e chat Facebook permanecem pendentes.
+Twitch, sync RTMP/key Twitch, sync RTMP/key Kick e sync RTMP/key YouTube estão implementados e testados pelo canal interno. OAuth Kick e YouTube usam broker HTTPS compartilhado no fluxo normal; Client Secrets ficam no broker, fora da DLL. **Avançado** mantém OAuth local com credenciais manual ou `.env` como fallback. Chat YouTube, consulta, atualização da live e transmissão RTMP real ainda precisam de validação. TikTok completo e chat Facebook permanecem pendentes.
 
 ## 2. Build Windows
 
@@ -102,15 +103,15 @@ http://localhost:605/overlay.html
 6. Marque **Iniciar junto com a transmissão principal do OBS** no destino desejado.
 7. Use **Iniciar tudo** ou controles individuais.
 
-OAuth Twitch não fornece stream key neste fluxo. Para Twitch, cole chave obtida no Twitch Creator Dashboard no campo **Stream key**. Destino sem servidor ou chave mostra **Pendente**, fica desligado e não inicia.
+OAuth Twitch exige escopo `channel:read:stream_key`. Clique **Sincronizar** em **Contas** para buscar stream key via `GET https://api.twitch.tv/helix/streams/key`; servidor oficial usado é `rtmps://live.twitch.tv/app`. Destino sem servidor ou chave mostra **Pendente**, fica desligado e não inicia.
 
 Servidor e stream key ficam ocultos por padrão. Use **Ver/Ocultar** e **Copiar** com cuidado.
 
-Twitch: em **Múltiplas saídas · K4**, abra configurações do destino, mantenha servidor RTMP oficial, cole a **Stream key** obtida no Twitch Creator Dashboard e marque **Iniciar junto com a transmissão principal do OBS**. OAuth Twitch não entrega stream key. Sem chave, cartão mostra **Pendente** e não inicia.
+Twitch: conecte ou reconecte conta para conceder `channel:read:stream_key`, depois clique **Sincronizar**. Se Twitch for transmissão principal do OBS, plugin não cria destino Twitch auxiliar. Se houver destino Twitch auxiliar legítimo, plugin atualiza destino existente sem duplicar. Sem servidor ou chave válida, cartão mostra **Pendente** e não inicia.
 
 Kick: em **Contas**, clique **Conectar** e autorize na página oficial. Broker faz callback público HTTPS, troca o código e entrega autorização ao Node local por transação curta. **Avançado** mantém credenciais locais e callback loopback como fallback. Use **Sincronizar** separadamente para buscar dados Kick pelo canal interno autenticado e criar ou atualizar um único cartão Kick em **Múltiplas saídas · K4**. Atualização altera somente servidor e stream key; nome, ordem, encoders, áudio, vídeo e opções avançadas permanecem.
 
-Se API não retornar valores oficiais válidos, destino permanece sem alteração e UI mostra falha. Não envie credenciais ou stream key por chat, URL, log ou documentação. Fluxo Kick ainda exige confirmação do contrato oficial e teste real; YouTube ainda precisa validação de transmissão RTMP real.
+Se API não retornar valores oficiais válidos, destino permanece sem alteração e UI mostra falha. Não envie credenciais ou stream key por chat, URL ou documentação. Kick usa `streamkey:read`; resposta oficial fornece `channel.stream.url` e `channel.stream.key`. YouTube ainda precisa validação de transmissão RTMP real.
 
 ### StreamHub Chat · K4
 
@@ -166,7 +167,7 @@ Tokens ficam em armazenamento privado local. Não compartilhe URL de callback co
 
 ### Twitch
 
-Twitch usa autorização própria do plugin. Leitura, envio, dados da live, moderação e recompensas dependem de conta e escopos autorizados.
+Twitch usa autorização própria do plugin. Leitura, envio, dados da live, moderação e recompensas dependem de conta e escopos autorizados. Stream key usa escopo `channel:read:stream_key` e endpoint `GET https://api.twitch.tv/helix/streams/key`; servidor RTMP oficial é `rtmps://live.twitch.tv/app`.
 
 Mensagem `Twitch: Atualizada; notificação não existem na API da Twitch.` indica campo inexistente. Resultado deve ser tratado como limitação ignorada, não erro.
 
@@ -174,7 +175,7 @@ Mensagem `Twitch: Atualizada; notificação não existem na API da Twitch.` indi
 
 Leitura atual de chat pode funcionar pelo protocolo usado pelo site. Fluxo normal usa broker OAuth HTTPS, callback público, PKCE, `state`, refresh token e armazenamento em `accounts-private.json`. **Avançado** mantém OAuth local, callback loopback e configuração de Client ID/Client Secret somente para fallback; nada vai para `config.json`.
 
-Após OAuth, sincronização interna autenticada busca servidor e stream key e atualiza/cria cartão Kick sem duplicação. Endpoints, escopos e campos de stream key ainda precisam confirmação na documentação oficial Kick; não declarar fluxo como validado antes de teste real. Não informe stream key por chat ou URL.
+Após OAuth, sincronização interna autenticada busca servidor e stream key e atualiza/cria cartão Kick sem duplicação. Kick usa escopo `streamkey:read`; API oficial fornece dados em `channel.stream.url` e `channel.stream.key`. Sync interno respondeu `HTTP 200`; transmissão RTMP real ainda pendente. Não informe stream key por chat ou URL.
 
 ### TikTok e Facebook
 

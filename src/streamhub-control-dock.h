@@ -19,6 +19,9 @@ public:
     explicit StreamHubControlDock(QWidget *parent = nullptr);
     void ConnectTo(int port);
     void RefreshAccounts();
+    void SetPrimaryPlatform(const QString &platform);
+    void SetTwitchTransmission(const QJsonObject &transmission);
+    void SetTwitchTransmissionError(const QString &error);
     void SetKickTransmission(const QJsonObject &transmission);
     void SetKickTransmissionError(const QString &error);
     void SetYoutubeTransmission(const QJsonObject &transmission);
@@ -26,6 +29,8 @@ public:
 
 signals:
     void twitchConnected();
+    void twitchTransmissionRequested();
+    void twitchTransmissionReceived(const QJsonObject &transmission);
     void kickTransmissionRequested();
     void kickTransmissionReceived(const QJsonObject &transmission);
     void youtubeTransmissionRequested();
@@ -37,6 +42,7 @@ private:
     void RefreshAccount();
     void StartTwitchLogin();
     void PollTwitchLogin(const QString &flowId, int intervalSeconds);
+    void SyncTwitchTransmission();
     void StartKickLogin();
     void PollKickLogin(const QString &flowId);
     void RefreshKickAccount();
@@ -45,9 +51,14 @@ private:
     void PollYoutubeLogin(const QString &flowId);
     void RefreshYoutubeAccount();
     void SyncYoutubeTransmission();
+    void ApplyTransmissionMetadata(const QJsonObject &transmission, const QString &platform);
+    void SetTransmissionSyncNotice(const QString &platform, const QString &message);
+    void SetBroadcastOperationStatus(const QString &message);
+    void UpdateTransmissionSyncNotice();
     void LoadBroadcast();
     void ApplyBroadcast();
     void SearchCategories();
+    void LoadCategoryCover(const QString &categoryId);
     void UpdatePreview();
 
     int port_ = 605;
@@ -60,6 +71,8 @@ private:
     QLabel *accountName_ = nullptr;
     QLabel *loginHelp_ = nullptr;
     QPushButton *connectButton_ = nullptr;
+    QPushButton *twitchSyncButton_ = nullptr;
+    QJsonObject twitchTransmission_;
     QLabel *kickAccountStatus_ = nullptr;
     QLabel *kickAccountName_ = nullptr;
     QLabel *kickLoginHelp_ = nullptr;
@@ -84,8 +97,16 @@ private:
     QComboBox *language_ = nullptr;
     QComboBox *classification_ = nullptr;
     QLabel *broadcastStatus_ = nullptr;
+    QLabel *twitchTransmissionStatus_ = nullptr;
+    QLabel *kickTransmissionStatus_ = nullptr;
+    QLabel *youtubeTransmissionStatus_ = nullptr;
+    QString twitchSyncNotice_;
+    QString kickSyncNotice_;
+    QString youtubeSyncNotice_;
+    QString broadcastOperationStatus_;
     QLabel *previewTitle_ = nullptr;
     QLabel *previewCategory_ = nullptr;
     QLabel *previewNotification_ = nullptr;
     QLabel *previewCover_ = nullptr;
+    QString primaryPlatform_;
 };

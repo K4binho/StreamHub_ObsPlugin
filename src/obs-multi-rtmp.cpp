@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 #include <cstring>
+#include <chrono>
 
 #include "push-widget.h"
 #include "plugin-support.h"
@@ -448,7 +449,10 @@ private:
         int totalHeight = frameWidth() * 2 + 28;
         const int itemCount = count();
         for (int i = 0; i < itemCount; ++i) {
-            totalHeight += sizeHintForRow(i);
+            const auto *item = widget->item(i);
+            const int itemHeight = item ? item->sizeHint().height() : 0;
+            const int rowHeight = (std::max)(itemHeight, widget->sizeHintForRow(i));
+            totalHeight += rowHeight > 0 ? rowHeight : 82;
         }
 
         if (itemCount > 1) {
@@ -540,12 +544,33 @@ public:
             double totalBps = 0.0;
             int active = 0;
             for (auto *output : GetAllPushWidgets()) {
-                const double bps = output->CurrentBitrateBps();
-                if (bps > 0.0) {
-                    totalBps += bps;
+                if (output->IsRunningForAggregate())
                     ++active;
-                }
+                totalBps += output->CurrentBitrateBps();
             }
+
+            obs_output_t *mainOutput = obs_frontend_get_streaming_output();
+            if (mainOutput && obs_output_active(mainOutput)) {
+                ++active;
+                const auto now = std::chrono::steady_clock::now();
+                const uint64_t bytes = obs_output_get_total_bytes(mainOutput);
+                if (mainLastInfoTime_.time_since_epoch().count() != 0) {
+                    const double interval = std::chrono::duration_cast<std::chrono::duration<double>>(
+                        now - mainLastInfoTime_).count();
+                    if (interval > 0.0 && bytes >= mainTotalBytes_)
+                        mainCurrentBps_ = (bytes - mainTotalBytes_) * 8.0 / interval;
+                }
+                mainTotalBytes_ = bytes;
+                mainLastInfoTime_ = now;
+            } else {
+                mainTotalBytes_ = 0;
+                mainCurrentBps_ = 0.0;
+                mainLastInfoTime_ = {};
+            }
+            if (mainOutput)
+                obs_output_release(mainOutput);
+            totalBps += mainCurrentBps_;
+
             aggregateBitrate_->setText(
                 tr("Banda das saídas: %1 Mbps · %2 ativa(s)")
                     .arg(QLocale().toString(totalBps / 1000000.0, 'f', 2))
@@ -866,25 +891,43 @@ public:
 
     QString PrimaryPlatform() const
     {
-        obs_service_t *service = obs_frontend_get_streaming_service();
-        if (!service)
-            return {};
+        auto matchPlatform = [](const QString &name) {
+            const QString value = name.trimmed().toLower();
+            if (value.contains("twitch"))
+                return QStringLiteral("twitch");
+            if (value.contains("youtube") || value.contains("google"))
+                return QStringLiteral("youtube");
+            if (value.contains("kick"))
+                return QStringLiteral("kick");
+            return QString();
+        };
 
-        obs_data_t *settings = obs_service_get_settings(service);
-        const QString serviceName = QString::fromUtf8(obs_data_get_string(settings, "service")).trimmed();
-        obs_data_release(settings);
-        if (serviceName.isEmpty())
-            return {};
-
-        for (const auto &preset : StreamHubPlatformPresets()) {
-            if (preset.id == "custom")
-                continue;
-            if (serviceName.compare(preset.id, Qt::CaseInsensitive) == 0 ||
-                serviceName.compare(preset.name, Qt::CaseInsensitive) == 0 ||
-                serviceName.toLower().contains(preset.id.toLower()))
-                return preset.id;
+        if (obs_service_t *service = obs_frontend_get_streaming_service()) {
+            obs_data_t *settings = obs_service_get_settings(service);
+            if (settings) {
+                const QString serviceName = QString::fromUtf8(
+                    obs_data_get_string(settings, "service"));
+                const QString matched = matchPlatform(serviceName);
+                obs_data_release(settings);
+                if (!matched.isEmpty())
+                    return matched;
+            }
         }
-        return {};
+
+        char *profilePath = obs_frontend_get_current_profile_path();
+        if (!profilePath)
+            return {};
+
+        const QString servicePath = StreamHubAbsolutePath(
+            QString::fromUtf8(profilePath) + "/service.json");
+        bfree(profilePath);
+        QFile serviceFile(servicePath);
+        if (!serviceFile.open(QIODevice::ReadOnly))
+            return {};
+
+        const QJsonDocument document = QJsonDocument::fromJson(serviceFile.readAll());
+        const QJsonObject settings = document.object().value("settings").toObject();
+        return matchPlatform(settings.value("service").toString());
     }
 
     void SyncPlatformTransmission(const QString &platform, const QJsonObject &transmission)
@@ -1015,6 +1058,11 @@ public:
         outputsContainer_->doItemsLayout();
     }
 
+    void SyncTwitchTransmission(const QJsonObject &transmission)
+    {
+        SyncPlatformTransmission("twitch", transmission);
+    }
+
     void SyncKickTransmission(const QJsonObject &transmission)
     {
         SyncPlatformTransmission("kick", transmission);
@@ -1119,6 +1167,9 @@ private:
     StreamHubInlineSettings* settingsPanel_ = nullptr;
     QLabel *aggregateBitrate_ = nullptr;
     QTimer *aggregateTimer_ = nullptr;
+    std::chrono::steady_clock::time_point mainLastInfoTime_{};
+    uint64_t mainTotalBytes_ = 0;
+    double mainCurrentBps_ = 0.0;
     std::string settingsTargetId_;
 
     void ShowSettingsFor(const std::string &targetId, PushWidget *pushWidget)
@@ -1373,6 +1424,14 @@ bool obs_module_load()
     controlDock->setObjectName("streamhub-control-dock");
     QObject::connect(controlDock, &StreamHubControlDock::twitchConnected,
                      dock, [dock]() { dock->EnsurePlatformTarget("twitch"); });
+    QObject::connect(controlDock, &StreamHubControlDock::twitchTransmissionRequested,
+                     s_launcher, &StreamHubLauncher::SyncTwitchTransmission);
+    QObject::connect(s_launcher, &StreamHubLauncher::twitchTransmissionReady,
+                     controlDock, &StreamHubControlDock::SetTwitchTransmission);
+    QObject::connect(s_launcher, &StreamHubLauncher::twitchTransmissionFailed,
+                     controlDock, &StreamHubControlDock::SetTwitchTransmissionError);
+    QObject::connect(controlDock, &StreamHubControlDock::twitchTransmissionReceived,
+                     dock, &MultiOutputWidget::SyncTwitchTransmission);
     QObject::connect(controlDock, &StreamHubControlDock::kickTransmissionRequested,
                      s_launcher, &StreamHubLauncher::SyncKickTransmission);
     QObject::connect(s_launcher, &StreamHubLauncher::kickTransmissionReady,
@@ -1390,10 +1449,25 @@ bool obs_module_load()
     QObject::connect(controlDock, &StreamHubControlDock::youtubeTransmissionReceived,
                      dock, &MultiOutputWidget::SyncYoutubeTransmission);
     controlDock->ConnectTo(chatPort);
-    if (!obs_frontend_add_dock_by_id("streamhub-control-dock", "Informações de transmissão K4", controlDock))
-        delete controlDock;
-    else
+    if (obs_frontend_add_dock_by_id("streamhub-control-dock", "Informações de transmissão K4", controlDock)) {
         brandDock(controlDock);
+
+        // OBS pode expor serviço principal somente após carregar perfil.
+        // Reconsulta evita congelar dock em "serviço não identificado".
+        auto *primaryTimer = new QTimer(controlDock);
+        primaryTimer->setInterval(500);
+        QObject::connect(primaryTimer, &QTimer::timeout, controlDock,
+                         [dock, controlDock]() {
+                             const QString platform = dock->PrimaryPlatform();
+                             if (platform.isEmpty())
+                                 return;
+                             controlDock->SetPrimaryPlatform(platform);
+                             dock->EnsurePlatformTarget(platform);
+                         });
+        primaryTimer->start();
+    } else {
+        delete controlDock;
+    }
 
     // dataPath já é a pasta de dados do plugin — usada tanto pro servidor
     // bundled quanto (se precisar) pra guardar o runtime portátil do Node.

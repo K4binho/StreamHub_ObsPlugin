@@ -1,6 +1,6 @@
 # StreamHub OBS Plugin
 
-Plugin nativo para OBS Studio, baseado em [`obs-multi-rtmp`](https://github.com/sorayuki/obs-multi-rtmp), expandido com chat unificado, gerenciamento de contas e identidade visual K4binho.
+Plugin nativo para OBS Studio, desenvolvido e mantido principalmente por K4binho.
 
 ## Recursos
 
@@ -93,10 +93,9 @@ Nunca publique Client Secret, access token, refresh token, stream key ou URL OAu
 
 ## Créditos
 
-- Projeto original: [SoraYuki](https://github.com/sorayuki/obs-multi-rtmp)
-- Melhorias StreamHub e tema: K4binho
+- Desenvolvimento e manutenção: K4binho
 - Apoio ao StreamHub: [LivePix](https://livepix.gg/k4binho)
-- Apoio ao projeto original: [PayPal](https://paypal.me/sorayuki0)
+- Referência técnica: [`obs-multi-rtmp`](https://github.com/sorayuki/obs-multi-rtmp) · apoio ao projeto: [PayPal](https://paypal.me/sorayuki0)
 
 ## Licença
 

@@ -318,14 +318,22 @@ bool StreamHubLauncher::RequestInternalJson(const QString &path, const QString &
                                             int port, const QJsonObject &body,
                                             QJsonObject *responseObject) const
 {
+    const auto fail = [&path, responseObject](const char *reason) {
+        blog(LOG_WARNING, "[streamhub] internal request failed path=%s reason=%s",
+             path.toUtf8().constData(), reason);
+        if (responseObject)
+            (*responseObject)["error"] = QStringLiteral("internal request failed: ") +
+                                          QString::fromLatin1(reason);
+        return false;
+    };
     if (!ValidPid(expectedPid) || !ValidPid(expectedObsPid) || token.size() < 32 ||
         port < 1 || port > 65535 || !path.startsWith("/internal/") || !responseObject)
-        return false;
+        return fail("invalid arguments");
 
     QTcpSocket socket;
     socket.connectToHost(QHostAddress(QStringLiteral("127.0.0.1")), static_cast<quint16>(port));
     if (!socket.waitForConnected(700))
-        return false;
+        return fail("connect timeout");
 
     const QByteArray payload = body.isEmpty()
                                    ? QByteArray{}
@@ -338,24 +346,22 @@ bool StreamHubLauncher::RequestInternalJson(const QString &path, const QString &
                                "Connection: close\r\n"
                                "Content-Length: " + QByteArray::number(payload.size()) + "\r\n\r\n" + payload;
     if (socket.write(request) != request.size() || !socket.waitForBytesWritten(700))
-        return false;
+        return fail("write timeout");
 
     QByteArray response;
-    qint64 contentLength = -1;
     int bodyStart = -1;
-    while (contentLength < 0) {
-        if (!socket.waitForReadyRead(700))
-            return false;
+    qint64 contentLength = -1;
+    while (bodyStart < 0) {
+        if (!socket.waitForReadyRead(15000))
+            return fail("header timeout");
         response += socket.readAll();
         bodyStart = response.indexOf("\r\n\r\n");
-        if (bodyStart < 0)
-            continue;
+    }
 
-        const QByteArray headers = response.left(bodyStart).toLower();
-        const QByteArray headerName = "\r\ncontent-length:";
-        const int lengthStart = headers.indexOf(headerName);
-        if (lengthStart < 0)
-            return false;
+    const QByteArray headers = response.left(bodyStart).toLower();
+    const QByteArray headerName = "\r\ncontent-length:";
+    const int lengthStart = headers.indexOf(headerName);
+    if (lengthStart >= 0) {
         const int valueStart = lengthStart + headerName.size();
         const int valueEnd = headers.indexOf("\r\n", valueStart);
         bool lengthOk = false;
@@ -363,28 +369,45 @@ bool StreamHubLauncher::RequestInternalJson(const QString &path, const QString &
                             .trimmed()
                             .toLongLong(&lengthOk);
         if (!lengthOk || contentLength < 0)
-            return false;
+            return fail("invalid content-length");
     }
 
-    const qint64 totalLength = static_cast<qint64>(bodyStart) + 4 + contentLength;
-    while (response.size() < totalLength) {
-        if (!socket.waitForReadyRead(700))
-            return false;
+    const qint64 expectedLength = contentLength >= 0
+                                      ? static_cast<qint64>(bodyStart) + 4 + contentLength
+                                      : -1;
+    while ((expectedLength >= 0 && response.size() < expectedLength) ||
+           (expectedLength < 0 && !socket.atEnd())) {
+        if (!socket.waitForReadyRead(15000)) {
+            if (expectedLength >= 0)
+                return fail("body timeout");
+            break;
+        }
         response += socket.readAll();
     }
 
     const int firstLineEnd = response.indexOf("\r\n");
-    if (firstLineEnd <= 0 || !response.left(firstLineEnd).contains(" 200 "))
-        return false;
+    const QByteArray statusLine = firstLineEnd > 0 ? response.left(firstLineEnd) : QByteArray{};
+    const bool requestSucceeded = firstLineEnd > 0 && statusLine.contains(" 200 ");
+    blog(LOG_INFO, "[streamhub] internal response path=%s status=%s bytes=%d contentLength=%lld",
+         path.toUtf8().constData(), statusLine.constData(), response.size(), contentLength);
 
+    const qint64 availableBodyLength = response.size() - bodyStart - 4;
+    if (availableBodyLength < 0 || (contentLength >= 0 && availableBodyLength < contentLength))
+        return fail("incomplete body");
+    const qint64 parsedBodyLength = contentLength >= 0 ? contentLength : availableBodyLength;
     const QJsonDocument document =
-        QJsonDocument::fromJson(response.mid(bodyStart + 4, contentLength));
+        QJsonDocument::fromJson(response.mid(bodyStart + 4, parsedBodyLength));
     if (!document.isObject())
-        return false;
+        return fail("invalid JSON");
     const QJsonObject object = document.object();
-    if (object.value("pid").toVariant().toLongLong() != expectedPid ||
-        object.value("obsPid").toVariant().toLongLong() != expectedObsPid)
-        return false;
+    if (!requestSucceeded) {
+        *responseObject = object;
+        return fail("HTTP status");
+    }
+    if (object.value("pid").toVariant().toLongLong() != expectedPid)
+        return fail("Node PID mismatch");
+    if (object.value("obsPid").toVariant().toLongLong() != expectedObsPid)
+        return fail("OBS PID mismatch");
     *responseObject = object;
     return true;
 }
@@ -536,6 +559,49 @@ void StreamHubLauncher::StartServerProcess(const QString &nodePath)
     serverProcess->start(nodePath, {scriptPath});
 }
 
+void StreamHubLauncher::SyncTwitchTransmission()
+{
+    if (twitchSyncInFlight_ || !IsRunning()) {
+        if (!IsRunning())
+            emit twitchTransmissionFailed(tr("Serviço StreamHub ainda não está pronto."));
+        return;
+    }
+    twitchSyncInFlight_ = true;
+    QJsonObject nonceResponse;
+    if (!RequestInternalJson("/internal/twitch-sync/nonce", instanceToken_, process_->processId(),
+                             CurrentProcessId(), port_, {}, &nonceResponse)) {
+        twitchSyncInFlight_ = false;
+        emit twitchTransmissionFailed(tr("Não foi possível iniciar sincronização Twitch."));
+        return;
+    }
+
+    const QString nonce = nonceResponse.value("nonce").toString();
+    if (nonce.isEmpty()) {
+        twitchSyncInFlight_ = false;
+        emit twitchTransmissionFailed(tr("Servidor não forneceu nonce de sincronização."));
+        return;
+    }
+
+    QJsonObject response;
+    if (!RequestInternalJson("/internal/twitch-sync", instanceToken_, process_->processId(),
+                             CurrentProcessId(), port_, {{"nonce", nonce}}, &response)) {
+        twitchSyncInFlight_ = false;
+        const QString error = response.value("error").toString().trimmed();
+        emit twitchTransmissionFailed(error.isEmpty()
+                                          ? tr("Não foi possível obter dados oficiais da Twitch.")
+                                          : error);
+        return;
+    }
+    twitchSyncInFlight_ = false;
+    if (response.value("platform").toString().compare("twitch", Qt::CaseInsensitive) != 0 ||
+        response.value("server").toString().trimmed().isEmpty() ||
+        response.value("streamKey").toString().trimmed().isEmpty()) {
+        emit twitchTransmissionFailed(tr("Twitch não forneceu servidor RTMP e stream key válidos."));
+        return;
+    }
+    emit twitchTransmissionReady(response);
+}
+
 void StreamHubLauncher::SyncKickTransmission()
 {
     if (kickSyncInFlight_ || !IsRunning()) {
@@ -563,7 +629,10 @@ void StreamHubLauncher::SyncKickTransmission()
     if (!RequestInternalJson("/internal/kick-sync", instanceToken_, process_->processId(),
                              CurrentProcessId(), port_, {{"nonce", nonce}}, &response)) {
         kickSyncInFlight_ = false;
-        emit kickTransmissionFailed(tr("Não foi possível obter dados oficiais da Kick."));
+        const QString error = response.value("error").toString().trimmed();
+        emit kickTransmissionFailed(error.isEmpty()
+                                         ? tr("Não foi possível obter dados oficiais da Kick.")
+                                         : error);
         return;
     }
     kickSyncInFlight_ = false;
@@ -603,7 +672,10 @@ void StreamHubLauncher::SyncYoutubeTransmission()
     if (!RequestInternalJson("/internal/youtube-sync", instanceToken_, process_->processId(),
                              CurrentProcessId(), port_, {{"nonce", nonce}}, &response)) {
         youtubeSyncInFlight_ = false;
-        emit youtubeTransmissionFailed(tr("Não foi possível obter dados oficiais do YouTube."));
+        const QString error = response.value("error").toString().trimmed();
+        emit youtubeTransmissionFailed(error.isEmpty()
+                                           ? tr("Não foi possível obter dados oficiais do YouTube.")
+                                           : error);
         return;
     }
     youtubeSyncInFlight_ = false;
