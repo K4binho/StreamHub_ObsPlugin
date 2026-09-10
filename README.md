@@ -94,6 +94,7 @@ Nunca publique Client Secret, access token, refresh token, stream key ou URL OAu
 ## Créditos
 
 - Desenvolvimento e manutenção: K4binho
+- Apoio técnico no desenvolvimento: Claude Code
 - Apoio ao StreamHub: [LivePix](https://livepix.gg/k4binho)
 - Referência técnica: [`obs-multi-rtmp`](https://github.com/sorayuki/obs-multi-rtmp) · apoio ao projeto: [PayPal](https://paypal.me/sorayuki0)
 
