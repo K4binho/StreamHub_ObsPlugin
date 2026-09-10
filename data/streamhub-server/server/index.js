@@ -4,13 +4,14 @@ const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const fetch = require('node-fetch');
 
 const { startTwitch } = require('./chat/twitch');
 const { startYoutube } = require('./chat/youtube');
 const { startKick } = require('./chat/kick');
 const { startTiktok } = require('./chat/tiktok');
 const { createApiRouter } = require('./routes/api');
-const { createAccounts } = require('./accounts');
+const { createAccounts, SHARED_OAUTH_BROKER_URL } = require('./accounts');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 const PUBLIC_PATH = path.join(__dirname, '..', 'public');
@@ -18,6 +19,7 @@ const OBS_PID = Number.parseInt(process.env.STREAMHUB_OBS_PID || '', 10);
 const INSTANCE_TOKEN = String(process.env.STREAMHUB_INSTANCE_TOKEN || '');
 const ALLOW_STANDALONE = process.env.STREAMHUB_ALLOW_STANDALONE === '1';
 const OBS_MISSING_TIMEOUT_MS = 5000;
+const BROKER_HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
 
 function validPid(pid) {
   return Number.isSafeInteger(pid) && pid > 0;
@@ -41,10 +43,34 @@ const server = http.createServer(app);
 const io = new Server(server);
 const connectorStops = [];
 let watchdogTimer = null;
+let brokerHeartbeatTimer = null;
 let obsMissingSince = 0;
 let shuttingDown = false;
 let shutdownPromise = null;
 let exitPromise = null;
+
+async function pingBroker() {
+  if (!/^https:\/\//i.test(SHARED_OAUTH_BROKER_URL)) return;
+  try {
+    const response = await fetch(`${SHARED_OAUTH_BROKER_URL}/healthz`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'StreamHub-OBS-Heartbeat' },
+      timeout: 10000,
+    });
+    await response.text();
+    if (!response.ok) {
+      console.warn(`[streamhub] broker heartbeat HTTP ${response.status}`);
+    }
+  } catch (err) {
+    console.warn(`[streamhub] broker heartbeat falhou: ${err.message}`);
+  }
+}
+
+function startBrokerHeartbeat() {
+  if (!/^https:\/\//i.test(SHARED_OAUTH_BROKER_URL)) return;
+  void pingBroker();
+  brokerHeartbeatTimer = setInterval(() => void pingBroker(), BROKER_HEARTBEAT_INTERVAL_MS);
+  brokerHeartbeatTimer.unref?.();
+}
 
 app.use(express.json());
 app.get('/overlay.html', (_req, res) => res.sendFile(path.join(PUBLIC_PATH, 'overlay.html')));
@@ -293,6 +319,10 @@ async function shutdown(reason = 'requested') {
     clearInterval(watchdogTimer);
     watchdogTimer = null;
   }
+  if (brokerHeartbeatTimer) {
+    clearInterval(brokerHeartbeatTimer);
+    brokerHeartbeatTimer = null;
+  }
 
   shutdownPromise = (async () => {
     for (const stop of connectorStops.splice(0)) {
@@ -335,6 +365,7 @@ async function startWatchdog() {
 
 async function main() {
   try {
+    startBrokerHeartbeat();
     void startWatchdog();
 
     if (config.twitch?.enabled) {

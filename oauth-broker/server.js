@@ -210,6 +210,13 @@ function callbackPage(connected) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex"><title>StreamHub</title><style>:root{color-scheme:dark;font-family:Segoe UI,sans-serif;background:#080c14;color:#f2f7ff}body{min-height:100vh;margin:0;display:grid;place-items:center}main{width:min(430px,calc(100vw - 32px));box-sizing:border-box;padding:28px;border:1px solid ${connected ? '#16d86a' : '#d94155'};border-radius:14px;background:#0d1726;text-align:center}h1{margin:0 0 10px;font-size:22px}p{margin:0;color:#b8c8dc;line-height:1.5}.icon{width:48px;height:48px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;background:${connected ? '#16d86a' : '#d94155'};color:#080c14;font-size:28px;font-weight:800}</style></head><body><main><div class="icon">${connected ? '✓' : '!'}</div><h1>${heading}</h1><p>${message}</p></main><script>history.replaceState({},document.title,window.location.pathname)</script></body></html>`;
 }
 
+function brokerStatusPage(settings) {
+  const kickReady = Boolean(settings.config.kick.clientId && settings.config.kick.clientSecret);
+  const youtubeReady = Boolean(settings.config.youtube.clientId && settings.config.youtube.clientSecret);
+  const row = (name, ready) => `<tr><td>${name}</td><td><span class="dot ${ready ? 'ok' : 'off'}"></span>${ready ? 'Online' : 'Configuração pendente'}</td></tr>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex"><title>StreamHub OAuth Broker</title><style>:root{color-scheme:dark;font-family:Segoe UI,sans-serif;background:#080c14;color:#f2f7ff}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;box-sizing:border-box}main{width:min(560px,100%);box-sizing:border-box;padding:30px;border:1px solid #1c2b40;border-radius:14px;background:#0d1726}h1{margin:0 0 8px;font-size:24px}p{margin:0 0 24px;color:#b8c8dc;line-height:1.5}table{width:100%;border-collapse:collapse}td{padding:12px 8px;border-bottom:1px solid #1c2b40}td:last-child{text-align:right}.dot{display:inline-block;width:9px;height:9px;margin-right:8px;border-radius:50%}.ok{background:#16d86a}.off{background:#d94155}footer{margin-top:22px;color:#72839a;font-size:12px}</style></head><body><main><h1>StreamHub OAuth Broker</h1><p>Serviço compartilhado de autorização OAuth para StreamHub.</p><table><tbody><tr><td>Broker</td><td><span class="dot ok"></span>Online</td></tr>${row('Kick OAuth', kickReady)}${row('YouTube OAuth', youtubeReady)}</tbody></table><footer>Health check: <a href="/healthz">/healthz</a></footer></main></body></html>`;
+}
+
 function createBroker(options = {}) {
   const env = options.env || process.env;
   const settings = options.settings || buildConfig(env);
@@ -229,6 +236,10 @@ function createBroker(options = {}) {
     }
     cleanupTransactions();
     next();
+  });
+
+  app.get('/', (_req, res) => {
+    res.type('html').send(brokerStatusPage(settings));
   });
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));

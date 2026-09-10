@@ -30,7 +30,10 @@ Render can host this service as Node web service. Service must bind `0.0.0.0` th
 - `GET /v1/oauth/kick/poll/:transactionId`
 - `POST /v1/oauth/kick/refresh`
 - Same paths for `youtube`.
+- `GET /` — página pública de status do broker e das configurações OAuth
 - `GET /healthz`
+
+O servidor local do plugin envia um heartbeat sem credenciais para `/healthz` a cada quatro minutos enquanto o OBS estiver aberto. Isso mantém o serviço Render ativo durante uso normal; não impede reinícios, deploys ou falhas da plataforma.
 
 `start` receives no OAuth credentials from desktop clients; broker provider configuration remains authoritative. `poll` needs `Authorization: Bearer <claimToken>`. Tokens return only once from `poll`, then transaction becomes claimed.
 
