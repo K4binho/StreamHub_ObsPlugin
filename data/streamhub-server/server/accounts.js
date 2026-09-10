@@ -32,9 +32,16 @@ const YOUTUBE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 const YOUTUBE_REDIRECT_URI = 'http://localhost:605/api/accounts/youtube/callback';
 const YOUTUBE_SCOPE = 'https://www.googleapis.com/auth/youtube.force-ssl';
+const DEFAULT_OAUTH_BROKER_URL =
+  'https://streamhub-pluginobs-page.onrender.com';
+
 const SHARED_OAUTH_BROKER_URL = String(
-  process.env.STREAMHUB_OAUTH_BROKER_URL || '',
-).trim().replace(/\/+$/, '');
+  process.env.STREAMHUB_OAUTH_BROKER_URL ||
+  DEFAULT_OAUTH_BROKER_URL
+)
+  .trim()
+  .replace(/\/+$/, '');
+
 
 function createAccounts(directory, request = fetch) {
   const file = path.join(directory, 'accounts-private.json');

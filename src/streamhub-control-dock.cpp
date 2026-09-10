@@ -2,8 +2,6 @@
 
 #include <QComboBox>
 #include <QDesktopServices>
-#include <QDialog>
-#include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -68,13 +66,16 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
 
     auto *accounts = new QWidget(tabs);
     auto *accountsLayout = new QVBoxLayout(accounts);
-    accountsLayout->setContentsMargins(8, 14, 8, 8);
+    accountsLayout->setContentsMargins(6, 8, 6, 6);
+    accountsLayout->setSpacing(6);
     auto *accountIntro = new QLabel(tr("Conecte uma vez. O StreamHub renova a autorização automaticamente."), accounts);
     accountIntro->setWordWrap(true);
     accountsLayout->addWidget(accountIntro);
     auto *accountCard = new QWidget(accounts);
     accountCard->setObjectName("accountCard");
     auto *accountCardLayout = new QHBoxLayout(accountCard);
+    accountCardLayout->setContentsMargins(8, 6, 8, 6);
+    accountCardLayout->setSpacing(8);
     auto *twitchIcon = new QLabel(accountCard);
     twitchIcon->setPixmap(QIcon(":/streamhub-ui/icons/twitch.svg").pixmap(44, 44));
     twitchIcon->setFixedSize(48, 48);
@@ -96,6 +97,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     auto *kickCard = new QWidget(accounts);
     kickCard->setObjectName("accountCard");
     auto *kickCardLayout = new QHBoxLayout(kickCard);
+    kickCardLayout->setContentsMargins(8, 6, 8, 6);
+    kickCardLayout->setSpacing(8);
     auto *kickIcon = new QLabel(kickCard);
     kickIcon->setPixmap(QIcon(":/streamhub-ui/icons/kick.svg").pixmap(44, 44));
     kickIcon->setFixedSize(48, 48);
@@ -108,17 +111,13 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     kickText->addWidget(kickAccountName_);
     kickText->addWidget(kickAccountStatus_);
     kickCardLayout->addLayout(kickText, 1);
-    auto *kickActions = new QVBoxLayout();
-    kickConfigureButton_ = new QPushButton(tr("Avançado"), kickCard);
-    kickConfigureButton_->setObjectName("accountSecondary");
+    auto *kickActions = new QHBoxLayout();
     kickConnectButton_ = new QPushButton(tr("Conectar"), kickCard);
     kickSyncButton_ = new QPushButton(tr("Sincronizar"), kickCard);
     kickConnectButton_->setObjectName("accountAction");
     kickSyncButton_->setObjectName("accountAction");
-    connect(kickConfigureButton_, &QPushButton::clicked, this, &StreamHubControlDock::ConfigureKick);
     connect(kickConnectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartKickLogin);
     connect(kickSyncButton_, &QPushButton::clicked, this, &StreamHubControlDock::SyncKickTransmission);
-    kickActions->addWidget(kickConfigureButton_);
     kickActions->addWidget(kickConnectButton_);
     kickActions->addWidget(kickSyncButton_);
     kickCardLayout->addLayout(kickActions);
@@ -127,6 +126,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     auto *youtubeCard = new QWidget(accounts);
     youtubeCard->setObjectName("accountCard");
     auto *youtubeCardLayout = new QHBoxLayout(youtubeCard);
+    youtubeCardLayout->setContentsMargins(8, 6, 8, 6);
+    youtubeCardLayout->setSpacing(8);
     auto *youtubeIcon = new QLabel(youtubeCard);
     youtubeIcon->setPixmap(QIcon(":/streamhub-ui/icons/youtube.svg").pixmap(44, 44));
     youtubeIcon->setFixedSize(48, 48);
@@ -139,17 +140,14 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     youtubeText->addWidget(youtubeAccountName_);
     youtubeText->addWidget(youtubeAccountStatus_);
     youtubeCardLayout->addLayout(youtubeText, 1);
-    auto *youtubeActions = new QVBoxLayout();
-    youtubeConfigureButton_ = new QPushButton(tr("Avançado"), youtubeCard);
-    youtubeConfigureButton_->setObjectName("accountSecondary");
+    auto *youtubeActions = new QHBoxLayout();
     youtubeConnectButton_ = new QPushButton(tr("Conectar"), youtubeCard);
     youtubeSyncButton_ = new QPushButton(tr("Sincronizar"), youtubeCard);
     youtubeConnectButton_->setObjectName("accountAction");
     youtubeSyncButton_->setObjectName("accountAction");
-    connect(youtubeConfigureButton_, &QPushButton::clicked, this, &StreamHubControlDock::ConfigureYoutube);
     connect(youtubeConnectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartYoutubeLogin);
     connect(youtubeSyncButton_, &QPushButton::clicked, this, &StreamHubControlDock::SyncYoutubeTransmission);
-    youtubeActions->addWidget(youtubeConfigureButton_);
+    youtubeActions->setSpacing(6);
     youtubeActions->addWidget(youtubeConnectButton_);
     youtubeActions->addWidget(youtubeSyncButton_);
     youtubeCardLayout->addLayout(youtubeActions);
@@ -369,7 +367,7 @@ void StreamHubControlDock::RefreshKickAccount()
         kickAccountStatus_->style()->polish(kickAccountStatus_);
         if (!configured) {
             kickAccountName_->setText(tr("Kick"));
-            kickAccountStatus_->setText(tr("● OAuth compartilhado indisponível · use Avançado"));
+            kickAccountStatus_->setText(tr("● OAuth compartilhado indisponível · configure .env"));
             kickConnectButton_->setEnabled(false);
             kickSyncButton_->setEnabled(false);
         } else if (!connected) {
@@ -394,55 +392,24 @@ void StreamHubControlDock::RefreshKickAccount()
     });
 }
 
-void StreamHubControlDock::ConfigureKick()
-{
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("Configurar Kick"));
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *hint = new QLabel(tr("Deixe campo vazio para usar valor correspondente de .env. Credenciais ficam armazenadas somente no arquivo privado local. Nunca envie Client Secret por chat ou documentação."), &dialog);
-    hint->setWordWrap(true);
-    layout->addWidget(hint);
-    auto *form = new QFormLayout();
-    auto *clientId = new QLineEdit(&dialog);
-    auto *clientSecret = new QLineEdit(&dialog);
-    clientSecret->setEchoMode(QLineEdit::Password);
-    clientId->setPlaceholderText(tr("Client ID da aplicação Kick"));
-    clientSecret->setPlaceholderText(tr("Client Secret da aplicação Kick"));
-    form->addRow(tr("Client ID"), clientId);
-    form->addRow(tr("Client Secret"), clientSecret);
-    layout->addLayout(form);
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-    if (dialog.exec() != QDialog::Accepted)
-        return;
-    kickConfigureButton_->setEnabled(false);
-    Request("POST", "/api/accounts/kick/configure",
-            {{"clientId", clientId->text().trimmed()}, {"clientSecret", clientSecret->text()}},
-            [this](const QJsonObject &o, int status) {
-                kickConfigureButton_->setEnabled(true);
-                if (status != 200) {
-                    kickLoginHelp_->setText(o.value("error").toString());
-                    return;
-                }
-                kickLoginHelp_->setText(tr("Credenciais salvas localmente. Agora conecte sua conta Kick."));
-                RefreshKickAccount();
-            });
-}
-
 void StreamHubControlDock::StartKickLogin()
 {
     kickConnectButton_->setEnabled(false);
+    kickAccountStatus_->setProperty("connected", false);
+    kickAccountStatus_->style()->unpolish(kickAccountStatus_);
+    kickAccountStatus_->style()->polish(kickAccountStatus_);
     kickAccountStatus_->setText(tr("● Preparando autorização..."));
     Request("POST", "/api/accounts/kick/connect", {}, [this](const QJsonObject &o, int status) {
         if (status != 200) {
+            kickAccountStatus_->setProperty("connected", false);
+            kickAccountStatus_->style()->unpolish(kickAccountStatus_);
+            kickAccountStatus_->style()->polish(kickAccountStatus_);
             kickAccountStatus_->setText(o.value("error").toString());
             kickConnectButton_->setEnabled(true);
             return;
         }
         const QString url = o.value("authorizationUri").toString();
-        kickLoginHelp_->setText(tr("Autorize Kick em <a href=\"%1\">%1</a>. Esta janela pode fechar após autorização.").arg(url));
+        kickLoginHelp_->setText(tr("Autorização Kick aberta no navegador."));
         QDesktopServices::openUrl(QUrl(url));
         PollKickLogin(o.value("flowId").toString());
     });
@@ -454,6 +421,9 @@ void StreamHubControlDock::PollKickLogin(const QString &flowId)
     connect(kickLoginTimer_, &QTimer::timeout, this, [this, flowId]() {
         Request("GET", "/api/accounts/kick/connect/" + flowId, {}, [this, flowId](const QJsonObject &o, int status) {
             if (status != 200) {
+                kickAccountStatus_->setProperty("connected", false);
+                kickAccountStatus_->style()->unpolish(kickAccountStatus_);
+                kickAccountStatus_->style()->polish(kickAccountStatus_);
                 kickAccountStatus_->setText(o.value("error").toString());
                 kickConnectButton_->setEnabled(true);
                 return;
@@ -498,15 +468,21 @@ void StreamHubControlDock::SetKickTransmissionError(const QString &error)
 void StreamHubControlDock::StartYoutubeLogin()
 {
     youtubeConnectButton_->setEnabled(false);
+    youtubeAccountStatus_->setProperty("connected", false);
+    youtubeAccountStatus_->style()->unpolish(youtubeAccountStatus_);
+    youtubeAccountStatus_->style()->polish(youtubeAccountStatus_);
     youtubeAccountStatus_->setText(tr("● Preparando autorização..."));
     Request("POST", "/api/accounts/youtube/connect", {}, [this](const QJsonObject &o, int status) {
         if (status != 200) {
+            youtubeAccountStatus_->setProperty("connected", false);
+            youtubeAccountStatus_->style()->unpolish(youtubeAccountStatus_);
+            youtubeAccountStatus_->style()->polish(youtubeAccountStatus_);
             youtubeAccountStatus_->setText(o.value("error").toString());
             youtubeConnectButton_->setEnabled(true);
             return;
         }
         const QString url = o.value("authorizationUri").toString();
-        youtubeLoginHelp_->setText(tr("Autorize YouTube em <a href=\"%1\">%1</a>. Esta janela pode fechar após autorização.").arg(url));
+        youtubeLoginHelp_->setText(tr("Autorização YouTube aberta no navegador."));
         QDesktopServices::openUrl(QUrl(url));
         PollYoutubeLogin(o.value("flowId").toString());
     });
@@ -518,6 +494,9 @@ void StreamHubControlDock::PollYoutubeLogin(const QString &flowId)
     connect(youtubeLoginTimer_, &QTimer::timeout, this, [this, flowId]() {
         Request("GET", "/api/accounts/youtube/connect/" + flowId, {}, [this, flowId](const QJsonObject &o, int status) {
             if (status != 200) {
+                youtubeAccountStatus_->setProperty("connected", false);
+                youtubeAccountStatus_->style()->unpolish(youtubeAccountStatus_);
+                youtubeAccountStatus_->style()->polish(youtubeAccountStatus_);
                 youtubeAccountStatus_->setText(o.value("error").toString());
                 youtubeConnectButton_->setEnabled(true);
                 return;
@@ -550,7 +529,7 @@ void StreamHubControlDock::RefreshYoutubeAccount()
         youtubeAccountStatus_->style()->polish(youtubeAccountStatus_);
         if (!configured) {
             youtubeAccountName_->setText(tr("YouTube"));
-            youtubeAccountStatus_->setText(tr("● OAuth compartilhado indisponível · use Avançado"));
+            youtubeAccountStatus_->setText(tr("● OAuth compartilhado indisponível · configure .env"));
             youtubeConnectButton_->setEnabled(false);
             youtubeSyncButton_->setEnabled(false);
         } else if (!connected) {
@@ -573,43 +552,6 @@ void StreamHubControlDock::RefreshYoutubeAccount()
             youtubeSyncButton_->setEnabled(true);
         }
     });
-}
-
-void StreamHubControlDock::ConfigureYoutube()
-{
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("Configurar YouTube"));
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *hint = new QLabel(tr("Deixe campos vazios para usar valores de .env. Client Secret fica oculto e nunca deve ser compartilhado."), &dialog);
-    hint->setWordWrap(true);
-    layout->addWidget(hint);
-    auto *form = new QFormLayout();
-    auto *clientId = new QLineEdit(&dialog);
-    auto *clientSecret = new QLineEdit(&dialog);
-    clientSecret->setEchoMode(QLineEdit::Password);
-    clientId->setPlaceholderText(tr("Client ID OAuth do Google"));
-    clientSecret->setPlaceholderText(tr("Client Secret OAuth do Google"));
-    form->addRow(tr("Client ID"), clientId);
-    form->addRow(tr("Client Secret"), clientSecret);
-    layout->addLayout(form);
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-    if (dialog.exec() != QDialog::Accepted)
-        return;
-    youtubeConfigureButton_->setEnabled(false);
-    Request("POST", "/api/accounts/youtube/configure",
-            {{"clientId", clientId->text().trimmed()}, {"clientSecret", clientSecret->text()}},
-            [this](const QJsonObject &o, int status) {
-                youtubeConfigureButton_->setEnabled(true);
-                if (status != 200) {
-                    youtubeLoginHelp_->setText(o.value("error").toString());
-                    return;
-                }
-                youtubeLoginHelp_->setText(tr("Configuração salva localmente. Agora conecte sua conta YouTube."));
-                RefreshYoutubeAccount();
-            });
 }
 
 void StreamHubControlDock::SyncYoutubeTransmission()
