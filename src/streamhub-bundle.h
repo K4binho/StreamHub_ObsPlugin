@@ -17,3 +17,6 @@
 // qualquer obs_module_text() (que lê locale/*.ini do disco) e antes de
 // StreamHubLauncher::Start() (que espera server/index.js já no disco).
 bool StreamHub_EnsureBundledData(const QString &dataPath);
+
+// Migra dados legados para pasta gravável sem sobrescrever destino.
+bool StreamHub_MigrateBundledData(const QString &legacyPath, const QString &dataPath);

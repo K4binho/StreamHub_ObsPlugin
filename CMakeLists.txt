@@ -79,6 +79,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/streamhub-native-theme.cpp
   ./src/streamhub-bundle.h
   ./src/streamhub-bundle.cpp
+  ./src/streamhub-updater.h
+  ./src/streamhub-updater.cpp
   ./qrc/streamhub-data.qrc
 )
 
@@ -88,3 +90,39 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+
+if(WIN32)
+  add_executable(streamhub-updater-helper WIN32 tools/streamhub-updater-helper.cpp)
+  target_compile_features(streamhub-updater-helper PRIVATE cxx_std_20)
+  target_link_libraries(streamhub-updater-helper PRIVATE bcrypt shell32)
+  set_target_properties(streamhub-updater-helper PROPERTIES OUTPUT_NAME "streamhub-updater-helper")
+  add_dependencies(${CMAKE_PROJECT_NAME} streamhub-updater-helper)
+
+  add_custom_command(
+    TARGET ${CMAKE_PROJECT_NAME}
+    POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:streamhub-updater-helper>"
+            "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/streamhub-updater-helper.exe"
+    VERBATIM
+  )
+
+  add_custom_command(
+    TARGET streamhub-updater-helper
+    POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:streamhub-updater-helper>"
+            "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/streamhub-updater-helper.exe"
+    VERBATIM
+  )
+
+  install(TARGETS streamhub-updater-helper RUNTIME DESTINATION "${_name}/bin/64bit")
+endif()
+
+# Helper is included in Windows plugin builds for release packaging.
+
+###############################################################################
+# End of project targets
+###############################################################################

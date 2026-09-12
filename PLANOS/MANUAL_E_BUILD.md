@@ -1,14 +1,15 @@
 # StreamHub OBS Plugin — Manual e Build
 
 **Versão base:** OBS Studio 32.2.1+
-**Bundle StreamHub:** 34
+**Bundle StreamHub:** 40
 
 StreamHub é fork de `obs-multi-rtmp`, com saídas RTMP nativas, chat unificado, contas, moderação, recompensas, editor de transmissão, overlay e tema K4binho — Má Fase.
 
 ## 1. Recursos
 
 - **Múltiplas saídas · K4:** transmissão principal do OBS sempre aparece primeiro; destinos Twitch, YouTube, Kick, TikTok, Facebook ou RTMP personalizado aparecem abaixo.
-- **Iniciar tudo:** inicia transmissão principal do OBS antes dos destinos selecionados.
+- **Iniciar tudo:** inicia transmissão principal do OBS antes dos destinos sincronizados.
+- **Ativação automática:** após conta conectada fornecer RTMP e stream key válidos, destino entra automaticamente em **Iniciar tudo**. Configuração de chat permanece independente.
 - **Parar tudo:** encerra destinos auxiliares e transmissão principal.
 - **StreamHub Chat · K4:** leitura por plataforma, filtros, envio, deduplicação e status.
 - **ADM:** timeout, ban, unban, modo lento, seguidores, inscritos, emotes, recompensas e resgates conforme autorização.
@@ -169,7 +170,7 @@ Tokens ficam em armazenamento privado local. Não compartilhe URL de callback co
 
 Twitch usa autorização própria do plugin. Leitura, envio, dados da live, moderação e recompensas dependem de conta e escopos autorizados. Stream key usa escopo `channel:read:stream_key` e endpoint `GET https://api.twitch.tv/helix/streams/key`; servidor RTMP oficial é `rtmps://live.twitch.tv/app`.
 
-Mensagem `Twitch: Atualizada; notificação não existem na API da Twitch.` indica campo inexistente. Resultado deve ser tratado como limitação ignorada, não erro.
+Campos Twitch usam somente propriedades suportadas pela API da Twitch. Descrição, visibilidade e notificação não são enviados ao endpoint Twitch.
 
 ### Kick
 

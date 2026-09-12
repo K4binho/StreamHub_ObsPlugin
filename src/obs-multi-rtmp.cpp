@@ -21,6 +21,7 @@
 #include "streamhub-platforms.h"
 #include "streamhub-theme-installer.h"
 #include "streamhub-native-theme.h"
+#include "streamhub-updater.h"
 #include <QCheckBox>
 #include <QClipboard>
 #include <QColorDialog>
@@ -967,6 +968,7 @@ public:
 
         target->serviceParam["server"] = server.toStdString();
         target->serviceParam["key"] = key.toStdString();
+        target->syncStart = true;
         SaveConfig();
 
         PushWidget *pushWidget = nullptr;
@@ -1320,9 +1322,11 @@ void obs_module_set_locale(const char *locale)
     if (obs_module_lookup)
         text_lookup_destroy(obs_module_lookup);
 
-    const char *rawDataPath = obs_get_module_data_path(obs_current_module());
-    if (rawDataPath && *rawDataPath) {
-        const QString dataPath = StreamHubAbsolutePath(QString::fromUtf8(rawDataPath));
+    const QString legacyDataPath = StreamHubModuleDataPath();
+    const QString dataPath = StreamHubWritableDataPath(false);
+    if (!dataPath.isEmpty()) {
+        if (!legacyDataPath.isEmpty() && legacyDataPath != dataPath)
+            StreamHub_MigrateBundledData(legacyDataPath, dataPath);
         StreamHub_EnsureBundledData(dataPath);
     }
 
@@ -1348,16 +1352,24 @@ bool obs_module_load()
     // que permite copiar só a .dll para uma instalação nova do OBS.
     // OBS paths are relative to its current working directory, not to the
     // plugin DLL. Resolve once before extraction and before Node changes cwd.
-    const QString dataPath = StreamHubAbsolutePath(
-        QString::fromUtf8(obs_get_module_data_path(obs_current_module())));
-    QString serverDir = dataPath + "/streamhub-server";
+    const QString legacyDataPath = StreamHubModuleDataPath();
+    const QString dataPath = StreamHubWritableDataPath();
+    if (!dataPath.isEmpty() && !legacyDataPath.isEmpty() && legacyDataPath != dataPath)
+        StreamHub_MigrateBundledData(legacyDataPath, dataPath);
     StreamHub_EnsureBundledData(dataPath);
+    QString serverDir = QDir(dataPath).filePath("streamhub-server");
     StreamHubInstallBundledTheme();
     StreamHubInstallNativeThemeHook();
 
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
     if (mainwin == nullptr)
         return false;
+
+#if defined(_WIN32)
+    static StreamHubUpdater *s_updater = new StreamHubUpdater(mainwin);
+    s_updater->Start();
+#endif
+
     QMetaObject::invokeMethod(mainwin, []() {
         s_service.uiThread_ = QThread::currentThread();
     });
@@ -1453,17 +1465,18 @@ bool obs_module_load()
         brandDock(controlDock);
 
         // OBS pode expor serviço principal somente após carregar perfil.
-        // Reconsulta evita congelar dock em "serviço não identificado".
+        // Aplica estado disponível agora e reconsulta até serviço ficar pronto.
+        const auto updatePrimaryPlatform = [dock, controlDock]() {
+            const QString platform = dock->PrimaryPlatform();
+            if (platform.isEmpty())
+                return;
+            controlDock->SetPrimaryPlatform(platform);
+            dock->EnsurePlatformTarget(platform);
+        };
+        updatePrimaryPlatform();
         auto *primaryTimer = new QTimer(controlDock);
         primaryTimer->setInterval(500);
-        QObject::connect(primaryTimer, &QTimer::timeout, controlDock,
-                         [dock, controlDock]() {
-                             const QString platform = dock->PrimaryPlatform();
-                             if (platform.isEmpty())
-                                 return;
-                             controlDock->SetPrimaryPlatform(platform);
-                             dock->EnsurePlatformTarget(platform);
-                         });
+        QObject::connect(primaryTimer, &QTimer::timeout, controlDock, updatePrimaryPlatform);
         primaryTimer->start();
     } else {
         delete controlDock;

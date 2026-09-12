@@ -222,6 +222,7 @@ router.get('/broadcast/current', async (req, res) => {
     res.json({
       platform,
       title: String(transmission.title || ''),
+      description: String(transmission.description || ''),
       category: String(transmission.category || ''),
       categoryId: String(transmission.categoryId || ''),
       tags: Array.isArray(transmission.tags) ? transmission.tags : [],
@@ -238,14 +239,31 @@ router.get('/broadcast/current', async (req, res) => {
 });
 
 router.post('/broadcast/apply', async (req, res) => {
-  const title = String(req.body?.title || '').trim();
+  const submittedGlobal = req.body?.global_metadata;
+  const globalMetadata = submittedGlobal && typeof submittedGlobal === 'object'
+    ? { ...submittedGlobal }
+    : {
+      title: String(req.body?.title || '').trim(),
+      description: String(req.body?.description || req.body?.notification || '').trim(),
+      language: String(req.body?.language || '').trim(),
+      is_mature: Boolean(req.body?.is_mature),
+    };
+  const title = String(globalMetadata.title || req.body?.title || '').trim();
+  globalMetadata.title = title;
   if (!title) return res.status(400).json({ error: 'Informe o título da transmissão.' });
   if (title.length > 140) return res.status(400).json({ error: 'O título pode ter no máximo 140 caracteres.' });
 
+  const submittedPlatforms = req.body?.platforms;
+  const platformSettings = submittedPlatforms && typeof submittedPlatforms === 'object'
+    ? submittedPlatforms
+    : {};
   const input = {
     ...req.body,
+    global_metadata: { ...globalMetadata, title },
+    platforms: platformSettings,
     title,
     sourcePlatform: String(req.body?.sourcePlatform || '').trim().toLowerCase(),
+    categoryIdPlatform: String(req.body?.categoryIdPlatform || '').trim().toLowerCase(),
   };
   const platforms = [
     ['twitch', 'Twitch'],
@@ -254,19 +272,17 @@ router.post('/broadcast/apply', async (req, res) => {
   ];
   const results = [];
   for (const [platform, name] of platforms) {
+    const settings = platformSettings[platform];
+    if (settings && settings.enabled === false) {
+      results.push({ platform: name, ok: true, skipped: true, message: 'Plataforma desativada.' });
+      continue;
+    }
     try {
-      await accounts.updateTransmission(platform, input);
-      const ignored = [];
-      if (input.notification) ignored.push('notificação');
-      if (platform === 'twitch' && Number(input.visibility) !== 0) ignored.push('visibilidade');
-      if (platform === 'kick') ignored.push('marcações, idioma, classificação e visibilidade');
-      if (platform === 'youtube' && input.notification) ignored.push('notificação');
+      await accounts.updateTransmission(platform, { ...input, platformSettings: settings });
       results.push({
         platform: name,
         ok: true,
-        message: ignored.length
-          ? `Informações atualizadas; ${ignored.join(' e ')} não são suportadas nesta API.`
-          : 'Informações atualizadas.',
+        message: 'Informações atualizadas.',
       });
     } catch (err) {
       results.push({ platform: name, ok: false, message: err.message });

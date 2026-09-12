@@ -14,7 +14,7 @@ namespace {
 // Suba este número sempre que qrc/streamhub-data.qrc mudar de conteúdo
 // (novo arquivo, JS corrigido, etc.) para forçar reextração na próxima
 // abertura do OBS. Não precisa acompanhar PLUGIN_VERSION.
-constexpr const char *kBundleVersion = "38";
+constexpr const char *kBundleVersion = "40";
 
 constexpr const char *kResourcePrefix = ":/streamhub-data";
 constexpr const char *kVersionMarkerName = ".streamhub-bundle-version";
@@ -93,8 +93,48 @@ bool EnsureUserConfig(const QString &dataPath)
 
 } // namespace
 
+bool StreamHub_MigrateBundledData(const QString &legacyPath, const QString &dataPath)
+{
+    if (legacyPath.isEmpty() || dataPath.isEmpty() || legacyPath == dataPath || !QDir(legacyPath).exists())
+        return true;
+    if (!QDir().mkpath(dataPath))
+        return false;
+
+    QDir legacyRoot(legacyPath);
+    QDirIterator it(legacyPath, QDir::Files, QDirIterator::Subdirectories);
+    int migrated = 0;
+    while (it.hasNext()) {
+        const QString sourcePath = it.next();
+        const QString relativePath = legacyRoot.relativeFilePath(sourcePath);
+        if (relativePath == QString::fromLatin1(kVersionMarkerName) ||
+            relativePath == QStringLiteral("runtime.json")) {
+            continue;
+        }
+
+        const QString destinationPath = QDir(dataPath).filePath(relativePath);
+        if (QFileInfo::exists(destinationPath))
+            continue;
+        if (!QDir().mkpath(QFileInfo(destinationPath).absolutePath()) ||
+            !QFile::copy(sourcePath, destinationPath)) {
+            blog(LOG_WARNING, "[streamhub] falha ao migrar arquivo legado: %s",
+                 relativePath.toUtf8().constData());
+            continue;
+        }
+        QFile::setPermissions(destinationPath,
+                              QFile::permissions(destinationPath) | QFileDevice::WriteOwner);
+        ++migrated;
+    }
+
+    if (migrated > 0)
+        blog(LOG_INFO, "[streamhub] %d arquivo(s) legado(s) migrado(s) para %s",
+             migrated, dataPath.toUtf8().constData());
+    return true;
+}
+
 bool StreamHub_EnsureBundledData(const QString &dataPath)
 {
+    if (dataPath.isEmpty())
+        return false;
     if (!QDir().mkpath(dataPath)) {
         blog(LOG_WARNING, "[streamhub] não consegui criar a pasta de dados do plugin: %s",
              dataPath.toUtf8().constData());

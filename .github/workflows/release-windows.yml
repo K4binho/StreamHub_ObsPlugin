@@ -1,0 +1,85 @@
+name: Release Windows x64
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag to receive assets
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Windows x64
+        run: cmake --preset windows-ci-x64
+
+      - name: Build Windows x64
+        run: cmake --build --preset windows-ci-x64 --config RelWithDebInfo
+
+      - name: Prepare release assets
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = [string]$env:RELEASE_TAG
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            throw 'Release tag is required.'
+          }
+          $version = $tag.TrimStart('v', 'V')
+          if ($version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+            throw "Invalid release tag version: $tag"
+          }
+
+          $bundleSource = Get-Content -Raw -Path 'src/streamhub-bundle.cpp'
+          $bundleMatch = [regex]::Match($bundleSource, 'kBundleVersion\s*=\s*"(?<version>\d+)"')
+          if (-not $bundleMatch.Success) {
+            throw 'kBundleVersion not found.'
+          }
+          $bundleVersion = $bundleMatch.Groups['version'].Value
+
+          $buildDir = Join-Path $PWD 'build_x64/RelWithDebInfo'
+          $dll = Join-Path $buildDir 'obs-multi-rtmp.dll'
+          $helper = Join-Path $buildDir 'streamhub-updater-helper.exe'
+          foreach ($path in @($dll, $helper)) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Build asset missing: $path"
+            }
+          }
+
+          $releaseDir = Join-Path $PWD 'release/windows-x64'
+          New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+          Copy-Item -LiteralPath $dll -Destination (Join-Path $releaseDir 'obs-multi-rtmp.dll') -Force
+          Copy-Item -LiteralPath $helper -Destination (Join-Path $releaseDir 'streamhub-updater-helper.exe') -Force
+
+          $dllAsset = Join-Path $releaseDir 'obs-multi-rtmp.dll'
+          $helperAsset = Join-Path $releaseDir 'streamhub-updater-helper.exe'
+          $manifest = [ordered]@{
+            version = $version
+            bundleVersion = $bundleVersion
+            platform = 'windows-x64'
+            dll = 'obs-multi-rtmp.dll'
+            helper = 'streamhub-updater-helper.exe'
+            dllSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $dllAsset).Hash.ToLowerInvariant()
+            helperSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $helperAsset).Hash.ToLowerInvariant()
+          }
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 -NoNewline -Path (Join-Path $releaseDir 'streamhub-update.json')
+
+      - name: Upload release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$RELEASE_TAG" release/windows-x64/obs-multi-rtmp.dll release/windows-x64/streamhub-updater-helper.exe release/windows-x64/streamhub-update.json --clobber

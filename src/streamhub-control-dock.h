@@ -59,6 +59,7 @@ private:
     void ApplyBroadcast();
     void SearchCategories();
     void LoadCategoryCover(const QString &categoryId);
+    void UpdatePreviewPlatformVisual();
     void UpdatePreview();
 
     int port_ = 605;
@@ -78,6 +79,8 @@ private:
     QLabel *kickLoginHelp_ = nullptr;
     QPushButton *kickConnectButton_ = nullptr;
     QPushButton *kickSyncButton_ = nullptr;
+    QPushButton *kickCopyLinkButton_ = nullptr;
+    QString kickAuthorizationUri_;
     QJsonObject kickTransmission_;
     QLabel *youtubeAccountStatus_ = nullptr;
     QLabel *youtubeAccountName_ = nullptr;
@@ -91,10 +94,16 @@ private:
     QLabel *notificationCount_ = nullptr;
     QLineEdit *category_ = nullptr;
     QListWidget *categoryResults_ = nullptr;
+    QLineEdit *youtubeCategory_ = nullptr;
+    QLineEdit *twitchTags_ = nullptr;
+    QComboBox *twitchLanguage_ = nullptr;
+    QLineEdit *youtubeTags_ = nullptr;
+    QComboBox *youtubeLanguage_ = nullptr;
     QString categoryId_;
+    QString kickCategoryId_;
+    QString youtubeCategoryId_;
+    QString categoryIdPlatform_;
     QComboBox *visibility_ = nullptr;
-    QLineEdit *tags_ = nullptr;
-    QComboBox *language_ = nullptr;
     QComboBox *classification_ = nullptr;
     QLabel *broadcastStatus_ = nullptr;
     QLabel *twitchTransmissionStatus_ = nullptr;
@@ -104,9 +113,11 @@ private:
     QString kickSyncNotice_;
     QString youtubeSyncNotice_;
     QString broadcastOperationStatus_;
+    QLabel *previewCaption_ = nullptr;
     QLabel *previewTitle_ = nullptr;
     QLabel *previewCategory_ = nullptr;
     QLabel *previewNotification_ = nullptr;
     QLabel *previewCover_ = nullptr;
+    bool previewHasCategoryCover_ = false;
     QString primaryPlatform_;
 };

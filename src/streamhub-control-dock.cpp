@@ -1,8 +1,11 @@
 #include "streamhub-control-dock.h"
 
+#include <QApplication>
+#include <QClipboard>
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonArray>
@@ -20,6 +23,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QVBoxLayout>
 
 namespace {
@@ -58,7 +62,49 @@ QString PlatformApplyResult(const QString &platform, bool ok, const QString &mes
         return QObject::tr("%1 atualizada.").arg(platform);
     return FriendlyPlatformError(platform, message);
 }
+
+QString PreviewPlatformIcon(const QString &platform)
+{
+    if (platform.compare("kick", Qt::CaseInsensitive) == 0)
+        return QStringLiteral(":/streamhub-ui/icons/kick.svg");
+    if (platform.compare("youtube", Qt::CaseInsensitive) == 0)
+        return QStringLiteral(":/streamhub-ui/icons/youtube.svg");
+    return QStringLiteral(":/streamhub-ui/icons/twitch.svg");
 }
+
+QString PreviewPlatformAccent(const QString &platform)
+{
+    if (platform.compare("kick", Qt::CaseInsensitive) == 0)
+        return QStringLiteral("#53FC18");
+    if (platform.compare("youtube", Qt::CaseInsensitive) == 0)
+        return QStringLiteral("#FF0033");
+    return QStringLiteral("#9146FF");
+}
+
+QString PreviewPlatformName(const QString &platform)
+{
+    if (platform.compare("kick", Qt::CaseInsensitive) == 0)
+        return QStringLiteral("Kick");
+    if (platform.compare("youtube", Qt::CaseInsensitive) == 0)
+        return QStringLiteral("YouTube");
+    return QStringLiteral("Twitch");
+}
+
+QString SafeAuthorizationUrl(const QString &raw)
+{
+    const QUrl url(raw.trimmed());
+    if (!url.isValid() || url.scheme().compare("https", Qt::CaseInsensitive) != 0 || url.host().isEmpty())
+        return {};
+
+    const QUrlQuery query(url);
+    for (const auto &item : query.queryItems(QUrl::FullyDecoded)) {
+        if (item.first.compare("code", Qt::CaseInsensitive) == 0)
+            return {};
+    }
+    return url.toString(QUrl::FullyEncoded).toHtmlEscaped();
+}
+}
+
 
 StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
 {
@@ -85,7 +131,7 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     auto *accountsLayout = new QVBoxLayout(accounts);
     accountsLayout->setContentsMargins(4, 6, 4, 4);
     accountsLayout->setSpacing(4);
-    auto *accountIntro = new QLabel(tr("Conecte contas. Dados atualizam automaticamente."), accounts);
+    auto *accountIntro = new QLabel(tr("Conecte contas. Após sincronizar RTMP e stream key, destino entra automaticamente em Iniciar tudo. Chat usa configuração separada."), accounts);
     accountIntro->setWordWrap(true);
     accountsLayout->addWidget(accountIntro);
     auto *accountCard = new QWidget(accounts);
@@ -110,6 +156,7 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     twitchSyncButton_ = new QPushButton(tr("Sincronizar"), accountCard);
     connectButton_->setObjectName("accountAction");
     twitchSyncButton_->setObjectName("accountAction");
+    twitchSyncButton_->setToolTip(tr("Busca RTMP e stream key oficiais e atualiza destino nativo em Múltiplas saídas."));
     connect(connectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartTwitchLogin);
     connect(twitchSyncButton_, &QPushButton::clicked, this, &StreamHubControlDock::SyncTwitchTransmission);
     twitchActions->addWidget(connectButton_);
@@ -137,12 +184,23 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     auto *kickActions = new QHBoxLayout();
     kickConnectButton_ = new QPushButton(tr("Conectar"), kickCard);
     kickSyncButton_ = new QPushButton(tr("Sincronizar"), kickCard);
+    kickCopyLinkButton_ = new QPushButton(tr("Copiar link"), kickCard);
     kickConnectButton_->setObjectName("accountAction");
     kickSyncButton_->setObjectName("accountAction");
+    kickSyncButton_->setToolTip(tr("Busca RTMP e stream key oficiais e atualiza destino nativo em Múltiplas saídas."));
+    kickCopyLinkButton_->setObjectName("accountAction");
+    kickCopyLinkButton_->setVisible(false);
     connect(kickConnectButton_, &QPushButton::clicked, this, &StreamHubControlDock::StartKickLogin);
     connect(kickSyncButton_, &QPushButton::clicked, this, &StreamHubControlDock::SyncKickTransmission);
+    connect(kickCopyLinkButton_, &QPushButton::clicked, this, [this]() {
+        if (kickAuthorizationUri_.isEmpty())
+            return;
+        QApplication::clipboard()->setText(kickAuthorizationUri_);
+        kickLoginHelp_->setText(tr("Link de autorização Kick copiado. Abra no navegador se necessário."));
+    });
     kickActions->addWidget(kickConnectButton_);
     kickActions->addWidget(kickSyncButton_);
+    kickActions->addWidget(kickCopyLinkButton_);
     kickCardLayout->addLayout(kickActions);
     accountsLayout->addWidget(kickCard);
 
@@ -210,17 +268,18 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     previewCover_->setPixmap(QIcon(":/streamhub-ui/icons/twitch.svg").pixmap(38, 38));
     previewLayout->addWidget(previewCover_);
     auto *previewText = new QVBoxLayout();
-    auto *previewCaption = new QLabel(tr("PRÉVIA DA LIVE"), preview);
-    previewCaption->setObjectName("previewCaption");
+    previewCaption_ = new QLabel(tr("PRÉVIA DA LIVE"), preview);
+    previewCaption_->setObjectName("previewCaption");
     previewTitle_ = new QLabel(tr("Título da transmissão"), preview);
     previewTitle_->setObjectName("previewTitle"); previewTitle_->setWordWrap(true);
     previewCategory_ = new QLabel(tr("Nenhuma categoria selecionada"), preview);
     previewCategory_->setObjectName("previewMeta");
     previewNotification_ = new QLabel(tr("A prévia é atualizada enquanto você edita."), preview);
     previewNotification_->setObjectName("previewNotification"); previewNotification_->setWordWrap(true);
-    previewText->addWidget(previewCaption); previewText->addWidget(previewTitle_); previewText->addWidget(previewCategory_); previewText->addWidget(previewNotification_);
+    previewText->addWidget(previewCaption_); previewText->addWidget(previewTitle_); previewText->addWidget(previewCategory_); previewText->addWidget(previewNotification_);
     previewLayout->addLayout(previewText, 1);
     broadcastLayout->addWidget(preview);
+    UpdatePreviewPlatformVisual();
 
     auto *syncCard = new QWidget(broadcast);
     syncCard->setObjectName("formCard");
@@ -243,33 +302,87 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
 
     auto *formCard = new QWidget(broadcast);
     formCard->setObjectName("formCard");
-    auto *form = new QFormLayout(formCard);
-    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    title_ = new QTextEdit(formCard); title_->setFixedHeight(64); title_->setPlaceholderText(tr("Dê um título claro para sua live"));
-    titleCount_ = new QLabel("0/140", formCard); titleCount_->setObjectName("counter");
-    auto *titleBox = new QVBoxLayout(); titleBox->addWidget(title_); titleBox->addWidget(titleCount_, 0, Qt::AlignRight);
-    notification_ = new QTextEdit(formCard); notification_->setFixedHeight(58); notification_->setPlaceholderText(tr("Texto usado pelas plataformas que aceitam notificação"));
-    notificationCount_ = new QLabel("0/140", formCard); notificationCount_->setObjectName("counter");
-    auto *notificationBox = new QVBoxLayout(); notificationBox->addWidget(notification_); notificationBox->addWidget(notificationCount_, 0, Qt::AlignRight);
-    category_ = new QLineEdit(formCard); category_->setPlaceholderText(tr("Digite para procurar um jogo ou categoria"));
-    categoryResults_ = new QListWidget(formCard); categoryResults_->setObjectName("categoryResults"); categoryResults_->setIconSize(QSize(40, 56)); categoryResults_->setMaximumHeight(170); categoryResults_->hide();
-    auto *categoryBox = new QVBoxLayout(); categoryBox->addWidget(category_); categoryBox->addWidget(categoryResults_);
-    visibility_ = new QComboBox(formCard); visibility_->addItems({tr("Público"), tr("Não listado"), tr("Privado")});
-    tags_ = new QLineEdit(formCard); tags_->setPlaceholderText(tr("gameplay, português, comunidade"));
-    language_ = new QComboBox(formCard); language_->addItem(tr("Português"), "pt"); language_->addItem(tr("Inglês"), "en"); language_->addItem(tr("Espanhol"), "es"); language_->addItem(tr("Outro"), "other");
-    classification_ = new QComboBox(formCard);
+    auto *metadataLayout = new QVBoxLayout(formCard);
+    metadataLayout->setContentsMargins(10, 8, 10, 8);
+    metadataLayout->setSpacing(8);
+
+    auto *sharedBox = new QGroupBox(tr("Título"), formCard);
+    auto *sharedForm = new QFormLayout(sharedBox);
+    sharedForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    title_ = new QTextEdit(sharedBox);
+    title_->setFixedHeight(64);
+    title_->setPlaceholderText(tr("Título usado nas plataformas conectadas"));
+    titleCount_ = new QLabel("0/140", sharedBox);
+    titleCount_->setObjectName("counter");
+    auto *titleBox = new QVBoxLayout();
+    titleBox->addWidget(title_);
+    titleBox->addWidget(titleCount_, 0, Qt::AlignRight);
+    sharedForm->addRow(tr("Título da live"), titleBox);
+    metadataLayout->addWidget(sharedBox);
+
+    auto *gameBox = new QGroupBox(tr("Jogo"), formCard);
+    auto *gameForm = new QFormLayout(gameBox);
+    category_ = new QLineEdit(gameBox);
+    category_->setPlaceholderText(tr("Procure jogo ou categoria Twitch"));
+    categoryResults_ = new QListWidget(gameBox);
+    categoryResults_->setObjectName("categoryResults");
+    categoryResults_->setIconSize(QSize(40, 56));
+    categoryResults_->setMaximumHeight(170);
+    categoryResults_->hide();
+    auto *categoryBox = new QVBoxLayout();
+    categoryBox->addWidget(category_);
+    categoryBox->addWidget(categoryResults_);
+    gameForm->addRow(tr("Título do jogo · Twitch + Kick"), categoryBox);
+    metadataLayout->addWidget(gameBox);
+
+    auto *twitchBox = new QGroupBox(tr("Twitch"), formCard);
+    auto *twitchForm = new QFormLayout(twitchBox);
+    twitchTags_ = new QLineEdit(twitchBox);
+    twitchTags_->setPlaceholderText(tr("Tags Twitch, separadas por vírgula"));
+    twitchLanguage_ = new QComboBox(twitchBox);
+    twitchLanguage_->addItem(tr("Português"), "pt");
+    twitchLanguage_->addItem(tr("Inglês"), "en");
+    twitchLanguage_->addItem(tr("Espanhol"), "es");
+    twitchLanguage_->addItem(tr("Outro"), "other");
+    classification_ = new QComboBox(twitchBox);
     classification_->addItem(tr("Nenhuma classificação adicional"), "");
     classification_->addItem(tr("Linguagem imprópria"), "ProfanityVulgarity");
     classification_->addItem(tr("Violência gráfica"), "ViolentGraphic");
     classification_->addItem(tr("Temas políticos e sociais"), "DebatedSocialIssuesAndPolitics");
     classification_->addItem(tr("Jogos de azar"), "Gambling");
-    form->addRow(tr("Título"), titleBox);
-    form->addRow(tr("Notificação ao vivo"), notificationBox);
-    form->addRow(tr("Categoria/jogo"), categoryBox);
-    form->addRow(tr("Público"), visibility_);
-    form->addRow(tr("Marcações/#"), tags_);
-    form->addRow(tr("Idioma"), language_);
-    form->addRow(tr("Classificação"), classification_);
+    twitchForm->addRow(tr("Tags"), twitchTags_);
+    twitchForm->addRow(tr("Idioma"), twitchLanguage_);
+    twitchForm->addRow(tr("Classificação"), classification_);
+    metadataLayout->addWidget(twitchBox);
+
+    auto *youtubeBox = new QGroupBox(tr("YouTube"), formCard);
+    auto *youtubeForm = new QFormLayout(youtubeBox);
+    youtubeForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    notification_ = new QTextEdit(youtubeBox);
+    notification_->setFixedHeight(80);
+    notification_->setPlaceholderText(tr("Descrição da live YouTube"));
+    notificationCount_ = new QLabel("0/5000", youtubeBox);
+    notificationCount_->setObjectName("counter");
+    auto *descriptionBox = new QVBoxLayout();
+    descriptionBox->addWidget(notification_);
+    descriptionBox->addWidget(notificationCount_, 0, Qt::AlignRight);
+    youtubeCategory_ = new QLineEdit(youtubeBox);
+    youtubeCategory_->setPlaceholderText(tr("Categoria oficial YouTube, por exemplo Gaming"));
+    youtubeTags_ = new QLineEdit(youtubeBox);
+    youtubeTags_->setPlaceholderText(tr("Tags YouTube, separadas por vírgula"));
+    youtubeLanguage_ = new QComboBox(youtubeBox);
+    youtubeLanguage_->addItem(tr("Português"), "pt");
+    youtubeLanguage_->addItem(tr("Inglês"), "en");
+    youtubeLanguage_->addItem(tr("Espanhol"), "es");
+    youtubeLanguage_->addItem(tr("Outro"), "other");
+    visibility_ = new QComboBox(youtubeBox);
+    visibility_->addItems({tr("Público"), tr("Não listado"), tr("Privado")});
+    youtubeForm->addRow(tr("Descrição"), descriptionBox);
+    youtubeForm->addRow(tr("Categoria"), youtubeCategory_);
+    youtubeForm->addRow(tr("Tags"), youtubeTags_);
+    youtubeForm->addRow(tr("Idioma"), youtubeLanguage_);
+    youtubeForm->addRow(tr("Visibilidade"), visibility_);
+    metadataLayout->addWidget(youtubeBox);
     broadcastLayout->addWidget(formCard);
 
     auto *buttons = new QHBoxLayout();
@@ -288,18 +401,37 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     network_ = new QNetworkAccessManager(this);
     loginTimer_ = new QTimer(this); loginTimer_->setSingleShot(true);
     categoryTimer_ = new QTimer(this); categoryTimer_->setSingleShot(true); categoryTimer_->setInterval(350);
-    connect(category_, &QLineEdit::textEdited, this, [this]() { categoryId_.clear(); categoryTimer_->start(); UpdatePreview(); });
+    connect(category_, &QLineEdit::textEdited, this, [this]() {
+        categoryId_.clear();
+        kickCategoryId_.clear();
+        categoryIdPlatform_.clear();
+        previewHasCategoryCover_ = false;
+        UpdatePreviewPlatformVisual();
+        categoryTimer_->start();
+        UpdatePreview();
+    });
+    connect(youtubeCategory_, &QLineEdit::textEdited, this, [this]() {
+        youtubeCategoryId_.clear();
+        UpdatePreview();
+    });
     connect(categoryTimer_, &QTimer::timeout, this, &StreamHubControlDock::SearchCategories);
     connect(categoryResults_, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
-        categoryId_ = item->data(Qt::UserRole).toString(); category_->setText(item->text()); categoryResults_->hide();
-        previewCover_->setPixmap(item->icon().pixmap(52, 72));
+        categoryId_ = item->data(Qt::UserRole).toString();
+        categoryIdPlatform_ = QStringLiteral("twitch");
+        category_->setText(item->text()); categoryResults_->hide();
+        previewHasCategoryCover_ = false;
+        UpdatePreviewPlatformVisual();
         LoadCategoryCover(categoryId_);
         UpdatePreview();
     });
     connect(title_, &QTextEdit::textChanged, this, [this]() { LimitText(title_, titleCount_, 140); UpdatePreview(); });
-    connect(notification_, &QTextEdit::textChanged, this, [this]() { LimitText(notification_, notificationCount_, 140); UpdatePreview(); });
-    connect(tags_, &QLineEdit::textChanged, this, &StreamHubControlDock::UpdatePreview);
-    connect(language_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
+    connect(notification_, &QTextEdit::textChanged, this, [this]() { LimitText(notification_, notificationCount_, 5000); UpdatePreview(); });
+    connect(twitchTags_, &QLineEdit::textChanged, this, &StreamHubControlDock::UpdatePreview);
+    connect(twitchLanguage_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
+    connect(youtubeTags_, &QLineEdit::textChanged, this, &StreamHubControlDock::UpdatePreview);
+    connect(youtubeLanguage_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
+    connect(visibility_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
+    connect(classification_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
     kickLoginTimer_ = new QTimer(this);
     kickLoginTimer_->setSingleShot(true);
     youtubeLoginTimer_ = new QTimer(this);
@@ -339,15 +471,34 @@ void StreamHubControlDock::ConnectTo(int port)
     RefreshAccounts();
 }
 
+void StreamHubControlDock::UpdatePreviewPlatformVisual()
+{
+    if (!previewCover_ || !previewCaption_)
+        return;
+
+    const QString platform = primaryPlatform_.isEmpty() ? QStringLiteral("twitch") : primaryPlatform_;
+    if (!previewHasCategoryCover_)
+        previewCover_->setPixmap(QIcon(PreviewPlatformIcon(platform)).pixmap(38, 38));
+
+    previewCaption_->setStyleSheet(
+        QStringLiteral("color:%1; font-size:10px; font-weight:800;").arg(PreviewPlatformAccent(platform)));
+    previewCaption_->setText(tr("PRÉVIA DA LIVE · %1").arg(PreviewPlatformName(platform)));
+}
+
 void StreamHubControlDock::SetPrimaryPlatform(const QString &platform)
 {
     const QString normalized = platform.trimmed().toLower();
     if (normalized != "twitch" && normalized != "kick" && normalized != "youtube")
         return;
-    if (primaryPlatform_ == normalized)
+    if (primaryPlatform_ == normalized) {
+        UpdatePreviewPlatformVisual();
         return;
+    }
 
     primaryPlatform_ = normalized;
+    if (normalized != "twitch")
+        previewHasCategoryCover_ = false;
+    UpdatePreviewPlatformVisual();
     const QJsonObject *transmission = nullptr;
     if (normalized == "twitch" && !twitchTransmission_.isEmpty())
         transmission = &twitchTransmission_;
@@ -363,6 +514,8 @@ void StreamHubControlDock::SetPrimaryPlatform(const QString &platform)
 void StreamHubControlDock::RefreshAccounts()
 {
     kickLoginHelp_->clear();
+    kickCopyLinkButton_->setVisible(false);
+    kickAuthorizationUri_.clear();
     youtubeLoginHelp_->clear();
     RefreshAccount();
     RefreshKickAccount();
@@ -405,9 +558,27 @@ void StreamHubControlDock::StartTwitchLogin()
     connectButton_->setEnabled(false); accountStatus_->setText(tr("● Preparando autorização..."));
     Request("POST", "/api/accounts/twitch/connect", {}, [this](const QJsonObject &o, int status) {
         if (status != 200) { accountStatus_->setText(o.value("error").toString()); connectButton_->setEnabled(true); return; }
-        const QString url = o.value("verificationUri").toString();
-        loginHelp_->setText(tr("Use o código <b>%1</b> em <a href=\"%2\">%2</a>").arg(o.value("userCode").toString(), url));
-        QDesktopServices::openUrl(QUrl(url)); PollTwitchLogin(o.value("flowId").toString(), o.value("interval").toInt(5));
+        const QString flowId = o.value("flowId").toString();
+        const QString url = o.value("verificationUri").toString().trimmed();
+        const QString safeUrl = SafeAuthorizationUrl(url);
+        if (safeUrl.isEmpty()) {
+            loginHelp_->setText(tr("Twitch retornou link de autorização inválido."));
+            connectButton_->setEnabled(true);
+            return;
+        }
+        loginHelp_->setText(tr("Use o código <b>%1</b> em <a href=\"%2\">%2</a>")
+                                .arg(o.value("userCode").toString().toHtmlEscaped(), safeUrl));
+        if (!QDesktopServices::openUrl(QUrl(url)))
+            loginHelp_->setText(tr("Navegador não abriu. Abra link Twitch: <a href=\"%1\">%1</a>")
+                                    .arg(safeUrl));
+        PollTwitchLogin(flowId, o.value("interval").toInt(5));
+        QTimer::singleShot(10 * 60 * 1000, this, [this, flowId]() {
+            if (!connectButton_->isEnabled()) {
+                connectButton_->setEnabled(true);
+                accountStatus_->setText(tr("● Autorização Twitch expirou. Tente novamente."));
+                loginHelp_->setText(tr("Autorização Twitch expirou. Clique em Conectar novamente."));
+            }
+        });
     });
 }
 
@@ -434,41 +605,64 @@ void StreamHubControlDock::SyncTwitchTransmission()
 void StreamHubControlDock::ApplyTransmissionMetadata(const QJsonObject &transmission,
                                                        const QString &platform)
 {
+    const QString normalized = platform.trimmed().toLower();
     const QString title = transmission.value("title").toString().trimmed();
     const QString category = transmission.value("category").toString().trimmed();
     const QString language = transmission.value("language").toString().trimmed();
-    if (!title.isEmpty())
+
+    if (!title.isEmpty() && title_->toPlainText().trimmed().isEmpty())
         title_->setPlainText(title);
-    if (!category.isEmpty())
-        category_->setText(category);
-    if (platform.compare("twitch", Qt::CaseInsensitive) == 0) {
+
+    auto setTags = [](QLineEdit *edit, const QJsonArray &values) {
+        if (values.isEmpty())
+            return;
+        QStringList tags;
+        for (const auto &value : values) {
+            const QString tag = value.toString().trimmed();
+            if (!tag.isEmpty())
+                tags << tag;
+        }
+        edit->setText(tags.join(", "));
+    };
+
+    if (normalized == "twitch") {
+        if (!category.isEmpty() && category_->text().trimmed().isEmpty())
+            category_->setText(category);
         categoryId_ = transmission.value("categoryId").toString().trimmed();
+        categoryIdPlatform_ = categoryId_.isEmpty() ? QString() : QStringLiteral("twitch");
+        setTags(twitchTags_, transmission.value("tags").toArray());
+        const int languageIndex = twitchLanguage_->findData(language);
+        if (!language.isEmpty() && languageIndex >= 0)
+            twitchLanguage_->setCurrentIndex(languageIndex);
         const QJsonArray labels = transmission.value("classificationLabels").toArray();
         const int classificationIndex = labels.isEmpty()
                                             ? 0
                                             : classification_->findData(labels.first().toString());
         classification_->setCurrentIndex(qMax(0, classificationIndex));
         LoadCategoryCover(categoryId_);
-    } else {
-        categoryId_.clear();
-    }
-
-    const QJsonArray tags = transmission.value("tags").toArray();
-    if (!tags.isEmpty()) {
-        QStringList values;
-        for (const auto &tag : tags)
-            values << tag.toString().trimmed();
-        tags_->setText(values.join(", "));
-    }
-
-    const int languageIndex = language_->findData(language);
-    if (languageIndex >= 0)
-        language_->setCurrentIndex(languageIndex);
-
-    const QString visibility = transmission.value("visibility").toString().trimmed().toLower();
-    if (!visibility.isEmpty()) {
-        const int visibilityIndex = visibility == "public" ? 0 : visibility == "unlisted" ? 1 : 2;
-        visibility_->setCurrentIndex(visibilityIndex);
+    } else if (normalized == "kick") {
+        if (!category.isEmpty() && category_->text().trimmed().isEmpty())
+            category_->setText(category);
+        kickCategoryId_ = transmission.value("categoryId").toString().trimmed();
+        previewHasCategoryCover_ = false;
+        UpdatePreviewPlatformVisual();
+    } else if (normalized == "youtube") {
+        const QString description = transmission.value("description").toString();
+        notification_->setPlainText(description);
+        if (!category.isEmpty())
+            youtubeCategory_->setText(category);
+        youtubeCategoryId_ = transmission.value("categoryId").toString().trimmed();
+        setTags(youtubeTags_, transmission.value("tags").toArray());
+        const int languageIndex = youtubeLanguage_->findData(language);
+        if (!language.isEmpty() && languageIndex >= 0)
+            youtubeLanguage_->setCurrentIndex(languageIndex);
+        const QString visibility = transmission.value("visibility").toString().trimmed().toLower();
+        if (!visibility.isEmpty()) {
+            const int visibilityIndex = visibility == "public" ? 0 : visibility == "unlisted" ? 1 : 2;
+            visibility_->setCurrentIndex(visibilityIndex);
+        }
+        previewHasCategoryCover_ = false;
+        UpdatePreviewPlatformVisual();
     }
     UpdatePreview();
 }
@@ -517,11 +711,10 @@ void StreamHubControlDock::SetTwitchTransmission(const QJsonObject &transmission
         return;
     }
     twitchTransmission_ = transmission;
-    if (primaryPlatform_ == "twitch")
-        ApplyTransmissionMetadata(twitchTransmission_, "twitch");
+    ApplyTransmissionMetadata(twitchTransmission_, "twitch");
     SetTransmissionSyncNotice("twitch", tr("Twitch: sincronizada."));
     twitchSyncButton_->setEnabled(true);
-    loginHelp_->clear();
+    loginHelp_->setText(tr("Twitch: RTMP e stream key sincronizados com Múltiplas saídas."));
     emit twitchTransmissionReceived(twitchTransmission_);
 }
 
@@ -578,6 +771,8 @@ void StreamHubControlDock::RefreshKickAccount()
 
 void StreamHubControlDock::StartKickLogin()
 {
+    kickAuthorizationUri_.clear();
+    kickCopyLinkButton_->setVisible(false);
     kickConnectButton_->setEnabled(false);
     kickAccountStatus_->setProperty("connected", false);
     kickAccountStatus_->style()->unpolish(kickAccountStatus_);
@@ -592,10 +787,28 @@ void StreamHubControlDock::StartKickLogin()
             kickConnectButton_->setEnabled(true);
             return;
         }
-        const QString url = o.value("authorizationUri").toString();
-        kickLoginHelp_->setText(tr("Autorização Kick aberta no navegador."));
-        QDesktopServices::openUrl(QUrl(url));
-        PollKickLogin(o.value("flowId").toString());
+        kickAuthorizationUri_ = o.value("authorizationUri").toString().trimmed();
+        const QString safeUrl = SafeAuthorizationUrl(kickAuthorizationUri_);
+        if (safeUrl.isEmpty()) {
+            kickLoginHelp_->setText(tr("Kick retornou link de autorização inválido."));
+            kickConnectButton_->setEnabled(true);
+            return;
+        }
+        kickLoginHelp_->setText(tr("Abra ou copie link Kick: <a href=\"%1\">%1</a>").arg(safeUrl));
+        kickCopyLinkButton_->setVisible(true);
+        if (!QDesktopServices::openUrl(QUrl(kickAuthorizationUri_)))
+            kickLoginHelp_->setText(tr("Navegador não abriu. Abra link Kick: <a href=\"%1\">%1</a>").arg(safeUrl));
+        const QString flowId = o.value("flowId").toString();
+        PollKickLogin(flowId);
+        QTimer::singleShot(10 * 60 * 1000, this, [this, flowId]() {
+            if (!kickConnectButton_->isEnabled()) {
+                kickConnectButton_->setEnabled(true);
+                kickAccountStatus_->setText(tr("● Autorização Kick expirou. Tente novamente."));
+                kickLoginHelp_->setText(tr("Autorização Kick expirou. Clique em Conectar novamente."));
+                kickCopyLinkButton_->setVisible(false);
+                kickAuthorizationUri_.clear();
+            }
+        });
     });
 }
 
@@ -614,6 +827,8 @@ void StreamHubControlDock::PollKickLogin(const QString &flowId)
             }
             if (o.value("state").toString() == "connected") {
                 kickLoginHelp_->clear();
+                kickAuthorizationUri_.clear();
+                kickCopyLinkButton_->setVisible(false);
                 RefreshKickAccount();
                 return;
             }
@@ -640,11 +855,10 @@ void StreamHubControlDock::SetKickTransmission(const QJsonObject &transmission)
     }
     kickTransmission_ = transmission;
     const bool isLive = kickTransmission_.value("isLive").toBool();
-    if (primaryPlatform_ == "kick")
-        ApplyTransmissionMetadata(kickTransmission_, "kick");
+    ApplyTransmissionMetadata(kickTransmission_, "kick");
     SetTransmissionSyncNotice("kick", isLive ? tr("Kick: sincronizada.") : tr("Kick: offline."));
     kickSyncButton_->setEnabled(true);
-    kickLoginHelp_->clear();
+    kickLoginHelp_->setText(tr("Kick: RTMP e stream key sincronizados com Múltiplas saídas."));
     emit kickTransmissionReceived(kickTransmission_);
 }
 
@@ -671,10 +885,25 @@ void StreamHubControlDock::StartYoutubeLogin()
             youtubeConnectButton_->setEnabled(true);
             return;
         }
-        const QString url = o.value("authorizationUri").toString();
-        youtubeLoginHelp_->setText(tr("Autorização YouTube aberta no navegador."));
-        QDesktopServices::openUrl(QUrl(url));
-        PollYoutubeLogin(o.value("flowId").toString());
+        const QString url = o.value("authorizationUri").toString().trimmed();
+        const QString safeUrl = SafeAuthorizationUrl(url);
+        if (safeUrl.isEmpty()) {
+            youtubeLoginHelp_->setText(tr("YouTube retornou link de autorização inválido."));
+            youtubeConnectButton_->setEnabled(true);
+            return;
+        }
+        youtubeLoginHelp_->setText(tr("Abra link YouTube: <a href=\"%1\">%1</a>").arg(safeUrl));
+        if (!QDesktopServices::openUrl(QUrl(url)))
+            youtubeLoginHelp_->setText(tr("Navegador não abriu. Abra link YouTube: <a href=\"%1\">%1</a>").arg(safeUrl));
+        const QString flowId = o.value("flowId").toString();
+        PollYoutubeLogin(flowId);
+        QTimer::singleShot(10 * 60 * 1000, this, [this, flowId]() {
+            if (!youtubeConnectButton_->isEnabled()) {
+                youtubeConnectButton_->setEnabled(true);
+                youtubeAccountStatus_->setText(tr("● Autorização YouTube expirou. Tente novamente."));
+                youtubeLoginHelp_->setText(tr("Autorização YouTube expirou. Clique em Conectar novamente."));
+            }
+        });
     });
 }
 
@@ -766,8 +995,7 @@ void StreamHubControlDock::SetYoutubeTransmission(const QJsonObject &transmissio
     const QString title = youtubeTransmission_.value("title").toString().trimmed();
     const QString category = youtubeTransmission_.value("category").toString().trimmed();
     const bool isLive = youtubeTransmission_.value("isLive").toBool();
-    if (primaryPlatform_ == "youtube")
-        ApplyTransmissionMetadata(youtubeTransmission_, "youtube");
+    ApplyTransmissionMetadata(youtubeTransmission_, "youtube");
     QStringList details;
     if (isLive && !title.isEmpty())
         details << tr("título: %1").arg(title);
@@ -779,7 +1007,7 @@ void StreamHubControlDock::SetYoutubeTransmission(const QJsonObject &transmissio
             ? tr("YouTube: sincronizada · %1").arg(details.join(tr(" · ")))
             : tr("YouTube: RTMP e stream key sincronizados · live não está ativa."));
     youtubeSyncButton_->setEnabled(true);
-    youtubeLoginHelp_->setText(tr("Transmissão YouTube sincronizada com Múltiplas saídas."));
+    youtubeLoginHelp_->setText(tr("YouTube: RTMP e stream key sincronizados com Múltiplas saídas."));
     emit youtubeTransmissionReceived(youtubeTransmission_);
 }
 
@@ -794,7 +1022,8 @@ void StreamHubControlDock::LoadCategoryCover(const QString &categoryId)
 {
     const QString id = categoryId.trimmed();
     if (id.isEmpty()) {
-        previewCover_->setPixmap(QIcon(":/streamhub-ui/icons/twitch.svg").pixmap(38, 38));
+        previewHasCategoryCover_ = false;
+        UpdatePreviewPlatformVisual();
         return;
     }
 
@@ -808,8 +1037,13 @@ void StreamHubControlDock::LoadCategoryCover(const QString &categoryId)
         art.loadFromData(payload);
         const bool valid = reply->error() == QNetworkReply::NoError && !art.isNull();
         reply->deleteLater();
-        if (valid && categoryId_ == id)
+        if (valid && categoryId_ == id) {
+            previewHasCategoryCover_ = true;
             previewCover_->setPixmap(art.scaled(previewCover_->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        } else if (!valid && categoryId_ == id) {
+            previewHasCategoryCover_ = false;
+            UpdatePreviewPlatformVisual();
+        }
     });
 }
 
@@ -828,18 +1062,66 @@ void StreamHubControlDock::LoadBroadcast()
 
 void StreamHubControlDock::ApplyBroadcast()
 {
-    QJsonArray tags;
-    for (const QString &tag : tags_->text().split(',', Qt::SkipEmptyParts))
-        tags.append(tag.trimmed());
+    auto splitTags = [](const QString &value) {
+        QJsonArray result;
+        for (const QString &tag : value.split(',', Qt::SkipEmptyParts)) {
+            const QString trimmed = tag.trimmed();
+            if (!trimmed.isEmpty())
+                result.append(trimmed);
+        }
+        return result;
+    };
+    const QString title = title_->toPlainText().trimmed();
+    const QString description = notification_->toPlainText().trimmed();
+    const QString gameTitle = category_->text().trimmed();
+    const QString youtubeCategory = youtubeCategory_->text().trimmed();
+    const QJsonArray twitchTags = splitTags(twitchTags_->text());
+    const QJsonArray youtubeTags = splitTags(youtubeTags_->text());
+    const QString twitchLanguage = twitchLanguage_->currentData().toString();
+    const QString youtubeLanguage = youtubeLanguage_->currentData().toString();
+    const QString classification = classification_->currentData().toString();
+    const QString privacyStatus = visibility_->currentIndex() == 0
+                                      ? QStringLiteral("public")
+                                      : visibility_->currentIndex() == 1
+                                          ? QStringLiteral("unlisted")
+                                          : QStringLiteral("private");
+
+    const QJsonObject globalMetadata{
+        {"title", title},
+    };
+    const QJsonObject twitchMetadata{
+        {"enabled", true},
+        {"gameName", gameTitle},
+        {"gameId", categoryId_},
+        {"tags", twitchTags},
+        {"language", twitchLanguage},
+        {"contentClassificationIds", classification.isEmpty() ? QJsonArray{} : QJsonArray{classification}},
+    };
+    const QJsonObject kickMetadata{
+        {"enabled", true},
+        {"categoryName", gameTitle},
+        {"categoryId", kickCategoryId_},
+    };
+    const QJsonObject youtubeMetadata{
+        {"enabled", true},
+        {"description", description},
+        {"privacyStatus", privacyStatus},
+        {"categoryName", youtubeCategory},
+        {"categoryId", youtubeCategoryId_},
+        {"tags", youtubeTags},
+        {"language", youtubeLanguage},
+        {"madeForKids", false},
+        {"selfDeclaredMadeForKids", false},
+    };
+
     const QJsonObject body{
-        {"title", title_->toPlainText().trimmed()},
-        {"notification", notification_->toPlainText().trimmed()},
-        {"category", category_->text().trimmed()},
-        {"categoryId", categoryId_},
-        {"visibility", visibility_->currentIndex()},
-        {"tags", tags},
-        {"language", language_->currentData().toString()},
-        {"classification", classification_->currentData().toString()},
+        {"global_metadata", globalMetadata},
+        {"platforms", QJsonObject{
+            {"twitch", twitchMetadata},
+            {"kick", kickMetadata},
+            {"youtube", youtubeMetadata},
+        }},
+        {"title", title},
         {"sourcePlatform", primaryPlatform_},
     };
     if (primaryPlatform_.isEmpty()) {
@@ -892,6 +1174,8 @@ void StreamHubControlDock::SearchCategories()
 void StreamHubControlDock::UpdatePreview()
 {
     const QString title = title_->toPlainText().trimmed(); previewTitle_->setText(title.isEmpty() ? tr("Título da transmissão") : title);
-    const QString category = category_->text().trimmed(); previewCategory_->setText(category.isEmpty() ? tr("Nenhuma categoria selecionada") : QString("%1 · %2").arg(category, language_->currentText()));
+    const QString category = category_->text().trimmed();
+    const QString language = primaryPlatform_ == "youtube" ? youtubeLanguage_->currentText() : twitchLanguage_->currentText();
+    previewCategory_->setText(category.isEmpty() ? tr("Nenhum jogo selecionado") : QString("%1 · %2").arg(category, language));
     const QString notification = notification_->toPlainText().trimmed(); previewNotification_->setText(notification.isEmpty() ? tr("A prévia é atualizada enquanto você edita.") : notification);
 }

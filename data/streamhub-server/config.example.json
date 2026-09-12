@@ -19,6 +19,37 @@
     }
   },
 
+  "global_metadata": {
+    "title": "",
+    "description": "",
+    "language": "pt",
+    "is_mature": false
+  },
+
+  "platforms": {
+    "youtube": {
+      "enabled": true,
+      "privacyStatus": "public",
+      "categoryId": "",
+      "gameTitle": "",
+      "madeForKids": false,
+      "selfDeclaredMadeForKids": false,
+      "tags": []
+    },
+    "twitch": {
+      "enabled": true,
+      "gameId": "",
+      "gameName": "",
+      "tags": [],
+      "contentClassificationIds": []
+    },
+    "kick": {
+      "enabled": true,
+      "categoryId": "",
+      "categoryName": ""
+    }
+  },
+
   "twitch": {
     "enabled": false,
     "channel": ""

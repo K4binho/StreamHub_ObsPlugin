@@ -91,7 +91,7 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
     auto *chatPage = new QWidget(tabs);
     auto *chatLayout = new QVBoxLayout(chatPage);
     auto *description = new QLabel(
-        QObject::tr("Configure todos os chats disponíveis. As chaves de transmissão ficam no painel Múltiplas saídas. Facebook ainda não possui conector de chat."),
+        QObject::tr("Estas caixas ativam somente chats. Contas conectadas não ativam chat automaticamente. Destinos de live e stream keys ficam em Múltiplas saídas · K4. Facebook ainda não possui conector de chat."),
         chatPage);
     description->setWordWrap(true);
     chatLayout->addWidget(description);

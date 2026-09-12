@@ -542,25 +542,95 @@ function createAccounts(directory, request = fetch) {
   };
 
   const updateTransmission = async (platform, input = {}) => {
-    const sourcePlatform = String(input.sourcePlatform || '').trim().toLowerCase();
-    const title = String(input.title || '').trim();
-    const category = String(input.category || '').trim();
-    const categoryId = String(input.categoryId || '').trim();
-    const tags = Array.isArray(input.tags)
-      ? input.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 10)
-      : null;
-    const language = String(input.language || '').trim();
+    const globalMetadata = input.global_metadata && typeof input.global_metadata === 'object'
+      ? input.global_metadata
+      : {};
+    const allPlatforms = input.platforms && typeof input.platforms === 'object'
+      ? input.platforms
+      : {};
+    const platformMetadata = input.platformSettings && typeof input.platformSettings === 'object'
+      ? input.platformSettings
+      : (allPlatforms[platform] && typeof allPlatforms[platform] === 'object' ? allPlatforms[platform] : {});
+    const title = String(globalMetadata.title ?? input.title ?? '').trim();
+    const descriptionProvided = platform === 'youtube'
+      && (Object.prototype.hasOwnProperty.call(platformMetadata, 'description')
+        || Object.prototype.hasOwnProperty.call(globalMetadata, 'description')
+        || Object.prototype.hasOwnProperty.call(input, 'description')
+        || Object.prototype.hasOwnProperty.call(input, 'notification'));
+    const description = platform === 'youtube'
+      ? String(platformMetadata.description ?? globalMetadata.description ?? input.description ?? input.notification ?? '').trim()
+      : '';
+    const platformLanguage = Object.prototype.hasOwnProperty.call(platformMetadata, 'language')
+      ? platformMetadata.language
+      : input.language;
+    const language = String(platformLanguage || '').trim();
+    const isMature = typeof globalMetadata.is_mature === 'boolean'
+      ? globalMetadata.is_mature
+      : Boolean(input.is_mature);
+    const categoryField = platform === 'twitch'
+      ? 'gameName'
+      : platform === 'kick'
+        ? 'categoryName'
+        : 'categoryName';
+    const category = String(Object.prototype.hasOwnProperty.call(platformMetadata, categoryField)
+      ? platformMetadata[categoryField]
+      : input.category || '').trim();
+    const categoryId = String(Object.prototype.hasOwnProperty.call(platformMetadata, 'categoryId')
+      ? platformMetadata.categoryId
+      : platform === 'twitch' && Object.prototype.hasOwnProperty.call(platformMetadata, 'gameId')
+        ? platformMetadata.gameId
+        : '').trim();
+    const normalizeTags = (value, limit, maxCharacters) => {
+      if (!Array.isArray(value)) return null;
+      const result = [];
+      let used = 0;
+      for (const raw of value) {
+        const tag = String(raw || '').trim();
+        if (!tag || result.length >= limit || used + tag.length > maxCharacters) continue;
+        result.push(tag);
+        used += tag.length;
+      }
+      return result;
+    };
+    const tags = normalizeTags(
+      Object.prototype.hasOwnProperty.call(platformMetadata, 'tags') ? platformMetadata.tags : input.tags,
+      platform === 'twitch' ? 5 : 50,
+      platform === 'youtube' ? 500 : 1000,
+    );
+    const privacyStatus = String(
+      platformMetadata.privacyStatus
+      || input.privacyStatus
+      || (Number(input.visibility) === 0 ? 'public' : Number(input.visibility) === 1 ? 'unlisted' : Number(input.visibility) === 2 ? 'private' : ''),
+    ).trim().toLowerCase();
+    const classificationIds = Array.isArray(platformMetadata.contentClassificationIds)
+      ? platformMetadata.contentClassificationIds.map((id) => String(id).trim()).filter(Boolean)
+      : Array.isArray(input.contentClassificationIds)
+        ? input.contentClassificationIds.map((id) => String(id).trim()).filter(Boolean)
+        : typeof input.classification === 'string' && input.classification.trim()
+          ? [input.classification.trim()]
+          : [];
+    const classificationProvided = Object.prototype.hasOwnProperty.call(platformMetadata, 'contentClassificationIds')
+      || Array.isArray(input.contentClassificationIds)
+      || typeof input.classification === 'string'
+      || typeof globalMetadata.is_mature === 'boolean'
+      || typeof input.is_mature === 'boolean';
+    const madeForKids = typeof platformMetadata.madeForKids === 'boolean'
+      ? platformMetadata.madeForKids
+      : (typeof input.madeForKids === 'boolean' ? input.madeForKids : undefined);
+    const selfDeclaredMadeForKids = typeof platformMetadata.selfDeclaredMadeForKids === 'boolean'
+      ? platformMetadata.selfDeclaredMadeForKids
+      : (typeof input.selfDeclaredMadeForKids === 'boolean' ? input.selfDeclaredMadeForKids : undefined);
     if (!title) throw new Error('Informe o título da transmissão.');
     if (title.length > 140) throw new Error('O título pode ter no máximo 140 caracteres.');
 
     if (platform === 'twitch') {
-      const broadcasterId = await (async () => (await access()).userId)();
+      const account = await access();
       const body = { title };
-      let gameId = sourcePlatform === 'twitch' ? categoryId : '';
+      let gameId = categoryId;
       if (!gameId && category) {
         const found = await requestJson(
           `https://api.twitch.tv/helix/search/categories?query=${encodeURIComponent(category)}&first=10`,
-          { headers: { Authorization: `Bearer ${(await access()).access_token}`, 'Client-Id': TWITCH_CLIENT_ID, Accept: 'application/json' } },
+          { headers: { Authorization: `Bearer ${account.access_token}`, 'Client-Id': TWITCH_CLIENT_ID, Accept: 'application/json' } },
           'A Twitch',
         );
         const exact = (found.data || []).find((item) => String(item.name || '').toLowerCase() === category.toLowerCase());
@@ -570,13 +640,14 @@ function createAccounts(directory, request = fetch) {
       if (gameId) body.game_id = gameId;
       if (tags) body.tags = tags;
       if (language) body.broadcaster_language = language;
-      const classificationIds = ['ProfanityVulgarity', 'ViolentGraphic', 'DebatedSocialIssuesAndPolitics', 'Gambling'];
-      if (typeof input.classification === 'string') {
-        body.content_classification_labels = classificationIds.map((id) => ({ id, is_enabled: id === input.classification }));
+      if (classificationProvided) {
+        const supported = ['ProfanityVulgarity', 'ViolentGraphic', 'DebatedSocialIssuesAndPolitics', 'Gambling'];
+        const effective = classificationIds.length ? classificationIds : (isMature ? ['ProfanityVulgarity'] : []);
+        body.content_classification_labels = supported.map((id) => ({ id, is_enabled: effective.includes(id) }));
       }
       await requestJson(
-        `https://api.twitch.tv/helix/channels?broadcaster_id=${encodeURIComponent(broadcasterId)}`,
-        { method: 'PATCH', body: JSON.stringify(body), headers: { Authorization: `Bearer ${(await access()).access_token}`, 'Client-Id': TWITCH_CLIENT_ID, 'Content-Type': 'application/json' } },
+        `https://api.twitch.tv/helix/channels?broadcaster_id=${encodeURIComponent(account.userId)}`,
+        { method: 'PATCH', body: JSON.stringify(body), headers: { Authorization: `Bearer ${account.access_token}`, 'Client-Id': TWITCH_CLIENT_ID, 'Content-Type': 'application/json' } },
         'A Twitch',
       );
       return { platform: 'twitch' };
@@ -585,7 +656,7 @@ function createAccounts(directory, request = fetch) {
     if (platform === 'kick') {
       const account = await kickAccess();
       const body = { stream_title: title };
-      let kickCategoryId = sourcePlatform === 'kick' ? categoryId : '';
+      let kickCategoryId = categoryId;
       if (!kickCategoryId && category) {
         const found = await kickRequest(`/categories?q=${encodeURIComponent(category)}`);
         const exact = (found.data || []).find((item) => String(item.name || '').toLowerCase() === category.toLowerCase());
@@ -599,33 +670,29 @@ function createAccounts(directory, request = fetch) {
         }
         body.category_id = numericCategoryId;
       }
-      await kickRequest('/channels', {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      });
+      await kickRequest('/channels', { method: 'PATCH', body: JSON.stringify(body) });
       return { platform: 'kick', broadcasterId: String(account.userId || '') };
     }
 
     if (platform === 'youtube') {
       const current = await youtubeTransmission();
       if (!current.broadcastId) throw new Error('O YouTube não encontrou uma transmissão atualizável.');
-      let youtubeCategoryId = sourcePlatform === 'youtube' ? categoryId : current.categoryId;
+      let youtubeCategoryId = categoryId;
       if (!youtubeCategoryId && category) {
         const found = await youtubeRequest('/videoCategories?part=snippet&regionCode=US&maxResults=50');
         const exact = (found.items || []).find((item) => String(item.snippet?.title || '').toLowerCase() === category.toLowerCase());
         if (!exact) throw new Error('Selecione uma categoria existente do YouTube.');
-        youtubeCategoryId = String(exact.id || '');
+        youtubeCategoryId = String(exact.id || '').trim();
       }
+      if (!youtubeCategoryId) youtubeCategoryId = current.categoryId;
       if (!youtubeCategoryId) throw new Error('Selecione uma categoria existente do YouTube.');
-      const broadcasts = await youtubeRequest(
-        `/liveBroadcasts?part=snippet&id=${encodeURIComponent(current.broadcastId)}`,
-      );
+      const broadcasts = await youtubeRequest(`/liveBroadcasts?part=snippet&id=${encodeURIComponent(current.broadcastId)}`);
       const broadcast = broadcasts.items?.[0];
       if (!broadcast) throw new Error('O YouTube não encontrou a transmissão atual.');
       const currentSnippet = broadcast.snippet || {};
       const broadcastSnippet = {
         title,
-        description: String(current.description || currentSnippet.description || ''),
+        description: descriptionProvided ? description : String(current.description || currentSnippet.description || ''),
       };
       if (currentSnippet.scheduledStartTime) broadcastSnippet.scheduledStartTime = currentSnippet.scheduledStartTime;
       if (currentSnippet.scheduledEndTime) broadcastSnippet.scheduledEndTime = currentSnippet.scheduledEndTime;
@@ -637,9 +704,9 @@ function createAccounts(directory, request = fetch) {
       if (tags) videoSnippet.tags = tags;
       if (language) videoSnippet.defaultLanguage = language;
       const videoStatus = {};
-      if (Number(input.visibility) === 0) videoStatus.privacyStatus = 'public';
-      else if (Number(input.visibility) === 1) videoStatus.privacyStatus = 'unlisted';
-      else if (Number(input.visibility) === 2) videoStatus.privacyStatus = 'private';
+      if (privacyStatus) videoStatus.privacyStatus = privacyStatus;
+      if (typeof madeForKids === 'boolean') videoStatus.selfDeclaredMadeForKids = madeForKids;
+      if (typeof selfDeclaredMadeForKids === 'boolean') videoStatus.selfDeclaredMadeForKids = selfDeclaredMadeForKids;
       await youtubeRequest('/videos?part=snippet,status', {
         method: 'PUT',
         body: JSON.stringify({ id: current.broadcastId, snippet: videoSnippet, status: videoStatus }),
