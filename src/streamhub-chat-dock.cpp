@@ -17,6 +17,7 @@
 #include <QNetworkRequest>
 #include <QPushButton>
 #include <QPainter>
+#include <QResizeEvent>
 #include <QScrollBar>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -45,12 +46,38 @@ QIcon IconForPlatform(const QString &platform)
 {
     return QIcon(QString(":/streamhub-ui/icons/%1.svg").arg(platform));
 }
+
+QString AddLongWordBreaks(const QString &text)
+{
+    QString result;
+    result.reserve(text.size() + text.size() / 40);
+    int wordLength = 0;
+    for (qsizetype index = 0; index < text.size(); ++index) {
+        const QChar current = text.at(index);
+        QString character(current);
+        if (current.isHighSurrogate() && index + 1 < text.size() && text.at(index + 1).isLowSurrogate())
+            character += text.at(++index);
+        result += character;
+        if (current.isSpace()) {
+            wordLength = 0;
+        } else if (++wordLength >= 40) {
+            result += QChar(0x200B);
+            wordLength = 0;
+        }
+    }
+    return result;
+}
 }
 
 StreamHubChatDock::StreamHubChatDock(QWidget *parent)
     : QWidget(parent), background_(":/streamhub-ui/branding/streamhub-background.png"),
       crown_(":/streamhub-ui/branding/k4-crown.png")
 {
+    // O OBS consulta o sizeHint durante o registro do dock. Sem uma dica
+    // inicial, o QListWidget vazio faz o painel nascer quase sem altura e só
+    // ganhar o tamanho real depois que o primeiro ciclo de eventos termina.
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
     auto *container = this;
     container->setObjectName("streamHubChat");
     auto *layout = new QVBoxLayout(container);
@@ -255,6 +282,16 @@ StreamHubChatDock::StreamHubChatDock(QWidget *parent)
     connect(retryTimer_, &QTimer::timeout, this, &StreamHubChatDock::PollOnce);
 }
 
+QSize StreamHubChatDock::sizeHint() const
+{
+    // Mantém uma abertura confortável para o chat, mas não interfere no
+    // tamanho que o OBS já tenha salvo no layout do usuário.
+    constexpr QSize kInitialChatDockSize(560, 620);
+    const QSize calculated = QWidget::sizeHint();
+    return QSize(qMax(calculated.width(), kInitialChatDockSize.width()),
+                 qMax(calculated.height(), kInitialChatDockSize.height()));
+}
+
 void StreamHubChatDock::paintEvent(QPaintEvent *event)
 {
     QWidget::paintEvent(event);
@@ -275,6 +312,40 @@ void StreamHubChatDock::paintEvent(QPaintEvent *event)
         painter.setOpacity(0.13);
         painter.drawPixmap(width() - crown.width() - 14, 70, crown);
     }
+}
+
+void StreamHubChatDock::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    QTimer::singleShot(0, this, &StreamHubChatDock::UpdateMessageItemSizes);
+}
+
+void StreamHubChatDock::UpdateMessageItemSizes()
+{
+    if (!list_ || !list_->viewport())
+        return;
+
+    const int itemWidth = list_->viewport()->width();
+    if (itemWidth <= 0)
+        return;
+
+    for (int index = 0; index < list_->count(); ++index) {
+        auto *item = list_->item(index);
+        auto *row = list_->itemWidget(item);
+        if (!row)
+            continue;
+
+        row->setMinimumWidth(0);
+        row->resize(itemWidth, row->height());
+        if (auto *rowLayout = row->layout())
+            rowLayout->activate();
+
+        int height = row->hasHeightForWidth() ? row->heightForWidth(itemWidth) : row->sizeHint().height();
+        if (height <= 0)
+            height = row->sizeHint().height();
+        item->setSizeHint(QSize(itemWidth, qMax(height, row->minimumSizeHint().height())));
+    }
+    list_->doItemsLayout();
 }
 
 void StreamHubChatDock::ConnectTo(int port)
@@ -328,14 +399,23 @@ void StreamHubChatDock::PrepareForRestart()
 
 void StreamHubChatDock::OnConfigureClicked()
 {
-    QString error;
-    if (StreamHubChatSettings::Edit(this, configPath_, &error)) {
-        SetConfigPath(configPath_);
-        PrepareForRestart();
-        emit SettingsSaved();
-    } else if (!error.isEmpty()) {
-        QMessageBox::critical(this, tr("Erro de configuração"), error);
-    }
+    QNetworkRequest request{QUrl(QString("http://127.0.0.1:%1/api/accounts/chat-identities").arg(port_))};
+    QNetworkReply *reply = actionNet_->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        QJsonObject connectedAccounts;
+        if (reply->error() == QNetworkReply::NoError)
+            connectedAccounts = QJsonDocument::fromJson(reply->readAll()).object();
+        reply->deleteLater();
+
+        QString error;
+        if (StreamHubChatSettings::Edit(this, configPath_, connectedAccounts, &error)) {
+            SetConfigPath(configPath_);
+            PrepareForRestart();
+            emit SettingsSaved();
+        } else if (!error.isEmpty()) {
+            QMessageBox::critical(this, tr("Erro de configuração"), error);
+        }
+    });
 }
 
 void StreamHubChatDock::OnAdminClicked()
@@ -570,6 +650,7 @@ void StreamHubChatDock::AppendChatLine(const QString &platform, const QString &u
     auto *message = new QLabel(row);
     message->setTextFormat(Qt::RichText);
     message->setWordWrap(true);
+    message->setMinimumWidth(0);
     QString badgeMarkup;
     for (QString badgeName : badges) {
         badgeName = badgeName.toLower();
@@ -583,12 +664,14 @@ void StreamHubChatDock::AppendChatLine(const QString &platform, const QString &u
                                .arg(ColorForPlatform(platform), shortName);
     }
     message->setText(QString("<b style='color:%1'>%2</b>%3&nbsp;&nbsp;<span style='color:#f2f7ff'>%4</span>")
-                         .arg(ColorForPlatform(platform), user.toHtmlEscaped(), badgeMarkup, text.toHtmlEscaped()));
+                         .arg(ColorForPlatform(platform), user.toHtmlEscaped(), badgeMarkup,
+                              AddLongWordBreaks(text).toHtmlEscaped()));
     rowLayout->addWidget(message, 1);
 
     item->setSizeHint(row->sizeHint());
     list_->addItem(item);
     list_->setItemWidget(item, row);
+    UpdateMessageItemSizes();
     item->setHidden(activeFilter_ != "all" && activeFilter_ != platform);
 
     const QString lowered = text.toLower();

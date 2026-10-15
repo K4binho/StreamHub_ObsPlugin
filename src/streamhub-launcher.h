@@ -6,6 +6,8 @@
 #include <QString>
 #include <QtGlobal>
 
+#include <functional>
+
 class QNetworkAccessManager;
 class QNetworkReply;
 class StreamHubNodeProvision;
@@ -55,16 +57,17 @@ signals:
 
 private:
     void OnNodeReady(const QString &nodePath, const QString &npmCliPath);
+    void PreparePreviousInstanceAsync();
+    void PollPreviousInstanceShutdown();
+    void FinishPreviousInstancePreparation(bool allowStart);
+    void RequestInternalJsonAsync(const QString &path, const QString &token, qint64 expectedPid,
+                                  qint64 expectedObsPid, int port, const QJsonObject &body,
+                                  std::function<void(bool, const QJsonObject &)> callback,
+                                  int timeoutMs = 1500);
     void RunNpmInstallThenStart(const QString &nodePath, const QString &npmCliPath);
     void StartServerProcess(const QString &nodePath);
     bool DependenciesAreComplete() const;
     bool SaveDependencyMarker() const;
-    bool PreparePreviousInstance();
-    bool RequestInternal(const QString &path, const QString &token, qint64 expectedPid,
-                         qint64 expectedObsPid, int port) const;
-    bool RequestInternalJson(const QString &path, const QString &token, qint64 expectedPid,
-                             qint64 expectedObsPid, int port, const QJsonObject &body,
-                             QJsonObject *response) const;
     bool WriteRuntime(qint64 nodePid) const;
     void RemoveOwnedRuntime() const;
     QString NewInstanceToken() const;
@@ -85,5 +88,11 @@ private:
     int port_ = 605;
     bool restartPending_ = false;
     bool stopping_ = false;
+    bool previousInstancePreparationPending_ = false;
+    int previousInstanceShutdownPolls_ = 0;
+    StreamHubRuntime previousRuntime_;
+    QString pendingNodePath_;
+    QString pendingNpmCliPath_;
+    bool stopPending_ = false;
     StreamHubJobHandle jobHandle_ = nullptr;
 };

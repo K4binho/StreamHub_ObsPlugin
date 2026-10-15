@@ -72,6 +72,17 @@ router.get('/accounts/youtube/status', (_req, res) => {
   res.json(accounts.youtubeStatus());
 });
 
+router.get('/accounts/chat-identities', (_req, res) => {
+  const twitch = accounts.status();
+  const kick = accounts.kickStatus();
+  const youtube = accounts.youtubeStatus();
+  res.json({
+    twitch: { connected: twitch.connected, name: twitch.name },
+    kick: { connected: kick.connected, name: kick.name },
+    youtube: { connected: youtube.connected, name: youtube.name },
+  });
+});
+
 router.post('/accounts/youtube/configure', (req, res) => {
   const address = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
   if (!['127.0.0.1', '::1', 'localhost'].includes(address)) {
@@ -212,19 +223,27 @@ router.patch('/twitch/channel', async (req, res) => {
 router.get('/broadcast/current', async (req, res) => {
   const platform = String(req.query.platform || '').trim().toLowerCase();
   const loaders = {
-    twitch: () => accounts.twitchTransmission(),
-    kick: () => accounts.kickTransmission(),
-    youtube: () => accounts.youtubeTransmission(),
+    twitch: () => accounts.twitchBroadcastContent(),
+    kick: () => accounts.kickBroadcastContent(),
+    youtube: () => accounts.youtubeBroadcastContent(String(req.query.broadcastId || '').trim()),
   };
   if (!loaders[platform]) return res.status(400).json({ error: 'Plataforma primária inválida.' });
   try {
     const transmission = await loaders[platform]();
     res.json({
       platform,
+      broadcastId: String(transmission.broadcastId || ''),
       title: String(transmission.title || ''),
       description: String(transmission.description || ''),
       category: String(transmission.category || ''),
       categoryId: String(transmission.categoryId || ''),
+      broadcastTitle: String(transmission.broadcastTitle || ''),
+      broadcastDescription: String(transmission.broadcastDescription || ''),
+      broadcastCategoryId: String(transmission.broadcastCategoryId || ''),
+      videoTitle: String(transmission.videoTitle || ''),
+      videoDescription: String(transmission.videoDescription || ''),
+      videoCategoryId: String(transmission.videoCategoryId || ''),
+      metadataMismatch: Boolean(transmission.metadataMismatch),
       tags: Array.isArray(transmission.tags) ? transmission.tags : [],
       language: String(transmission.language || ''),
       visibility: String(transmission.visibility || ''),
@@ -233,6 +252,14 @@ router.get('/broadcast/current', async (req, res) => {
         : [],
       isLive: Boolean(transmission.isLive),
     });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/broadcast/youtube/events', async (_req, res) => {
+  try {
+    res.json({ items: await accounts.youtubeBroadcastEvents() });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -278,14 +305,22 @@ router.post('/broadcast/apply', async (req, res) => {
       continue;
     }
     try {
-      await accounts.updateTransmission(platform, { ...input, platformSettings: settings });
+      const update = await accounts.updateTransmission(platform, { ...input, platformSettings: settings });
       results.push({
         platform: name,
         ok: true,
-        message: 'Informações atualizadas.',
+        message: String(update?.message || 'Informações atualizadas.'),
+        ...(update?.broadcastId ? { broadcastId: String(update.broadcastId) } : {}),
       });
     } catch (err) {
-      results.push({ platform: name, ok: false, message: err.message });
+      results.push({
+        platform: name,
+        ok: false,
+        message: err.message,
+        ...(platform === 'youtube' && settings?.broadcastId
+          ? { broadcastId: String(settings.broadcastId) }
+          : {}),
+      });
     }
   }
   res.json({ results });

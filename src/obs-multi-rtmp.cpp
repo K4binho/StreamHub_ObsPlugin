@@ -27,6 +27,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QApplication>
+#include <QAction>
 #include <QDialog>
 #include <QDockWidget>
 #include <QFile>
@@ -36,6 +37,11 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QPainter>
+#include <QPainterPath>
+#include <QLinearGradient>
+#include <QMainWindow>
+#include <QListWidget>
+#include <QStackedWidget>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -410,13 +416,19 @@ public:
     QSize sizeHint() const override
     {
         QSize hint = QListWidget::sizeHint();
+        // A lista é criada antes dos destinos serem carregados. Sem uma
+        // largura base, o QDockWidget nasce estreito e aumenta quando os
+        // cards aparecem, deslocando todo o layout do OBS.
+        hint.setWidth((std::max)(hint.width(), 380));
         hint.setHeight(ContentHeight());
         return hint;
     }
 
     QSize minimumSizeHint() const override
     {
-        return sizeHint();
+        // A largura da dock é do usuário; o hint mínimo da lista não deve
+        // forçar a área rolável a ficar maior que o viewport.
+        return QSize(0, ContentHeight());
     }
 
 protected:
@@ -453,7 +465,7 @@ private:
             const auto *item = widget->item(i);
             const int itemHeight = item ? item->sizeHint().height() : 0;
             const int rowHeight = (std::max)(itemHeight, widget->sizeHintForRow(i));
-            totalHeight += rowHeight > 0 ? rowHeight : 82;
+            totalHeight += rowHeight > 0 ? rowHeight : 68;
         }
 
         if (itemCount > 1) {
@@ -461,6 +473,111 @@ private:
         }
 
         return (std::max)(totalHeight, frameWidth() * 2);
+    }
+};
+
+class MainStreamToggleButton : public QPushButton
+{
+public:
+    explicit MainStreamToggleButton(QWidget *parent = nullptr) : QPushButton(parent)
+    {
+        setCheckable(true);
+        setCursor(Qt::PointingHandCursor);
+        setFixedSize(48, 26);
+    }
+
+    void SetAccentColor(const QColor &color)
+    {
+        accent_ = color;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF track = QRectF(rect()).adjusted(1, 2, -1, -2);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(isChecked() ? accent_ : QColor("#304257"));
+        painter.drawRoundedRect(track, track.height() / 2, track.height() / 2);
+        const qreal diameter = track.height() - 6;
+        const qreal x = isChecked() ? track.right() - diameter - 3 : track.left() + 3;
+        painter.setBrush(QColor("#f2f7ff"));
+        painter.drawEllipse(QRectF(x, track.top() + 3, diameter, diameter));
+    }
+
+private:
+    QColor accent_ = QColor("#16d86a");
+};
+
+class SummaryMetricIcon : public QWidget
+{
+public:
+    enum class Kind { Bandwidth, Live };
+    SummaryMetricIcon(Kind kind, QWidget *parent = nullptr) : QWidget(parent), kind_(kind)
+    {
+        setFixedSize(28, 28);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QPen(QColor("#00c8ff"), 2.0, Qt::SolidLine, Qt::RoundCap));
+        p.setBrush(Qt::NoBrush);
+        if (kind_ == Kind::Bandwidth) {
+            p.drawArc(QRectF(3, 4, 22, 22), 30 * 16, 120 * 16);
+            p.drawLine(QPointF(14, 16), QPointF(20, 10));
+            p.setBrush(QColor("#00c8ff"));
+            p.drawEllipse(QPointF(14, 16), 2.0, 2.0);
+        } else {
+            p.drawArc(QRectF(2, 3, 24, 24), 315 * 16, 90 * 16);
+            p.drawArc(QRectF(2, 3, 24, 24), 135 * 16, 90 * 16);
+            p.drawArc(QRectF(7, 8, 14, 14), 315 * 16, 90 * 16);
+            p.drawArc(QRectF(7, 8, 14, 14), 135 * 16, 90 * 16);
+            p.setBrush(QColor("#00c8ff"));
+            p.setPen(Qt::NoPen);
+            p.drawEllipse(QPointF(14, 15), 2.0, 2.0);
+        }
+    }
+
+private:
+    Kind kind_;
+};
+
+class FooterHeartIcon : public QWidget
+{
+public:
+    explicit FooterHeartIcon(QWidget *parent = nullptr) : QWidget(parent)
+    {
+        setFixedSize(42, 42);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        QPainterPath heart;
+        heart.moveTo(21, 37);
+        heart.cubicTo(17, 32, 4, 25, 4, 16);
+        heart.cubicTo(4, 7, 15, 4, 21, 12);
+        heart.cubicTo(27, 4, 38, 7, 38, 16);
+        heart.cubicTo(38, 25, 25, 32, 21, 37);
+        QLinearGradient gradient(3, 3, 39, 39);
+        gradient.setColorAt(0.0, QColor("#00d8ff"));
+        gradient.setColorAt(0.58, QColor("#1688ff"));
+        gradient.setColorAt(1.0, QColor("#983cff"));
+        p.setPen(QPen(QBrush(gradient), 2.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(Qt::NoBrush);
+        p.drawPath(heart);
+        QPainterPath accent;
+        accent.moveTo(29, 27);
+        accent.cubicTo(34, 26, 38, 29, 38, 33);
+        accent.cubicTo(38, 36, 35, 38, 32, 38);
+        p.drawPath(accent);
     }
 };
 
@@ -473,21 +590,35 @@ public:
     {
         setWindowTitle(ModuleText("Title", "Múltiplas saídas"));
         setObjectName("streamHubOutputs");
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
         container_ = new StreamHubBackdrop(&scroll_);
         container_->setObjectName("outputsPage");
         layout_ = new QVBoxLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
-        layout_->setSizeConstraint(QLayout::SetMinAndMaxSize);
-        layout_->setContentsMargins(12, 12, 12, 12);
-        layout_->setSpacing(10);
+        // O dock deve conservar o tamanho salvo pelo OBS. SetMinAndMaxSize
+        // fazia a geometria acompanhar mudanças no conteúdo (targets/status),
+        // reorganizando o layout do usuário de forma inesperada.
+        layout_->setSizeConstraint(QLayout::SetDefaultConstraint);
+        layout_->setContentsMargins(10, 10, 10, 8);
+        layout_->setSpacing(7);
+
+        // Mantém os blocos superiores na mesma coluna interna dos cards da lista.
+        auto addCardColumnInset = [this](QWidget *content) {
+            auto *inset = new QWidget(container_);
+            auto *insetLayout = new QHBoxLayout(inset);
+            insetLayout->setContentsMargins(10, 0, 10, 0);
+            insetLayout->setSpacing(0);
+            insetLayout->addWidget(content);
+            return inset;
+        };
 
         auto header = new QWidget(container_);
         auto headerLayout = new QHBoxLayout(header);
-        headerLayout->setContentsMargins(0, 0, 0, 0);
+        headerLayout->setContentsMargins(10, 0, 10, 0);
         auto headerIcon = new QLabel(header);
         headerIcon->setObjectName("outputsTitleIcon");
-        headerIcon->setFixedSize(28, 28);
+        headerIcon->setFixedSize(26, 26);
         headerIcon->setAlignment(Qt::AlignCenter);
         headerIcon->setPixmap(QIcon(":/streamhub-ui/icons/camera.svg").pixmap(24, 24));
         headerLayout->addWidget(headerIcon);
@@ -513,32 +644,66 @@ public:
             ShowSettingsFor(newId, pushWidget);
         });
         headerLayout->addWidget(addButton);
-        layout_->addWidget(header);
+        layout_->addWidget(addCardColumnInset(header));
 
         // start all, stop all
         auto allBtnContainer = new QWidget(container_);
-        allBtnContainer->setMinimumHeight(58);
+        allBtnContainer->setFixedHeight(42);
         auto allBtnLayout = new QHBoxLayout();
-        allBtnLayout->setContentsMargins(0, 2, 0, 8);
-        allBtnLayout->setSpacing(9);
+        allBtnLayout->setContentsMargins(0, 0, 0, 0);
+        allBtnLayout->setSpacing(7);
         auto startAllButton = new QPushButton(ModuleText("Btn.StartAll", "Iniciar tudo"), allBtnContainer);
         startAllButton->setObjectName("startAll");
         startAllButton->setIcon(QIcon(":/streamhub-ui/icons/play.svg"));
         startAllButton->setIconSize(QSize(17, 17));
-        startAllButton->setFixedHeight(48);
-        allBtnLayout->addWidget(startAllButton);
+        startAllButton->setFixedHeight(36);
+        allBtnLayout->addWidget(startAllButton, 1);
         auto stopAllButton = new QPushButton(ModuleText("Btn.StopAll", "Parar tudo"), allBtnContainer);
         stopAllButton->setObjectName("stopAll");
         stopAllButton->setIcon(QIcon(":/streamhub-ui/icons/stop.svg"));
         stopAllButton->setIconSize(QSize(15, 15));
-        stopAllButton->setFixedHeight(48);
-        allBtnLayout->addWidget(stopAllButton);
+        stopAllButton->setFixedHeight(36);
+        allBtnLayout->addWidget(stopAllButton, 1);
         allBtnContainer->setLayout(allBtnLayout);
-        layout_->addWidget(allBtnContainer);
+        layout_->addWidget(addCardColumnInset(allBtnContainer));
 
-        aggregateBitrate_ = new QLabel(tr("Banda das saídas: 0,00 Mbps"), container_);
+        auto *outputSummary = new QWidget(container_);
+        outputSummary->setObjectName("outputSummary");
+        outputSummary->setFixedHeight(52);
+        auto *summaryLayout = new QHBoxLayout(outputSummary);
+        summaryLayout->setContentsMargins(10, 5, 10, 5);
+        summaryLayout->setSpacing(8);
+        auto *bandwidthIcon = new SummaryMetricIcon(SummaryMetricIcon::Kind::Bandwidth, outputSummary);
+        summaryLayout->addWidget(bandwidthIcon);
+        auto *bandwidthDetails = new QWidget(outputSummary);
+        auto *bandwidthLayout = new QVBoxLayout(bandwidthDetails);
+        bandwidthLayout->setContentsMargins(0, 0, 0, 0);
+        bandwidthLayout->setSpacing(0);
+        auto *bandwidthTitle = new QLabel(tr("Banda das saídas"), bandwidthDetails);
+        bandwidthTitle->setObjectName("summaryTitle");
+        bandwidthLayout->addWidget(bandwidthTitle);
+        aggregateBitrate_ = new QLabel(tr("0,00 Mbps"), bandwidthDetails);
         aggregateBitrate_->setObjectName("aggregateBitrate");
-        layout_->addWidget(aggregateBitrate_, 0, Qt::AlignRight);
+        bandwidthLayout->addWidget(aggregateBitrate_);
+        summaryLayout->addWidget(bandwidthDetails, 1);
+        auto *summaryDivider = new QFrame(outputSummary);
+        summaryDivider->setObjectName("summaryDivider");
+        summaryDivider->setFixedSize(1, 32);
+        summaryLayout->addWidget(summaryDivider);
+        auto *liveIcon = new SummaryMetricIcon(SummaryMetricIcon::Kind::Live, outputSummary);
+        summaryLayout->addWidget(liveIcon);
+        auto *liveDetails = new QWidget(outputSummary);
+        auto *liveLayout = new QVBoxLayout(liveDetails);
+        liveLayout->setContentsMargins(0, 0, 0, 0);
+        liveLayout->setSpacing(0);
+        activeOutputs_ = new QLabel(tr("0 ativa(s)"), liveDetails);
+        activeOutputs_->setObjectName("activeOutputs");
+        liveLayout->addWidget(activeOutputs_);
+        auto *liveDescription = new QLabel(tr("Transmissões ativas"), liveDetails);
+        liveDescription->setObjectName("summaryTitle");
+        liveLayout->addWidget(liveDescription);
+        summaryLayout->addWidget(liveDetails, 1);
+        layout_->addWidget(addCardColumnInset(outputSummary));
         aggregateTimer_ = new QTimer(this);
         aggregateTimer_->setInterval(1000);
         QObject::connect(aggregateTimer_, &QTimer::timeout, this, [this]() {
@@ -573,38 +738,75 @@ public:
             totalBps += mainCurrentBps_;
 
             aggregateBitrate_->setText(
-                tr("Banda das saídas: %1 Mbps · %2 ativa(s)")
-                    .arg(QLocale().toString(totalBps / 1000000.0, 'f', 2))
-                    .arg(active));
+                tr("%1 Mbps").arg(QLocale().toString(totalBps / 1000000.0, 'f', 2)));
+            activeOutputs_->setText(tr("%1 ativa(s)").arg(active));
         });
         aggregateTimer_->start();
 
         auto *mainCard = new QWidget(container_);
         mainCard->setObjectName("outputCard");
         auto *mainCardLayout = new QGridLayout(mainCard);
-        mainCardLayout->setContentsMargins(13, 10, 13, 10);
-        mainCardLayout->setHorizontalSpacing(10);
+        mainCardLayout->setContentsMargins(10, 7, 10, 7);
+        mainCardLayout->setHorizontalSpacing(8);
         auto *mainName = new QLabel(mainCard);
         mainName->setObjectName("outputName");
         mainCardLayout->addWidget(mainName, 0, 1);
         auto *mainIcon = new QLabel(mainCard);
-        mainIcon->setFixedSize(42, 42);
+        mainIcon->setFixedSize(36, 36);
         mainIcon->setAlignment(Qt::AlignCenter);
         mainCardLayout->addWidget(mainIcon, 0, 0, 2, 1);
         auto *mainStatus = new QLabel(mainCard);
         mainStatus->setObjectName("outputStatus");
         mainCardLayout->addWidget(mainStatus, 1, 1);
         mainCardLayout->setColumnStretch(1, 1);
-        auto *mainQuality = new QLabel(tr("OBS"), mainCard);
-        mainQuality->setObjectName("outputQuality");
-        mainQuality->setAlignment(Qt::AlignCenter);
-        mainCardLayout->addWidget(mainQuality, 0, 2, 2, 1);
-        auto *mainToggle = new QPushButton(mainCard);
+        auto *mainToggle = new MainStreamToggleButton(mainCard);
         mainToggle->setObjectName("mainOutputToggle");
-        mainToggle->setCheckable(true);
-        mainToggle->setFixedSize(66, 34);
-        mainCardLayout->addWidget(mainToggle, 0, 3, 2, 1);
-        const auto updateMainCard = [mainStatus, mainToggle, mainName, mainIcon]() {
+        mainToggle->setToolTip(tr("Iniciar ou parar a transmissão principal do OBS"));
+        mainToggle->setAccessibleName(tr("Transmissão principal"));
+        mainCardLayout->addWidget(mainToggle, 0, 2, 2, 1);
+        mainToggle->setChecked(true);
+        mainToggle->setEnabled(false);
+        mainToggle->setCursor(Qt::ArrowCursor);
+        mainToggle->setToolTip(tr("A transmissão principal está sempre incluída"));
+        auto *mainSettingsButton = new QPushButton(mainCard);
+        mainSettingsButton->setObjectName("outputEdit");
+        mainSettingsButton->setFixedSize(32, 30);
+        mainSettingsButton->setIcon(QIcon(":/streamhub-ui/icons/settings.svg"));
+        mainSettingsButton->setIconSize(QSize(17, 17));
+        mainSettingsButton->setToolTip(tr("Configurações de transmissão do OBS"));
+        mainSettingsButton->setAccessibleName(tr("Configurações de transmissão do OBS"));
+        mainCardLayout->addWidget(mainSettingsButton, 0, 3, 2, 1);
+        QObject::connect(mainSettingsButton, &QPushButton::clicked, this, []() {
+            auto *mainWindow = static_cast<QMainWindow *>(obs_frontend_get_main_window());
+            if (!mainWindow)
+                return;
+            auto *settingsAction = mainWindow->findChild<QAction *>(QStringLiteral("action_Settings"));
+            if (!settingsAction)
+                return;
+            settingsAction->trigger();
+            QTimer::singleShot(0, mainWindow, [mainWindow]() {
+                QDialog *dialog = mainWindow->findChild<QDialog *>(QStringLiteral("OBSBasicSettings"));
+                if (!dialog) {
+                    for (QWidget *window : QApplication::topLevelWidgets()) {
+                        if (auto *candidate = qobject_cast<QDialog *>(window)) {
+                            if (candidate->objectName() == QStringLiteral("OBSBasicSettings")) {
+                                dialog = candidate;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!dialog)
+                    return;
+                if (auto *categories = dialog->findChild<QListWidget *>(QStringLiteral("listWidget")))
+                    categories->setCurrentRow(2);
+                else if (auto *pages = dialog->findChild<QStackedWidget *>(QStringLiteral("settingsPages")))
+                    pages->setCurrentIndex(2);
+                dialog->raise();
+                dialog->activateWindow();
+            });
+        });
+        const auto updateMainCard = [mainStatus, mainToggle, mainName, mainIcon, mainCard]() {
             QString mainServiceName = QObject::tr("Transmissão principal");
             QString mainPlatform = "custom";
             if (obs_service_t *service = obs_frontend_get_streaming_service()) {
@@ -621,24 +823,28 @@ public:
             mainName->setText(QString("%1 · %2").arg(mainServiceName, QObject::tr("Principal")));
             mainIcon->setPixmap(QIcon(mainPlatform == "custom" ? ":/streamhub-ui/icons/camera.svg"
                                                                   : QString(":/streamhub-ui/icons/%1.svg").arg(mainPlatform)).pixmap(38, 38));
+            QString mainAccent = "#00c8ff";
+            if (mainPlatform == "twitch") mainAccent = "#9146ff";
+            else if (mainPlatform == "kick") mainAccent = "#53fc18";
+            else if (mainPlatform == "youtube") mainAccent = "#ff0033";
+            if (mainCard->property("platform").toString() != mainPlatform) {
+                mainCard->setProperty("platform", mainPlatform);
+                mainCard->setStyleSheet(QString("QWidget#outputCard { border-left: 3px solid %1; }")
+                                            .arg(mainAccent));
+                mainToggle->SetAccentColor(QColor(mainAccent));
+            }
             const bool active = obs_frontend_streaming_active();
-            mainToggle->blockSignals(true);
-            mainToggle->setChecked(active);
-            mainToggle->setText(active ? QObject::tr("Parar") : QObject::tr("Iniciar"));
-            mainToggle->blockSignals(false);
+            mainToggle->setChecked(true);
             mainStatus->setText(active ? QObject::tr("● Ao vivo") : QObject::tr("● Pronta"));
             mainStatus->setProperty("ready", true);
             mainStatus->style()->unpolish(mainStatus); mainStatus->style()->polish(mainStatus);
         };
-        QObject::connect(mainToggle, &QPushButton::clicked, this, [](bool checked) {
-            if (checked) obs_frontend_streaming_start(); else obs_frontend_streaming_stop();
-        });
         auto *mainTimer = new QTimer(mainCard);
         mainTimer->setInterval(500);
         QObject::connect(mainTimer, &QTimer::timeout, mainCard, updateMainCard);
         mainTimer->start();
         updateMainCard();
-        layout_->addWidget(mainCard);
+        layout_->addWidget(addCardColumnInset(mainCard));
 
         QObject::connect(startAllButton, &QPushButton::clicked, [this]() {
             if (!obs_frontend_streaming_active()) {
@@ -664,10 +870,14 @@ public:
         outputsContainer_->setSelectionMode(QAbstractItemView::SingleSelection);
         outputsContainer_->setDropIndicatorShown(true);
         outputsContainer_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
-        outputsContainer_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+        // O conteúdo deve se adaptar à largura do dock; não o contrário.
+        // AdjustToContents fazia a largura depender do momento em que os
+        // destinos eram carregados e causava o efeito de abrir estreito e
+        // expandir alguns instantes depois.
+        outputsContainer_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
         outputsContainer_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        outputsContainer_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        outputsContainer_->setSpacing(8);
+        outputsContainer_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        outputsContainer_->setSpacing(6);
         outputsContainer_->setStyleSheet(
             "QListWidget {"
             "   padding: 0px;"
@@ -701,13 +911,6 @@ public:
             &MultiOutputWidget::OnOutputMoved
         );
         layout_->addWidget(outputsContainer_);
-
-        settingsPanelHost_ = new QWidget(container_);
-        settingsPanelHost_->setObjectName("settingsPanelHost");
-        settingsPanelLayout_ = new QVBoxLayout(settingsPanelHost_);
-        settingsPanelLayout_->setContentsMargins(0, 0, 0, 0);
-        settingsPanelHost_->hide();
-        layout_->addWidget(settingsPanelHost_);
 
         QWidget *footer = nullptr;
 
@@ -787,23 +990,31 @@ public:
         }
         else
         {
-            auto label = new QLabel(
+            auto *footerCard = new QWidget(this);
+            footerCard->setObjectName("outputsFooter");
+            auto *footerLayout = new QHBoxLayout(footerCard);
+            footerLayout->setContentsMargins(14, 10, 14, 10);
+            footerLayout->setSpacing(12);
+            auto *heartIcon = new FooterHeartIcon(footerCard);
+            footerLayout->addWidget(heartIcon, 0, Qt::AlignVCenter);
+            auto *label = new QLabel(
                 u8"<p><b>Este plugin é fornecido gratuitamente.</b><br>"
-                u8"Projeto original: SoraYuki — <a href=\"https://paypal.me/sorayuki0\">doar via PayPal</a><br>"
                 u8"Melhorias StreamHub: K4binho — <a href=\"https://livepix.gg/k4binho\">apoiar via LivePix</a></p>",
-                this);
-            label->setObjectName("outputsFooter");
+                footerCard);
+            label->setObjectName("outputsFooterText");
             label->setTextFormat(Qt::RichText);
             label->setTextInteractionFlags(Qt::TextBrowserInteraction);
             label->setOpenExternalLinks(true);
             label->setWordWrap(true);
-            footer = label;
+            footerLayout->addWidget(label, 1);
+            footer = footerCard;
         }
 
         scroll_.setWidgetResizable(true);
         scroll_.setWidget(container_);
         scroll_.setObjectName("outputsScroll");
         scroll_.setFrameShape(QFrame::NoFrame);
+        scroll_.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
         setStyleSheet(R"(
             QWidget#streamHubOutputs { background: #080c14; color: #f2f7ff; }
@@ -812,7 +1023,7 @@ public:
             QLabel#outputsTitleIcon { background:transparent; }
             QLabel#outputsTitle { color: #f2f7ff; font-size: 18px; font-weight: 700; }
             QPushButton#addDestination { background: rgba(16,26,42,235); border: 1px solid #0077ff;
-                border-radius: 8px; padding: 8px 14px; color: #f2f7ff; font-weight: 600; }
+                border-radius: 7px; padding: 6px 11px; color: #f2f7ff; font-weight: 600; }
             QPushButton#addDestination:hover { border-color: #00c8ff; background: #15233a; }
             QPushButton#startAll { background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #00c8ff,stop:1 #0077ff);
                 border: 1px solid #41dcff; border-radius: 8px; padding:0 10px;
@@ -823,18 +1034,20 @@ public:
                 color:#f2f7ff; font-weight:800; }
             QPushButton#stopAll:hover { background:#ef4a60; border-color:#ff9aaa; }
             QWidget#outputCard { background: rgba(8,18,32,238); border: 1px solid #29496f;
-                border-radius: 9px; }
-            QLabel#outputName { color: #f2f7ff; font-size: 15px; font-weight: 700; }
+                border-radius: 8px; }
+            QLabel#outputName { color: #f2f7ff; font-size: 14px; font-weight: 700; }
             QLabel#outputStatus { color: #9eb2cb; }
             QLabel#outputStatus[ready="true"] { color: #16d86a; }
-            QLabel#outputQuality { background:#101a2a; border:1px solid #29496f;
-                border-radius:6px; padding:5px 8px; color:#dbe8f8; }
-            QLabel#aggregateBitrate { color:#91b3c7; padding:0 4px 2px 4px; font-weight:600; }
+            QWidget#outputSummary { background:rgba(8,18,32,220); border:1px solid #29496f;
+                border-radius:8px; }
+            QLabel#summaryTitle { color:#9eb2cb; font-size:10px; }
+            QLabel#aggregateBitrate { color:#f2f7ff; font-size:12px; font-weight:700; }
+            QLabel#activeOutputs { color:#f2f7ff; font-size:12px; font-weight:700; }
+            QFrame#summaryDivider { color:#29496f; }
             QPushButton#outputEdit { background: #101a2a; border: 1px solid #29496f;
                 border-radius: 7px; padding: 6px; color: #dbe4f5; }
             QPushButton#outputEdit:hover { border-color: #00c8ff; background:#15233a; }
-            QPushButton#mainOutputToggle { background:#101a2a; border:1px solid #29496f; border-radius:14px; color:#dbe8f8; font-size:10px; font-weight:700; }
-            QPushButton#mainOutputToggle:checked { background:#16d86a; border-color:#53fc18; color:#06130b; }
+            QPushButton#mainOutputToggle { background:transparent; border:none; }
             QWidget#inlineSettings { background:rgba(16,26,42,242); border:1px solid #00c8ff;
                 border-radius:10px; color:#f2f7ff; }
             QLabel#inlineTitle { font-size:16px; font-weight:700; color:#f2f7ff; }
@@ -854,8 +1067,11 @@ public:
                 padding:7px 11px; color:#ffb9c2; }
             QLabel#savedNotice { background:rgba(22,216,106,28); border:1px solid #16d86a;
                 border-radius:7px; padding:7px 10px; color:#16d86a; font-weight:700; }
-            QLabel#outputsFooter { background:rgba(8,12,20,245); border-top:1px solid #29496f;
-                padding:7px 12px 9px 12px; color:#f2f7ff; }
+            QWidget#outputsFooter { background:rgba(8,18,32,232); border:1px solid #29496f;
+                border-radius:12px; color:#f2f7ff; }
+            QLabel#outputsFooterText { background:transparent; border:none; color:#cbd7e8; }
+            QLabel#outputsFooterText b { color:#f2f7ff; }
+            QLabel#outputsFooterText a { color:#00d8ff; }
         )");
 
         auto fullLayout = new QGridLayout(this);
@@ -1155,6 +1371,18 @@ public:
         }
     }
 
+    QSize sizeHint() const override
+    {
+        constexpr int kInitialDockWidth = 410;
+        const QSize calculated = QWidget::sizeHint();
+        return QSize((std::max)(calculated.width(), kInitialDockWidth), calculated.height());
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        return sizeHint();
+    }
+
 private:
     // Main widget of this module's dock
     QWidget* container_ = 0;
@@ -1164,10 +1392,10 @@ private:
     QScrollArea scroll_;
     // Widget, that contains output source widgets
     QListWidget* outputsContainer_ = 0;
-    QWidget* settingsPanelHost_ = nullptr;
-    QVBoxLayout* settingsPanelLayout_ = nullptr;
+    QDialog* settingsDialog_ = nullptr;
     StreamHubInlineSettings* settingsPanel_ = nullptr;
     QLabel *aggregateBitrate_ = nullptr;
+    QLabel *activeOutputs_ = nullptr;
     QTimer *aggregateTimer_ = nullptr;
     std::chrono::steady_clock::time_point mainLastInfoTime_{};
     uint64_t mainTotalBytes_ = 0;
@@ -1176,14 +1404,30 @@ private:
 
     void ShowSettingsFor(const std::string &targetId, PushWidget *pushWidget)
     {
-        if (settingsPanel_ && settingsTargetId_ == targetId) {
-            settingsPanelHost_->setVisible(!settingsPanelHost_->isVisible());
+        if (settingsDialog_ && settingsTargetId_ == targetId) {
+            settingsDialog_->raise();
+            settingsDialog_->activateWindow();
             return;
         }
-        if (settingsPanel_) {
-            settingsPanelLayout_->removeWidget(settingsPanel_);
-            settingsPanel_->deleteLater();
+        if (settingsDialog_) {
+            settingsDialog_->close();
+            settingsDialog_ = nullptr;
+            settingsPanel_ = nullptr;
         }
+
+        auto *mainWindow = static_cast<QWidget *>(obs_frontend_get_main_window());
+        if (!mainWindow)
+            return;
+        auto *dialog = new QDialog(mainWindow);
+        dialog->setObjectName("streamHubSettingsDialog");
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->setWindowTitle(tr("Configurações do destino"));
+        dialog->setWindowFlags(dialog->windowFlags() & ~Qt::WindowContextHelpButtonHint);
+        dialog->setWindowModality(Qt::WindowModal);
+        auto *dialogLayout = new QVBoxLayout(dialog);
+        dialogLayout->setContentsMargins(0, 0, 0, 0);
+        dialogLayout->setSpacing(0);
+
         settingsTargetId_ = targetId;
         settingsPanel_ = new StreamHubInlineSettings(
             targetId, pushWidget,
@@ -1192,19 +1436,33 @@ private:
                 outputsContainer_->doItemsLayout();
             },
             [pushWidget]() { pushWidget->GetDeleteButton()->click(); },
-            [this]() { settingsPanelHost_->hide(); }, settingsPanelHost_);
-        settingsPanelLayout_->addWidget(settingsPanel_);
-        settingsPanelHost_->show();
+            [dialog]() { dialog->reject(); }, dialog);
+        dialogLayout->addWidget(settingsPanel_);
+        dialog->setStyleSheet(styleSheet());
+        dialog->adjustSize();
+        const int dialogWidth = (std::min)(520, (std::max)(420, mainWindow->width() / 3));
+        dialog->resize(dialogWidth, dialog->sizeHint().height());
+        dialog->move(mainWindow->frameGeometry().center() -
+                     QPoint(dialog->width() / 2, dialog->height() / 2));
+        settingsDialog_ = dialog;
+        QObject::connect(dialog, &QDialog::finished, this, [this, dialog]() {
+            if (settingsDialog_ == dialog) {
+                settingsDialog_ = nullptr;
+                settingsPanel_ = nullptr;
+                settingsTargetId_.clear();
+            }
+        });
+        dialog->open();
     }
 
     void DeletePushWidget(const std::string& targetId)
     {
         if (settingsPanel_ && settingsTargetId_ == targetId) {
-            settingsPanelLayout_->removeWidget(settingsPanel_);
-            settingsPanel_->deleteLater();
+            if (settingsDialog_)
+                settingsDialog_->close();
+            settingsDialog_ = nullptr;
             settingsPanel_ = nullptr;
             settingsTargetId_.clear();
-            settingsPanelHost_->hide();
         }
         // Delete from model
         auto outputTargets = &(GlobalMultiOutputConfig().targets);
@@ -1236,8 +1494,7 @@ private:
 
         QListWidgetItem* listItem = new QListWidgetItem();
         listItem->setData(Qt::UserRole, QString::fromStdString(targetId));
-        QSize cardSize = pushWidget->sizeHint();
-        cardSize.setHeight((std::max)(cardSize.height(), 82));
+        QSize cardSize(1, (std::max)(pushWidget->sizeHint().height(), 68));
         listItem->setSizeHint(cardSize);
         outputsContainer_->addItem(listItem);
         outputsContainer_->setItemWidget(listItem, pushWidget);
@@ -1497,6 +1754,7 @@ bool obs_module_load()
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
             {
                 dock->SaveConfig();
+                s_launcher->Stop();
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
             {

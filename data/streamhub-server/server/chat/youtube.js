@@ -7,11 +7,12 @@ const youtube = google.youtube('v3');
  * Passo 1: a partir do videoId da live, descobrir o liveChatId.
  * Passo 2: ficar buscando mensagens novas no intervalo recomendado pela API.
  *
- * @param {object} cfg - config.youtube do config.json (apiKey, videoId)
+ * @param {object} cfg - config.youtube do config.json (apiKey/videoId opcionais no modo OAuth)
  * @param {(msg: object) => void} onMessage
  */
-async function startYoutube(cfg, onMessage, onStatus = () => {}) {
+async function startYoutube(cfg, onMessage, onStatus = () => {}, accounts = null) {
   const auth = cfg.apiKey;
+  const oauthEnabled = Boolean(accounts?.youtubeStatus?.().connected);
   let liveChatId = '';
   let nextPageToken;
   let retryTimer = null;
@@ -32,18 +33,24 @@ async function startYoutube(cfg, onMessage, onStatus = () => {}) {
     connecting = true;
     onStatus('connecting', 'YouTube conectando...');
     try {
-      const videoRes = await youtube.videos.list({
-        key: auth,
-        id: cfg.videoId,
-        part: 'liveStreamingDetails',
-      });
-
-      const video = videoRes.data.items?.[0];
-      liveChatId = video?.liveStreamingDetails?.activeLiveChatId || '';
+      if (oauthEnabled) {
+        const activeChat = await accounts.youtubeActiveChat();
+        liveChatId = activeChat.liveChatId;
+      } else {
+        const videoRes = await youtube.videos.list({
+          key: auth,
+          id: cfg.videoId,
+          part: 'liveStreamingDetails',
+        });
+        const video = videoRes.data.items?.[0];
+        liveChatId = video?.liveStreamingDetails?.activeLiveChatId || '';
+      }
       nextPageToken = undefined;
 
       if (!liveChatId) {
-        console.error('[youtube] não achei um chat ativo para esse videoId. Confira se a live está no ar.');
+        console.error(oauthEnabled
+          ? '[youtube] não achei uma transmissão ao vivo com chat na conta conectada.'
+          : '[youtube] não achei um chat ativo para esse videoId. Confira se a live está no ar.');
         onStatus('reconnecting', 'YouTube sem chat ativo — tentando novamente');
         scheduleConnect();
         return;
@@ -65,17 +72,19 @@ async function startYoutube(cfg, onMessage, onStatus = () => {}) {
     if (stopped || !liveChatId) return;
 
     try {
-      const res = await youtube.liveChatMessages.list({
-        key: auth,
-        liveChatId,
-        part: 'snippet,authorDetails',
-        pageToken: nextPageToken,
-      });
+      const res = oauthEnabled
+        ? await accounts.youtubeChatMessages(liveChatId, nextPageToken)
+        : (await youtube.liveChatMessages.list({
+          key: auth,
+          liveChatId,
+          part: 'snippet,authorDetails',
+          pageToken: nextPageToken,
+        })).data;
 
       onStatus('connected', 'YouTube conectado');
-      nextPageToken = res.data.nextPageToken;
+      nextPageToken = res.nextPageToken;
 
-      for (const item of res.data.items || []) {
+      for (const item of res.items || []) {
         onMessage({
           platform: 'youtube',
           id: item.id,
@@ -90,7 +99,7 @@ async function startYoutube(cfg, onMessage, onStatus = () => {}) {
       pollTimer = setTimeout(() => {
         pollTimer = null;
         void poll();
-      }, res.data.pollingIntervalMillis || 5000);
+      }, res.pollingIntervalMillis || 5000);
     } catch (err) {
       console.error('[youtube] erro no polling do chat:', err.message);
       liveChatId = '';

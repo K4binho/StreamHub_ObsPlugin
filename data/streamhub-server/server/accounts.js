@@ -111,6 +111,31 @@ function createAccounts(directory, request = fetch) {
     return account;
   };
 
+  const twitchBroadcastContent = async () => {
+    const account = await access();
+    const headers = {
+      Authorization: `Bearer ${account.access_token}`,
+      'Client-Id': TWITCH_CLIENT_ID,
+      Accept: 'application/json',
+    };
+    const channelResult = await requestJson(
+      `https://api.twitch.tv/helix/channels?broadcaster_id=${encodeURIComponent(account.userId)}`,
+      { headers },
+      'A Twitch',
+    );
+    const channel = channelResult.data?.[0] || {};
+    return {
+      platform: 'twitch', name: account.name || '',
+      title: String(channel.title || ''),
+      categoryId: String(channel.game_id || ''),
+      category: String(channel.game_name || ''),
+      tags: Array.isArray(channel.tags) ? channel.tags : [],
+      language: String(channel.broadcaster_language || ''),
+      classificationLabels: (channel.content_classification_labels || [])
+        .filter((item) => item.is_enabled).map((item) => item.id),
+    };
+  };
+
   const twitchTransmission = async () => {
     const account = await access();
     const headers = {
@@ -123,27 +148,12 @@ function createAccounts(directory, request = fetch) {
       { headers },
       'A Twitch',
     );
-    const channelResult = await requestJson(
-      `https://api.twitch.tv/helix/channels?broadcaster_id=${encodeURIComponent(account.userId)}`,
-      { headers },
-      'A Twitch',
-    );
-    const channel = channelResult.data?.[0] || {};
     const streamKey = String(result.data?.[0]?.stream_key || '').trim();
     const server = 'rtmps://live.twitch.tv/app';
     if (!server || !streamKey) {
       throw new Error('A Twitch não forneceu servidor RTMP e stream key autorizados.');
     }
-    return {
-      platform: 'twitch', name: account.name || '', server, streamKey,
-      title: String(channel.title || ''),
-      categoryId: String(channel.game_id || ''),
-      category: String(channel.game_name || ''),
-      tags: Array.isArray(channel.tags) ? channel.tags : [],
-      language: String(channel.broadcaster_language || ''),
-      classificationLabels: (channel.content_classification_labels || [])
-        .filter((item) => item.is_enabled).map((item) => item.id),
-    };
+    return { ...(await twitchBroadcastContent()), server, streamKey };
   };
 
   const envCredentials = {
@@ -365,21 +375,11 @@ function createAccounts(directory, request = fetch) {
     }, 'A Kick');
   };
 
-  const kickTransmission = async () => {
-    const account = await kickAccess();
-    const result = await kickRequest(`/channels?broadcaster_user_id=${encodeURIComponent(account.userId)}`);
-    const channel = result.data?.[0];
-    if (!channel) throw new Error('A Kick não retornou o canal autorizado.');
-
+  const kickContentFromChannel = (account, channel) => {
     const stream = channel.stream || {};
     const category = channel.category || {};
-    const server = String(stream.url || '').trim();
-    const streamKey = String(stream.key || '').trim();
-    if (!server || !streamKey) {
-      throw new Error('A Kick não forneceu servidor RTMP e stream key com autorização atual.');
-    }
     return {
-      platform: 'kick', name: account.name || '', server, streamKey,
+      platform: 'kick', name: account.name || '',
       title: String(channel.stream_title || channel.title || ''),
       categoryId: String(category.id || ''),
       category: String(category.name || ''),
@@ -388,6 +388,29 @@ function createAccounts(directory, request = fetch) {
       isLive: Boolean(stream.is_live),
       viewerCount: Number(stream.viewer_count || 0),
     };
+  };
+
+  const kickBroadcastContent = async () => {
+    const account = await kickAccess();
+    const result = await kickRequest(`/channels?broadcaster_user_id=${encodeURIComponent(account.userId)}`);
+    const channel = result.data?.[0];
+    if (!channel) throw new Error('A Kick não retornou o canal autorizado.');
+    return kickContentFromChannel(account, channel);
+  };
+
+  const kickTransmission = async () => {
+    const account = await kickAccess();
+    const result = await kickRequest(`/channels?broadcaster_user_id=${encodeURIComponent(account.userId)}`);
+    const channel = result.data?.[0];
+    if (!channel) throw new Error('A Kick não retornou o canal autorizado.');
+
+    const stream = channel.stream || {};
+    const server = String(stream.url || '').trim();
+    const streamKey = String(stream.key || '').trim();
+    if (!server || !streamKey) {
+      throw new Error('A Kick não forneceu servidor RTMP e stream key com autorização atual.');
+    }
+    return { ...kickContentFromChannel(account, channel), server, streamKey };
   };
 
   const youtubeConfig = () => platformConfig('youtube');
@@ -466,51 +489,46 @@ function createAccounts(directory, request = fetch) {
     }, 'O YouTube');
   };
 
-  const youtubeTransmission = async () => {
+  const youtubeBroadcastContent = async (requestedBroadcastId = '') => {
     const account = await youtubeAccess();
     const broadcasts = await youtubeRequest(
       '/liveBroadcasts?part=snippet,contentDetails,status&mine=true&maxResults=50',
     );
-    const candidates = (broadcasts.items || []).filter((broadcast) => {
+    const ownedBroadcasts = broadcasts.items || [];
+    const requestedId = String(requestedBroadcastId || '').trim();
+    if (requestedId && !ownedBroadcasts.some((broadcast) => String(broadcast.id || '') === requestedId)) {
+      throw new Error('A transmissão YouTube carregada não está mais disponível. Atualize os dados antes de aplicar.');
+    }
+    let candidates = requestedId
+      ? ownedBroadcasts.filter((broadcast) => String(broadcast.id || '') === requestedId)
+      : ownedBroadcasts.filter((broadcast) => {
       const lifecycle = String(broadcast.status?.lifeCycleStatus || '').toLowerCase();
-      return ['live', 'testing', 'ready', 'created'].includes(lifecycle);
-    });
-    const priority = { live: 0, testing: 1, ready: 2, created: 3 };
-    candidates.sort((left, right) => {
-      const leftLifecycle = String(left.status?.lifeCycleStatus || '').toLowerCase();
-      const rightLifecycle = String(right.status?.lifeCycleStatus || '').toLowerCase();
-      const priorityDifference = (priority[leftLifecycle] ?? 9) - (priority[rightLifecycle] ?? 9);
-      if (priorityDifference !== 0) return priorityDifference;
-      const leftTime = Date.parse(
-        leftLifecycle === 'live' || leftLifecycle === 'testing'
-          ? left.snippet?.actualStartTime || left.snippet?.scheduledStartTime || ''
-          : left.snippet?.scheduledStartTime || left.snippet?.actualStartTime || '',
-      ) || 0;
-      const rightTime = Date.parse(
-        rightLifecycle === 'live' || rightLifecycle === 'testing'
-          ? right.snippet?.actualStartTime || right.snippet?.scheduledStartTime || ''
-          : right.snippet?.scheduledStartTime || right.snippet?.actualStartTime || '',
-      ) || 0;
-      // Old ready broadcasts commonly contain stale titles. Prefer newest
-      // scheduled/created broadcast while keeping current live broadcast first.
-      return rightTime - leftTime;
-    });
+      return ['live', 'testing'].includes(lifecycle);
+      });
+    if (candidates.length) {
+      candidates.sort((left, right) => {
+        const leftTime = Date.parse(left.snippet?.actualStartTime || left.snippet?.scheduledStartTime || '') || 0;
+        const rightTime = Date.parse(right.snippet?.actualStartTime || right.snippet?.scheduledStartTime || '') || 0;
+        return rightTime - leftTime;
+      });
+    } else {
+      candidates = ownedBroadcasts.filter((broadcast) => {
+        const lifecycle = String(broadcast.status?.lifeCycleStatus || '').toLowerCase();
+        return ['ready', 'created'].includes(lifecycle);
+      });
+      // When multiple events are scheduled, edit the next one rather than a
+      // farther future event returned earlier by the API.
+      candidates.sort((left, right) => {
+        const leftTime = Date.parse(left.snippet?.scheduledStartTime || '') || Number.MAX_SAFE_INTEGER;
+        const rightTime = Date.parse(right.snippet?.scheduledStartTime || '') || Number.MAX_SAFE_INTEGER;
+        return leftTime - rightTime;
+      });
+    }
     const broadcast = candidates[0];
+    if (!broadcast) throw new Error('O YouTube não encontrou uma transmissão atual ou agendada.');
     const lifecycle = String(broadcast?.status?.lifeCycleStatus || '').toLowerCase();
     const isLive = lifecycle === 'live' || lifecycle === 'testing';
     const streamId = String(broadcast?.contentDetails?.boundStreamId || '').trim();
-    if (!streamId) {
-      throw new Error('O YouTube não encontrou uma transmissão vinculada a uma stream.');
-    }
-
-    const streams = await youtubeRequest(`/liveStreams?part=cdn&id=${encodeURIComponent(streamId)}`);
-    const stream = streams.items?.[0];
-    const ingestion = stream?.cdn?.ingestionInfo || {};
-    const server = String(ingestion.ingestionAddress || '').trim();
-    const streamKey = String(ingestion.streamName || '').trim();
-    if (!server || !streamKey) {
-      throw new Error('O YouTube não forneceu servidor RTMP e stream key autorizados.');
-    }
 
     const broadcastSnippet = broadcast.snippet || {};
     const broadcastStatus = broadcast.status || {};
@@ -520,7 +538,13 @@ function createAccounts(directory, request = fetch) {
     const video = videos.items?.[0] || {};
     const snippet = video.snippet || broadcastSnippet;
     const status = video.status || broadcastStatus;
-    const categoryId = String(snippet.categoryId || '').trim();
+    const broadcastTitle = String(broadcastSnippet.title || '').trim();
+    const broadcastDescription = String(broadcastSnippet.description || '');
+    const broadcastCategoryId = String(broadcastSnippet.categoryId || '').trim();
+    const videoTitle = String(snippet.title || '').trim();
+    const videoDescription = String(snippet.description || '');
+    const videoCategoryId = String(snippet.categoryId || '').trim();
+    const categoryId = broadcastCategoryId || videoCategoryId;
     let category = '';
     if (categoryId) {
       const categories = await youtubeRequest(
@@ -529,9 +553,17 @@ function createAccounts(directory, request = fetch) {
       category = String(categories.items?.[0]?.snippet?.title || '');
     }
     return {
-      platform: 'youtube', name: account.name || '', broadcastId: String(broadcast.id || ''), server, streamKey,
-      title: String(snippet.title || ''),
-      description: String(snippet.description || ''),
+      platform: 'youtube', name: account.name || '', broadcastId: String(broadcast.id || ''),
+      streamId,
+      // YouTube Studio shows the liveBroadcast resource. Keep the linked video
+      // values alongside it so a split update cannot appear as successful.
+      title: videoTitle || broadcastTitle,
+      description: videoDescription || broadcastDescription,
+      broadcastTitle, broadcastDescription, broadcastCategoryId,
+      videoTitle, videoDescription, videoCategoryId,
+      metadataMismatch: broadcastTitle !== videoTitle ||
+        broadcastDescription !== videoDescription ||
+        (broadcastCategoryId && videoCategoryId && broadcastCategoryId !== videoCategoryId),
       categoryId, category,
       tags: Array.isArray(snippet.tags) ? snippet.tags : [],
       language: String(snippet.defaultLanguage || snippet.defaultAudioLanguage || ''),
@@ -539,6 +571,46 @@ function createAccounts(directory, request = fetch) {
       lifecycle,
       isLive,
     };
+  };
+
+  const youtubeBroadcastEvents = async () => {
+    await youtubeAccess();
+    const broadcasts = await youtubeRequest(
+      '/liveBroadcasts?part=snippet,status&mine=true&maxResults=50',
+    );
+    const items = (broadcasts.items || []).filter((broadcast) => broadcast.id);
+    const ids = items.map((broadcast) => String(broadcast.id));
+    const videos = ids.length
+      ? await youtubeRequest(`/videos?part=snippet&id=${encodeURIComponent(ids.join(','))}`)
+      : { items: [] };
+    const videoById = new Map((videos.items || []).map((video) => [String(video.id), video]));
+    return items.map((broadcast) => {
+      const id = String(broadcast.id || '');
+      return {
+        id,
+        title: String(videoById.get(id)?.snippet?.title || broadcast.snippet?.title || ''),
+        videoTitle: String(videoById.get(id)?.snippet?.title || ''),
+        broadcastTitle: String(broadcast.snippet?.title || ''),
+        state: String(broadcast.status?.lifeCycleStatus || ''),
+        scheduledStartTime: String(broadcast.snippet?.scheduledStartTime || ''),
+      };
+    });
+  };
+
+  const youtubeTransmission = async () => {
+    const content = await youtubeBroadcastContent();
+    if (!content.streamId) {
+      throw new Error('O YouTube não encontrou uma transmissão vinculada a uma stream.');
+    }
+    const streams = await youtubeRequest(`/liveStreams?part=cdn&id=${encodeURIComponent(content.streamId)}`);
+    const stream = streams.items?.[0];
+    const ingestion = stream?.cdn?.ingestionInfo || {};
+    const server = String(ingestion.rtmpsIngestionAddress || ingestion.ingestionAddress || '').trim();
+    const streamKey = String(ingestion.streamName || '').trim();
+    if (!server) throw new Error('O YouTube não retornou um endereço RTMP/RTMPS para a transmissão vinculada.');
+    if (!streamKey) throw new Error('O YouTube não retornou a chave da transmissão vinculada.');
+    const { streamId, ...transmission } = content;
+    return { ...transmission, server, streamKey };
   };
 
   const updateTransmission = async (platform, input = {}) => {
@@ -675,7 +747,14 @@ function createAccounts(directory, request = fetch) {
     }
 
     if (platform === 'youtube') {
-      const current = await youtubeTransmission();
+      // The broadcast and its video represent the same YouTube live. Persistent
+      // broadcasts may have no scheduled start time; in that case YouTube
+      // forbids changing that field, so write through the linked video only.
+      if (title.length > 100) throw new Error('O título do YouTube pode ter no máximo 100 caracteres.');
+      if (descriptionProvided && Buffer.byteLength(description, 'utf8') > 5000) {
+        throw new Error('A descrição do YouTube pode ter no máximo 5.000 bytes.');
+      }
+      const current = await youtubeBroadcastContent(String(platformMetadata.broadcastId || '').trim());
       if (!current.broadcastId) throw new Error('O YouTube não encontrou uma transmissão atualizável.');
       let youtubeCategoryId = categoryId;
       if (!youtubeCategoryId && category) {
@@ -686,24 +765,63 @@ function createAccounts(directory, request = fetch) {
       }
       if (!youtubeCategoryId) youtubeCategoryId = current.categoryId;
       if (!youtubeCategoryId) throw new Error('Selecione uma categoria existente do YouTube.');
-      const broadcasts = await youtubeRequest(`/liveBroadcasts?part=snippet&id=${encodeURIComponent(current.broadcastId)}`);
+      const videos = await youtubeRequest(`/videos?part=snippet,status&id=${encodeURIComponent(current.broadcastId)}`);
+      const video = videos.items?.[0];
+      if (!video) throw new Error('O YouTube não encontrou o vídeo associado à live.');
+      const existingVideoSnippet = video.snippet || {};
+      const existingVideoStatus = video.status || {};
+      const broadcasts = await youtubeRequest(
+        `/liveBroadcasts?part=snippet,contentDetails,status&id=${encodeURIComponent(current.broadcastId)}`,
+      );
       const broadcast = broadcasts.items?.[0];
-      if (!broadcast) throw new Error('O YouTube não encontrou a transmissão atual.');
-      const currentSnippet = broadcast.snippet || {};
-      const broadcastSnippet = {
+      if (!broadcast) throw new Error('O YouTube não encontrou o evento associado ao vídeo.');
+      const existingBroadcastSnippet = broadcast.snippet || {};
+      const scheduledStartTime = String(existingBroadcastSnippet.scheduledStartTime || '').trim();
+      const parsedStartTime = Date.parse(scheduledStartTime);
+      const canUpdateBroadcast = Number.isFinite(parsedStartTime) && parsedStartTime > 0;
+      const effectiveDescription = descriptionProvided
+        ? description
+        : String(current.description || existingVideoSnippet.description || '');
+      if (canUpdateBroadcast) {
+        const monitorStream = broadcast.contentDetails?.monitorStream || {};
+        if (typeof monitorStream.enableMonitorStream !== 'boolean' || monitorStream.broadcastStreamDelayMs == null) {
+          throw new Error('O YouTube não forneceu os dados técnicos obrigatórios para atualizar o evento com segurança.');
+        }
+        const broadcastSnippet = {
+          title,
+          description: effectiveDescription,
+          categoryId: youtubeCategoryId,
+          scheduledStartTime,
+        };
+        if (existingBroadcastSnippet.scheduledEndTime)
+          broadcastSnippet.scheduledEndTime = existingBroadcastSnippet.scheduledEndTime;
+        await youtubeRequest('/liveBroadcasts?part=snippet', {
+          method: 'PUT',
+          body: JSON.stringify({
+            id: current.broadcastId,
+            snippet: broadcastSnippet,
+            contentDetails: {
+              monitorStream: {
+                enableMonitorStream: monitorStream.enableMonitorStream,
+                broadcastStreamDelayMs: monitorStream.broadcastStreamDelayMs,
+              },
+            },
+          }),
+        });
+      }
+      const videoSnippet = {
         title,
-        description: descriptionProvided ? description : String(current.description || currentSnippet.description || ''),
+        description: effectiveDescription,
+        categoryId: youtubeCategoryId,
+        tags: tags || (Array.isArray(existingVideoSnippet.tags) ? existingVideoSnippet.tags : []),
       };
-      if (currentSnippet.scheduledStartTime) broadcastSnippet.scheduledStartTime = currentSnippet.scheduledStartTime;
-      if (currentSnippet.scheduledEndTime) broadcastSnippet.scheduledEndTime = currentSnippet.scheduledEndTime;
-      await youtubeRequest('/liveBroadcasts?part=snippet', {
-        method: 'PUT',
-        body: JSON.stringify({ id: current.broadcastId, snippet: broadcastSnippet }),
-      });
-      const videoSnippet = { title, categoryId: youtubeCategoryId, description: broadcastSnippet.description };
-      if (tags) videoSnippet.tags = tags;
-      if (language) videoSnippet.defaultLanguage = language;
+      const effectiveLanguage = language || String(existingVideoSnippet.defaultLanguage || '').trim();
+      if (effectiveLanguage) videoSnippet.defaultLanguage = effectiveLanguage;
       const videoStatus = {};
+      for (const field of ['privacyStatus', 'license', 'embeddable', 'publicStatsViewable', 'selfDeclaredMadeForKids', 'containsSyntheticMedia']) {
+        if (Object.prototype.hasOwnProperty.call(existingVideoStatus, field))
+          videoStatus[field] = existingVideoStatus[field];
+      }
       if (privacyStatus) videoStatus.privacyStatus = privacyStatus;
       if (typeof madeForKids === 'boolean') videoStatus.selfDeclaredMadeForKids = madeForKids;
       if (typeof selfDeclaredMadeForKids === 'boolean') videoStatus.selfDeclaredMadeForKids = selfDeclaredMadeForKids;
@@ -711,7 +829,42 @@ function createAccounts(directory, request = fetch) {
         method: 'PUT',
         body: JSON.stringify({ id: current.broadcastId, snippet: videoSnippet, status: videoStatus }),
       });
-      return { platform: 'youtube' };
+      const updatedVideos = await youtubeRequest(
+        `/videos?part=snippet,status&id=${encodeURIComponent(current.broadcastId)}`,
+      );
+      const updatedBroadcasts = await youtubeRequest(
+        `/liveBroadcasts?part=snippet&id=${encodeURIComponent(current.broadcastId)}`,
+      );
+      const savedVideo = updatedVideos.items?.[0];
+      const savedBroadcast = updatedBroadcasts.items?.[0];
+      if (!savedVideo) throw new Error('O YouTube não retornou o vídeo da transmissão depois de salvar.');
+      if (canUpdateBroadcast && !savedBroadcast) throw new Error('O YouTube não retornou o evento depois de salvar.');
+      const savedSnippet = savedVideo.snippet || {};
+      const savedStatus = savedVideo.status || {};
+      const savedBroadcastSnippet = savedBroadcast?.snippet || {};
+      const mismatches = [];
+      if (String(savedSnippet.title || '').trim() !== title ||
+          (canUpdateBroadcast && String(savedBroadcastSnippet.title || '').trim() !== title))
+        mismatches.push(canUpdateBroadcast ? 'título do evento/vídeo' : 'título do vídeo');
+      if (String(savedSnippet.description || '') !== effectiveDescription ||
+          (canUpdateBroadcast && String(savedBroadcastSnippet.description || '') !== effectiveDescription))
+        mismatches.push(canUpdateBroadcast ? 'descrição do evento/vídeo' : 'descrição do vídeo');
+      if (String(savedSnippet.categoryId || '').trim() !== youtubeCategoryId ||
+          (canUpdateBroadcast && String(savedBroadcastSnippet.categoryId || '').trim() !== youtubeCategoryId))
+        mismatches.push(canUpdateBroadcast ? 'categoria do evento/vídeo' : 'categoria do vídeo');
+      if (tags && JSON.stringify(savedSnippet.tags || []) !== JSON.stringify(tags)) mismatches.push('tags');
+      if (effectiveLanguage && String(savedSnippet.defaultLanguage || '').trim() !== effectiveLanguage) mismatches.push('idioma');
+      if (privacyStatus && String(savedStatus.privacyStatus || '').trim().toLowerCase() !== privacyStatus) mismatches.push('visibilidade');
+      if (mismatches.length) {
+        throw new Error(`O YouTube recebeu a alteração, mas não confirmou: ${mismatches.join(', ')}.`);
+      }
+      return {
+        platform: 'youtube',
+        broadcastId: current.broadcastId,
+        message: canUpdateBroadcast
+          ? 'Evento e vídeo atualizados e confirmados.'
+          : 'Vídeo da transmissão atualizado e confirmado; evento sem horário agendado.',
+      };
     }
 
     throw new Error('Plataforma de transmissão inválida.');
@@ -796,6 +949,27 @@ function createAccounts(directory, request = fetch) {
         needsReconnect: Boolean(account?.access_token && !granted.has(YOUTUBE_SCOPE)),
         missingScopes: granted.has(YOUTUBE_SCOPE) ? [] : [YOUTUBE_SCOPE],
       };
+    },
+
+    async youtubeActiveChat() {
+      const account = await youtubeAccess();
+      const broadcasts = await youtubeRequest(
+        '/liveBroadcasts?part=snippet,status&mine=true&maxResults=50',
+      );
+      const broadcast = (broadcasts.items || []).find((item) =>
+        ['live', 'testing'].includes(String(item.status?.lifeCycleStatus || '').toLowerCase()) &&
+        item.snippet?.liveChatId,
+      );
+      return {
+        name: account.name || '',
+        liveChatId: String(broadcast?.snippet?.liveChatId || ''),
+      };
+    },
+
+    async youtubeChatMessages(liveChatId, pageToken) {
+      const query = new URLSearchParams({ part: 'snippet,authorDetails', liveChatId: String(liveChatId || '') });
+      if (pageToken) query.set('pageToken', String(pageToken));
+      return youtubeRequest(`/liveChat/messages?${query.toString()}`);
     },
 
     configureYoutube(clientId, clientSecret) {
@@ -971,6 +1145,10 @@ function createAccounts(directory, request = fetch) {
     },
 
     userId: async (platform = 'twitch') => (platform === 'kick' ? (await kickAccess()).userId : (await access()).userId),
+    twitchBroadcastContent,
+    kickBroadcastContent,
+    youtubeBroadcastContent,
+    youtubeBroadcastEvents,
     twitchTransmission,
     kickTransmission,
     youtubeTransmission,

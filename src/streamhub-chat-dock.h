@@ -15,6 +15,7 @@ class QButtonGroup;
 class QJsonObject;
 class QLineEdit;
 class QPushButton;
+class QResizeEvent;
 
 // Dock nativo (Qt puro, sem CEF) que consulta o endpoint HTTP
 // /api/chat/poll do servidor StreamHub e mostra as mensagens do chat
@@ -55,6 +56,8 @@ private slots:
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    QSize sizeHint() const override;
 
 private:
     void AppendChatLine(const QString &platform, const QString &user, const QString &text,
@@ -65,6 +68,7 @@ private:
     void UpdatePlatformStatus(const QString &platform, const QString &state, bool connected);
     void UpdateConnectionPresentation();
     void RebuildEnabledPlatforms(const QJsonObject &config);
+    void UpdateMessageItemSizes();
 
     QLabel *statusLabel_ = nullptr;
     QLabel *connectionLabel_ = nullptr;

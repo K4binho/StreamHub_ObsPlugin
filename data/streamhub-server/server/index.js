@@ -391,7 +391,7 @@ async function main() {
     }
 
     if (config.youtube?.enabled) {
-      registerConnector(await startYoutube(config.youtube, broadcastMessage, (state, detail) => updateConnectionStatus('youtube', state, detail)));
+      registerConnector(await startYoutube(config.youtube, broadcastMessage, (state, detail) => updateConnectionStatus('youtube', state, detail), accounts));
     }
 
     if (config.kick?.enabled) {

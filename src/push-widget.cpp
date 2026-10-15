@@ -140,7 +140,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     QLabel* name_ = 0;
     QLabel* msg_ = 0;
     QLabel* icon_ = 0;
-    QLabel* quality_ = 0;
 
     using clock = std::chrono::steady_clock;
     clock::time_point begin_time_;
@@ -600,7 +599,7 @@ public:
         , targetid_(targetid)
     {
         QObject::setObjectName("outputCard");
-        setMinimumHeight(76);
+        setMinimumHeight(64);
 
         auto& global = GlobalMultiOutputConfig();
         config_ = FindById(global.targets, targetid_);
@@ -614,13 +613,13 @@ public:
         });
 
         auto layout = new QGridLayout(this);
-        layout->setContentsMargins(13, 10, 13, 10);
-        layout->setHorizontalSpacing(10);
-        layout->setVerticalSpacing(2);
+        layout->setContentsMargins(10, 7, 10, 7);
+        layout->setHorizontalSpacing(8);
+        layout->setVerticalSpacing(1);
         layout->addWidget(icon_ = new QLabel(this), 0, 0, 2, 1);
         icon_->setObjectName("outputPlatformIcon");
         icon_->setAlignment(Qt::AlignCenter);
-        icon_->setFixedSize(42, 42);
+        icon_->setFixedSize(36, 36);
         layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 1);
         name_->setObjectName("outputName");
         layout->addWidget(msg_ = new QLabel(this), 1, 1);
@@ -628,11 +627,7 @@ public:
         msg_->setWordWrap(false);
         layout->setColumnStretch(1, 1);
 
-        layout->addWidget(quality_ = new QLabel(tr("OBS"), this), 0, 2, 2, 1);
-        quality_->setObjectName("outputQuality");
-        quality_->setAlignment(Qt::AlignCenter);
-
-        layout->addWidget(btn_ = new StreamToggleButton(this), 0, 3, 2, 1);
+        layout->addWidget(btn_ = new StreamToggleButton(this), 0, 2, 2, 1);
         btn_->setObjectName("outputToggle");
         QObject::connect(btn_, &QPushButton::clicked, [this](bool checked) {
             if (checked && !HasStreamConfig()) {
@@ -658,12 +653,12 @@ public:
             }
         });
 
-        layout->addWidget(edit_btn_ = new QPushButton(this), 0, 4, 2, 1);
+        layout->addWidget(edit_btn_ = new QPushButton(this), 0, 3, 2, 1);
         edit_btn_->setObjectName("outputEdit");
         edit_btn_->setIcon(QIcon(":/streamhub-ui/icons/settings.svg"));
         edit_btn_->setIconSize(QSize(18, 18));
         edit_btn_->setToolTip(tr("Abrir configurações desta plataforma"));
-        edit_btn_->setFixedSize(36, 34);
+        edit_btn_->setFixedSize(32, 30);
 
         remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this);
         remove_btn_->setObjectName("outputDelete");
@@ -801,13 +796,8 @@ public:
         icon_->setPixmap(QIcon(platform.iconPath).pixmap(30, 30));
         icon_->setStyleSheet(QString("background:#080c14; border:1px solid %1; border-radius:8px;")
                                  .arg(platform.accent));
-        QString quality = tr("OBS");
-        if (config_->videoConfig.has_value() && !IsSpecialEncoder(*config_->videoConfig)) {
-            auto video = FindById(GlobalMultiOutputConfig().videoConfig, *config_->videoConfig);
-            if (video && video->resolution.has_value())
-                quality = QString::fromStdString(*video->resolution);
-        }
-        quality_->setText(quality);
+        setProperty("platform", platform.id);
+        setStyleSheet(QString("QWidget#outputCard { border-left: 3px solid %1; }").arg(platform.accent));
         if (!IsRunning()) {
             const bool configured = HasStreamConfig();
             msg_->setProperty("ready", configured);

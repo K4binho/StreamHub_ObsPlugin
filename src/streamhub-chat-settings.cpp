@@ -34,7 +34,8 @@ QString NormalizedChannel(QString channel)
 }
 }
 
-bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QString *error)
+bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath,
+                                const QJsonObject &connectedAccounts, QString *error)
 {
     if (!QFileInfo::exists(configPath)) {
         const QFileInfo configInfo(configPath);
@@ -79,6 +80,15 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
     const QJsonObject overlay = config.value("overlay").toObject();
     const QJsonObject hideCommands = overlay.value("hideCommands").toObject();
     const QJsonObject chat = config.value("chat").toObject();
+    const QJsonObject twitchIdentity = connectedAccounts.value("twitch").toObject();
+    const QJsonObject kickIdentity = connectedAccounts.value("kick").toObject();
+    const QJsonObject youtubeIdentity = connectedAccounts.value("youtube").toObject();
+    const bool twitchOAuthConnected = twitchIdentity.value("connected").toBool(false) &&
+                                      !twitchIdentity.value("name").toString().trimmed().isEmpty();
+    const bool kickOAuthConnected = kickIdentity.value("connected").toBool(false) &&
+                                    !kickIdentity.value("name").toString().trimmed().isEmpty();
+    const bool youtubeOAuthConnected = youtubeIdentity.value("connected").toBool(false) &&
+                                       !youtubeIdentity.value("name").toString().trimmed().isEmpty();
     const int port = config.value("server").toObject().value("port").toInt(605);
 
     QDialog dialog(parent);
@@ -99,28 +109,46 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
     auto *form = new QFormLayout();
     auto *twitchEnabled = new QCheckBox(QObject::tr("Ativar Twitch"), chatPage);
     twitchEnabled->setChecked(twitch.value("enabled").toBool(false));
-    auto *twitchChannel = new QLineEdit(twitch.value("channel").toString(), chatPage);
+    auto *twitchChannel = new QLineEdit(
+        twitchOAuthConnected ? twitchIdentity.value("name").toString() : twitch.value("channel").toString(), chatPage);
     twitchChannel->setPlaceholderText(QObject::tr("Nome do canal"));
+    twitchChannel->setReadOnly(twitchOAuthConnected);
     form->addRow(twitchEnabled);
     form->addRow(QObject::tr("Canal da Twitch:"), twitchChannel);
 
     auto *kickEnabled = new QCheckBox(QObject::tr("Ativar Kick"), chatPage);
     kickEnabled->setChecked(kick.value("enabled").toBool(false));
-    auto *kickChannel = new QLineEdit(kick.value("channel").toString(), chatPage);
+    auto *kickChannel = new QLineEdit(
+        kickOAuthConnected ? kickIdentity.value("name").toString() : kick.value("channel").toString(), chatPage);
     kickChannel->setPlaceholderText(QObject::tr("Nome do canal"));
+    kickChannel->setReadOnly(kickOAuthConnected);
     form->addRow(kickEnabled);
     form->addRow(QObject::tr("Canal da Kick:"), kickChannel);
 
     auto *youtubeEnabled = new QCheckBox(QObject::tr("Ativar YouTube"), chatPage);
     youtubeEnabled->setChecked(youtube.value("enabled").toBool(false));
+    auto *youtubeAccountNotice = new QLabel(
+        youtubeOAuthConnected
+            ? QObject::tr("Canal conectado: %1. A transmissão e o chat ativos serão detectados automaticamente.")
+                  .arg(youtubeIdentity.value("name").toString())
+            : QString(), chatPage);
+    youtubeAccountNotice->setWordWrap(true);
+    youtubeAccountNotice->setVisible(youtubeOAuthConnected);
     auto *youtubeApiKey = new QLineEdit(youtube.value("apiKey").toString(), chatPage);
     youtubeApiKey->setPlaceholderText(QObject::tr("Chave da API do YouTube Data v3"));
     youtubeApiKey->setEchoMode(QLineEdit::Password);
     auto *youtubeVideoId = new QLineEdit(youtube.value("videoId").toString(), chatPage);
     youtubeVideoId->setPlaceholderText(QObject::tr("ID do vídeo ou live"));
+    auto *youtubeApiKeyLabel = new QLabel(QObject::tr("API key do YouTube:"), chatPage);
+    auto *youtubeVideoIdLabel = new QLabel(QObject::tr("ID da live:"), chatPage);
     form->addRow(youtubeEnabled);
-    form->addRow(QObject::tr("API key do YouTube:"), youtubeApiKey);
-    form->addRow(QObject::tr("ID da live:"), youtubeVideoId);
+    form->addRow(youtubeAccountNotice);
+    form->addRow(youtubeApiKeyLabel, youtubeApiKey);
+    form->addRow(youtubeVideoIdLabel, youtubeVideoId);
+    youtubeApiKey->setVisible(!youtubeOAuthConnected);
+    youtubeApiKeyLabel->setVisible(!youtubeOAuthConnected);
+    youtubeVideoId->setVisible(!youtubeOAuthConnected);
+    youtubeVideoIdLabel->setVisible(!youtubeOAuthConnected);
 
     auto *tiktokEnabled = new QCheckBox(QObject::tr("Ativar TikTok (experimental)"), chatPage);
     tiktokEnabled->setChecked(tiktok.value("enabled").toBool(false));
@@ -205,6 +233,10 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
     bindEnabled(twitchEnabled, {twitchChannel});
     bindEnabled(kickEnabled, {kickChannel});
     bindEnabled(youtubeEnabled, {youtubeApiKey, youtubeVideoId});
+    if (youtubeOAuthConnected) {
+        youtubeApiKey->setEnabled(false);
+        youtubeVideoId->setEnabled(false);
+    }
     bindEnabled(tiktokEnabled, {tiktokUsername});
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
@@ -227,7 +259,8 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
                                  QObject::tr("Informe o canal da Kick ou desative esse chat."));
             return;
         }
-        if (youtubeEnabled->isChecked() && (youtubeKey.isEmpty() || youtubeLive.isEmpty())) {
+        if (youtubeEnabled->isChecked() && !youtubeOAuthConnected &&
+            (youtubeKey.isEmpty() || youtubeLive.isEmpty())) {
             QMessageBox::warning(&dialog, QObject::tr("Dados obrigatórios"),
                                  QObject::tr("Informe a API key e o ID da live do YouTube ou desative esse chat."));
             return;
@@ -240,18 +273,22 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath, QSt
 
         QJsonObject updatedTwitch = twitch;
         updatedTwitch.insert("enabled", twitchEnabled->isChecked());
-        updatedTwitch.insert("channel", twitchName);
+        updatedTwitch.insert("channel", twitchOAuthConnected
+            ? NormalizedChannel(twitchIdentity.value("name").toString()) : twitchName);
         config.insert("twitch", updatedTwitch);
 
         QJsonObject updatedKick = kick;
         updatedKick.insert("enabled", kickEnabled->isChecked());
-        updatedKick.insert("channel", kickName);
+        updatedKick.insert("channel", kickOAuthConnected
+            ? NormalizedChannel(kickIdentity.value("name").toString()) : kickName);
         config.insert("kick", updatedKick);
 
         QJsonObject updatedYoutube = youtube;
         updatedYoutube.insert("enabled", youtubeEnabled->isChecked());
-        updatedYoutube.insert("apiKey", youtubeKey);
-        updatedYoutube.insert("videoId", youtubeLive);
+        if (!youtubeOAuthConnected) {
+            updatedYoutube.insert("apiKey", youtubeKey);
+            updatedYoutube.insert("videoId", youtubeLive);
+        }
         config.insert("youtube", updatedYoutube);
 
         QJsonObject updatedTiktok = tiktok;
