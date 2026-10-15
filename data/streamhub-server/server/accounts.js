@@ -123,7 +123,9 @@ function createAccounts(directory, request = fetch) {
       { headers },
       'A Twitch',
     );
-    const channel = channelResult.data?.[0] || {};
+    const channel = channelResult.data?.[0];
+    if (!channel) throw new Error('A Twitch não retornou os dados do canal autorizado.');
+    const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
     return {
       platform: 'twitch', name: account.name || '',
       title: String(channel.title || ''),
@@ -132,7 +134,14 @@ function createAccounts(directory, request = fetch) {
       tags: Array.isArray(channel.tags) ? channel.tags : [],
       language: String(channel.broadcaster_language || ''),
       classificationLabels: (channel.content_classification_labels || [])
-        .filter((item) => item.is_enabled).map((item) => item.id),
+        .filter((item) => typeof item === 'string' || item?.is_enabled)
+        .map((item) => typeof item === 'string' ? item : item.id).filter(Boolean),
+      fieldAvailability: {
+        title: has(channel, 'title'),
+        category: has(channel, 'game_name'),
+        tags: has(channel, 'tags'),
+        language: has(channel, 'broadcaster_language'),
+      },
     };
   };
 
@@ -378,6 +387,7 @@ function createAccounts(directory, request = fetch) {
   const kickContentFromChannel = (account, channel) => {
     const stream = channel.stream || {};
     const category = channel.category || {};
+    const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
     return {
       platform: 'kick', name: account.name || '',
       title: String(channel.stream_title || channel.title || ''),
@@ -387,12 +397,20 @@ function createAccounts(directory, request = fetch) {
       language: String(channel.language || ''),
       isLive: Boolean(stream.is_live),
       viewerCount: Number(stream.viewer_count || 0),
+      fieldAvailability: {
+        title: has(channel, 'stream_title') || has(channel, 'title'),
+        category: has(channel, 'category') && (channel.category == null || has(category, 'name')),
+        tags: has(channel, 'tags'),
+        language: has(channel, 'language'),
+      },
     };
   };
 
   const kickBroadcastContent = async () => {
     const account = await kickAccess();
-    const result = await kickRequest(`/channels?broadcaster_user_id=${encodeURIComponent(account.userId)}`);
+    // Kick documents an unfiltered /channels request as the authenticated
+    // broadcaster's own channel. Use that identity-bound form for read-back.
+    const result = await kickRequest('/channels');
     const channel = result.data?.[0];
     if (!channel) throw new Error('A Kick não retornou o canal autorizado.');
     return kickContentFromChannel(account, channel);
@@ -400,7 +418,7 @@ function createAccounts(directory, request = fetch) {
 
   const kickTransmission = async () => {
     const account = await kickAccess();
-    const result = await kickRequest(`/channels?broadcaster_user_id=${encodeURIComponent(account.userId)}`);
+    const result = await kickRequest('/channels');
     const channel = result.data?.[0];
     if (!channel) throw new Error('A Kick não retornou o canal autorizado.');
 
@@ -535,15 +553,24 @@ function createAccounts(directory, request = fetch) {
     const videos = await youtubeRequest(
       `/videos?part=snippet,status&id=${encodeURIComponent(broadcast.id)}`,
     );
-    const video = videos.items?.[0] || {};
-    const snippet = video.snippet || broadcastSnippet;
-    const status = video.status || broadcastStatus;
+    const video = videos.items?.[0] || null;
+    const videoSnippet = video?.snippet || {};
+    const videoStatus = video?.status || {};
+    const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+    const snippet = video ? videoSnippet : broadcastSnippet;
+    const status = video ? videoStatus : broadcastStatus;
     const broadcastTitle = String(broadcastSnippet.title || '').trim();
     const broadcastDescription = String(broadcastSnippet.description || '');
     const broadcastCategoryId = String(broadcastSnippet.categoryId || '').trim();
-    const videoTitle = String(snippet.title || '').trim();
-    const videoDescription = String(snippet.description || '');
-    const videoCategoryId = String(snippet.categoryId || '').trim();
+    const videoTitle = String(videoSnippet.title || '').trim();
+    const videoDescription = String(videoSnippet.description || '');
+    const videoCategoryId = String(videoSnippet.categoryId || '').trim();
+    const broadcastTitleAvailable = has(broadcastSnippet, 'title');
+    const broadcastDescriptionAvailable = has(broadcastSnippet, 'description');
+    const broadcastCategoryAvailable = has(broadcastSnippet, 'categoryId');
+    const videoTitleAvailable = Boolean(video && has(videoSnippet, 'title'));
+    const videoDescriptionAvailable = Boolean(video && has(videoSnippet, 'description'));
+    const videoCategoryAvailable = Boolean(video && has(videoSnippet, 'categoryId'));
     const categoryId = broadcastCategoryId || videoCategoryId;
     let category = '';
     if (categoryId) {
@@ -557,13 +584,26 @@ function createAccounts(directory, request = fetch) {
       streamId,
       // YouTube Studio shows the liveBroadcast resource. Keep the linked video
       // values alongside it so a split update cannot appear as successful.
-      title: videoTitle || broadcastTitle,
-      description: videoDescription || broadcastDescription,
+      title: broadcastTitleAvailable ? broadcastTitle : videoTitle,
+      description: videoDescriptionAvailable ? videoDescription : broadcastDescription,
       broadcastTitle, broadcastDescription, broadcastCategoryId,
       videoTitle, videoDescription, videoCategoryId,
-      metadataMismatch: broadcastTitle !== videoTitle ||
-        broadcastDescription !== videoDescription ||
-        (broadcastCategoryId && videoCategoryId && broadcastCategoryId !== videoCategoryId),
+      metadataMismatch: (broadcastTitleAvailable && videoTitleAvailable && broadcastTitle !== videoTitle) ||
+        (broadcastDescriptionAvailable && videoDescriptionAvailable && broadcastDescription !== videoDescription) ||
+        (broadcastCategoryAvailable && videoCategoryAvailable && broadcastCategoryId !== videoCategoryId),
+      fieldAvailability: {
+        title: broadcastTitleAvailable || videoTitleAvailable,
+        category: Boolean(categoryId),
+        description: broadcastDescriptionAvailable || videoDescriptionAvailable,
+        broadcastTitle: broadcastTitleAvailable,
+        videoTitle: videoTitleAvailable,
+        broadcastDescription: broadcastDescriptionAvailable,
+        videoDescription: videoDescriptionAvailable,
+        broadcastCategory: broadcastCategoryAvailable,
+        videoCategory: videoCategoryAvailable,
+        tags: Boolean(video && has(videoSnippet, 'tags')),
+        language: Boolean(video && (has(videoSnippet, 'defaultLanguage') || has(videoSnippet, 'defaultAudioLanguage'))),
+      },
       categoryId, category,
       tags: Array.isArray(snippet.tags) ? snippet.tags : [],
       language: String(snippet.defaultLanguage || snippet.defaultAudioLanguage || ''),
@@ -571,30 +611,6 @@ function createAccounts(directory, request = fetch) {
       lifecycle,
       isLive,
     };
-  };
-
-  const youtubeBroadcastEvents = async () => {
-    await youtubeAccess();
-    const broadcasts = await youtubeRequest(
-      '/liveBroadcasts?part=snippet,status&mine=true&maxResults=50',
-    );
-    const items = (broadcasts.items || []).filter((broadcast) => broadcast.id);
-    const ids = items.map((broadcast) => String(broadcast.id));
-    const videos = ids.length
-      ? await youtubeRequest(`/videos?part=snippet&id=${encodeURIComponent(ids.join(','))}`)
-      : { items: [] };
-    const videoById = new Map((videos.items || []).map((video) => [String(video.id), video]));
-    return items.map((broadcast) => {
-      const id = String(broadcast.id || '');
-      return {
-        id,
-        title: String(videoById.get(id)?.snippet?.title || broadcast.snippet?.title || ''),
-        videoTitle: String(videoById.get(id)?.snippet?.title || ''),
-        broadcastTitle: String(broadcast.snippet?.title || ''),
-        state: String(broadcast.status?.lifeCycleStatus || ''),
-        scheduledStartTime: String(broadcast.snippet?.scheduledStartTime || ''),
-      };
-    });
   };
 
   const youtubeTransmission = async () => {
@@ -611,6 +627,31 @@ function createAccounts(directory, request = fetch) {
     if (!streamKey) throw new Error('O YouTube não retornou a chave da transmissão vinculada.');
     const { streamId, ...transmission } = content;
     return { ...transmission, server, streamKey };
+  };
+
+  const youtubeBroadcastEvents = async () => {
+    await youtubeAccess();
+    const broadcasts = await youtubeRequest(
+      '/liveBroadcasts?part=snippet,status&mine=true&maxResults=50',
+    );
+    const editable = (broadcasts.items || []).filter((broadcast) => {
+      const lifecycle = String(broadcast.status?.lifeCycleStatus || '').toLowerCase();
+      return broadcast.id && ['live', 'testing', 'ready', 'created'].includes(lifecycle);
+    });
+    editable.sort((left, right) => {
+      const rank = (broadcast) => ['live', 'testing'].includes(String(broadcast.status?.lifeCycleStatus || '').toLowerCase()) ? 0 : 1;
+      const rankDelta = rank(left) - rank(right);
+      if (rankDelta) return rankDelta;
+      const leftTime = Date.parse(left.snippet?.actualStartTime || left.snippet?.scheduledStartTime || '') || 0;
+      const rightTime = Date.parse(right.snippet?.actualStartTime || right.snippet?.scheduledStartTime || '') || 0;
+      return rank(left) === 0 ? rightTime - leftTime : leftTime - rightTime;
+    });
+    return editable.map((broadcast) => ({
+      id: String(broadcast.id),
+      title: String(broadcast.snippet?.title || '').trim(),
+      state: String(broadcast.status?.lifeCycleStatus || ''),
+      scheduledStartTime: String(broadcast.snippet?.scheduledStartTime || ''),
+    }));
   };
 
   const updateTransmission = async (platform, input = {}) => {
@@ -722,7 +763,20 @@ function createAccounts(directory, request = fetch) {
         { method: 'PATCH', body: JSON.stringify(body), headers: { Authorization: `Bearer ${account.access_token}`, 'Client-Id': TWITCH_CLIENT_ID, 'Content-Type': 'application/json' } },
         'A Twitch',
       );
-      return { platform: 'twitch' };
+      const saved = await twitchBroadcastContent();
+      const mismatches = [];
+      if (saved.title.trim() !== title) mismatches.push('título');
+      if (gameId && saved.categoryId !== String(gameId)) mismatches.push('jogo');
+      if (language && saved.language !== language) mismatches.push('idioma');
+      if (tags && JSON.stringify(saved.tags) !== JSON.stringify(tags)) mismatches.push('tags');
+      if (classificationProvided && classificationIds.length &&
+          classificationIds.some((id) => !saved.classificationLabels.includes(id))) {
+        mismatches.push('classificação');
+      }
+      if (mismatches.length) {
+        throw new Error(`A Twitch recebeu a alteração, mas não confirmou: ${mismatches.join(', ')}.`);
+      }
+      return { platform: 'twitch', message: 'Título e jogo confirmados pela Twitch.' };
     }
 
     if (platform === 'kick') {
@@ -743,7 +797,18 @@ function createAccounts(directory, request = fetch) {
         body.category_id = numericCategoryId;
       }
       await kickRequest('/channels', { method: 'PATCH', body: JSON.stringify(body) });
-      return { platform: 'kick', broadcasterId: String(account.userId || '') };
+      const saved = await kickBroadcastContent();
+      const mismatches = [];
+      if (saved.title.trim() !== title) mismatches.push('título');
+      if (kickCategoryId && saved.categoryId !== String(kickCategoryId)) mismatches.push('jogo');
+      if (mismatches.length) {
+        throw new Error(`A Kick recebeu a alteração, mas não confirmou: ${mismatches.join(', ')}.`);
+      }
+      return {
+        platform: 'kick',
+        broadcasterId: String(account.userId || ''),
+        message: 'Título e jogo confirmados pela Kick.',
+      };
     }
 
     if (platform === 'youtube') {
@@ -754,7 +819,9 @@ function createAccounts(directory, request = fetch) {
       if (descriptionProvided && Buffer.byteLength(description, 'utf8') > 5000) {
         throw new Error('A descrição do YouTube pode ter no máximo 5.000 bytes.');
       }
-      const current = await youtubeBroadcastContent(String(platformMetadata.broadcastId || '').trim());
+      const requestedBroadcastId = String(platformMetadata.broadcastId || '').trim();
+      if (!requestedBroadcastId) throw new Error('Selecione o evento do YouTube antes de aplicar as alterações.');
+      const current = await youtubeBroadcastContent(requestedBroadcastId);
       if (!current.broadcastId) throw new Error('O YouTube não encontrou uma transmissão atualizável.');
       let youtubeCategoryId = categoryId;
       if (!youtubeCategoryId && category) {
@@ -783,10 +850,6 @@ function createAccounts(directory, request = fetch) {
         ? description
         : String(current.description || existingVideoSnippet.description || '');
       if (canUpdateBroadcast) {
-        const monitorStream = broadcast.contentDetails?.monitorStream || {};
-        if (typeof monitorStream.enableMonitorStream !== 'boolean' || monitorStream.broadcastStreamDelayMs == null) {
-          throw new Error('O YouTube não forneceu os dados técnicos obrigatórios para atualizar o evento com segurança.');
-        }
         const broadcastSnippet = {
           title,
           description: effectiveDescription,
@@ -800,12 +863,6 @@ function createAccounts(directory, request = fetch) {
           body: JSON.stringify({
             id: current.broadcastId,
             snippet: broadcastSnippet,
-            contentDetails: {
-              monitorStream: {
-                enableMonitorStream: monitorStream.enableMonitorStream,
-                broadcastStreamDelayMs: monitorStream.broadcastStreamDelayMs,
-              },
-            },
           }),
         });
       }
@@ -852,7 +909,12 @@ function createAccounts(directory, request = fetch) {
       if (String(savedSnippet.categoryId || '').trim() !== youtubeCategoryId ||
           (canUpdateBroadcast && String(savedBroadcastSnippet.categoryId || '').trim() !== youtubeCategoryId))
         mismatches.push(canUpdateBroadcast ? 'categoria do evento/vídeo' : 'categoria do vídeo');
-      if (tags && JSON.stringify(savedSnippet.tags || []) !== JSON.stringify(tags)) mismatches.push('tags');
+      const normalizeTags = (values) => (Array.isArray(values) ? values : [])
+        .map((tag) => String(tag || '').normalize('NFC').trim().toLowerCase())
+        .filter(Boolean).sort();
+      if (tags && JSON.stringify(normalizeTags(savedSnippet.tags)) !== JSON.stringify(normalizeTags(tags))) {
+        mismatches.push('tags');
+      }
       if (effectiveLanguage && String(savedSnippet.defaultLanguage || '').trim() !== effectiveLanguage) mismatches.push('idioma');
       if (privacyStatus && String(savedStatus.privacyStatus || '').trim().toLowerCase() !== privacyStatus) mismatches.push('visibilidade');
       if (mismatches.length) {

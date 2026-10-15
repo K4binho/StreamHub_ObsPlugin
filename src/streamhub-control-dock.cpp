@@ -22,7 +22,6 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
-#include <QSet>
 #include <QTabWidget>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -444,7 +443,7 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     overviewLayout->addWidget(preview);
     UpdatePreviewPlatformVisual();
 
-    auto *syncTitle = new QLabel(tr("SINCRONIZAÇÃO DAS LIVES"), overview);
+    auto *syncTitle = new QLabel(tr("CONFERÊNCIA ENTRE PLATAFORMAS"), overview);
     syncTitle->setObjectName("previewCaption");
     overviewLayout->addWidget(syncTitle);
     auto *syncRow = new QWidget(overview);
@@ -482,7 +481,7 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     metadataLayout->setContentsMargins(10, 8, 10, 8);
     metadataLayout->setSpacing(8);
 
-    auto *sharedBox = new QGroupBox(tr("Título"), formCard);
+    auto *sharedBox = new QGroupBox(tr("Dados principais"), formCard);
     auto *sharedForm = new QFormLayout(sharedBox);
     sharedForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     sharedForm->setHorizontalSpacing(8);
@@ -496,16 +495,9 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     titleBox->addWidget(title_);
     titleBox->addWidget(titleCount_, 0, Qt::AlignRight);
     sharedForm->addRow(tr("Título da live"), titleBox);
-    metadataLayout->addWidget(sharedBox);
-
-    auto *gameBox = new QGroupBox(tr("Jogo"), formCard);
-    auto *gameForm = new QFormLayout(gameBox);
-    gameForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    gameForm->setHorizontalSpacing(8);
-    gameForm->setVerticalSpacing(5);
-    category_ = new QLineEdit(gameBox);
+    category_ = new QLineEdit(sharedBox);
     category_->setPlaceholderText(tr("Procure jogo ou categoria Twitch"));
-    categoryResults_ = new QListWidget(gameBox);
+    categoryResults_ = new QListWidget(sharedBox);
     categoryResults_->setObjectName("categoryResults");
     categoryResults_->setIconSize(QSize(40, 56));
     categoryResults_->setMaximumHeight(170);
@@ -513,31 +505,31 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     auto *categoryBox = new QVBoxLayout();
     categoryBox->addWidget(category_);
     categoryBox->addWidget(categoryResults_);
-    gameForm->addRow(tr("Título do jogo · Twitch + Kick"), categoryBox);
-    metadataLayout->addWidget(gameBox);
+    sharedForm->addRow(tr("Jogo · Twitch + Kick"), categoryBox);
+    metadataLayout->addWidget(sharedBox);
 
-    auto *twitchBox = new QGroupBox(tr("Twitch"), formCard);
-    auto *twitchForm = new QFormLayout(twitchBox);
-    twitchForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    twitchForm->setHorizontalSpacing(8);
-    twitchForm->setVerticalSpacing(5);
-    twitchTags_ = new QLineEdit(twitchBox);
-    twitchTags_->setPlaceholderText(tr("Tags Twitch, separadas por vírgula"));
-    twitchLanguage_ = new QComboBox(twitchBox);
-    twitchLanguage_->addItem(tr("Português"), "pt");
-    twitchLanguage_->addItem(tr("Inglês"), "en");
-    twitchLanguage_->addItem(tr("Espanhol"), "es");
-    twitchLanguage_->addItem(tr("Outro"), "other");
-    classification_ = new QComboBox(twitchBox);
+    auto *commonBox = new QGroupBox(tr("Metadados"), formCard);
+    auto *commonForm = new QFormLayout(commonBox);
+    commonForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    commonForm->setHorizontalSpacing(8);
+    commonForm->setVerticalSpacing(5);
+    tags_ = new QLineEdit(commonBox);
+    tags_->setPlaceholderText(tr("Separadas por vírgula · Twitch até 5 tags; YouTube até 50"));
+    language_ = new QComboBox(commonBox);
+    language_->addItem(tr("Manter atual"), "");
+    language_->addItem(tr("Português"), "pt");
+    language_->addItem(tr("Inglês"), "en");
+    language_->addItem(tr("Espanhol"), "es");
+    classification_ = new QComboBox(commonBox);
     classification_->addItem(tr("Nenhuma classificação adicional"), "");
     classification_->addItem(tr("Linguagem imprópria"), "ProfanityVulgarity");
     classification_->addItem(tr("Violência gráfica"), "ViolentGraphic");
     classification_->addItem(tr("Temas políticos e sociais"), "DebatedSocialIssuesAndPolitics");
     classification_->addItem(tr("Jogos de azar"), "Gambling");
-    twitchForm->addRow(tr("Tags"), twitchTags_);
-    twitchForm->addRow(tr("Idioma"), twitchLanguage_);
-    twitchForm->addRow(tr("Classificação"), classification_);
-    metadataLayout->addWidget(twitchBox);
+    commonForm->addRow(tr("Tags · Twitch + YouTube"), tags_);
+    commonForm->addRow(tr("Idioma · Twitch + YouTube"), language_);
+    commonForm->addRow(tr("Classificação · Twitch"), classification_);
+    metadataLayout->addWidget(commonBox);
 
     auto *youtubeBox = new QGroupBox(tr("YouTube"), formCard);
     auto *youtubeForm = new QFormLayout(youtubeBox);
@@ -545,7 +537,7 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     youtubeForm->setHorizontalSpacing(8);
     youtubeForm->setVerticalSpacing(5);
     youtubeBroadcastSelector_ = new QComboBox(youtubeBox);
-    youtubeBroadcastSelector_->setPlaceholderText(tr("Selecione a transmissão do Studio"));
+    youtubeBroadcastSelector_->setToolTip(tr("Escolha exatamente qual evento do YouTube será lido e atualizado."));
     notification_ = new QTextEdit(youtubeBox);
     notification_->setFixedHeight(58);
     notification_->setPlaceholderText(tr("Descrição da live YouTube"));
@@ -556,32 +548,17 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     descriptionBox->addWidget(notificationCount_, 0, Qt::AlignRight);
     youtubeCategory_ = new QLineEdit(youtubeBox);
     youtubeCategory_->setPlaceholderText(tr("Categoria oficial YouTube, por exemplo Gaming"));
-    youtubeTags_ = new QLineEdit(youtubeBox);
-    youtubeTags_->setPlaceholderText(tr("Tags YouTube, separadas por vírgula"));
-    youtubeLanguage_ = new QComboBox(youtubeBox);
-    youtubeLanguage_->addItem(tr("Português"), "pt");
-    youtubeLanguage_->addItem(tr("Inglês"), "en");
-    youtubeLanguage_->addItem(tr("Espanhol"), "es");
-    youtubeLanguage_->addItem(tr("Outro"), "other");
     visibility_ = new QComboBox(youtubeBox);
     visibility_->addItems({tr("Público"), tr("Não listado"), tr("Privado")});
-    youtubeForm->addRow(tr("Transmissão alvo"), youtubeBroadcastSelector_);
+    youtubeForm->addRow(tr("Evento do YouTube"), youtubeBroadcastSelector_);
     youtubeForm->addRow(tr("Descrição"), descriptionBox);
-    youtubeForm->addRow(tr("Categoria"), youtubeCategory_);
-    youtubeForm->addRow(tr("Tags"), youtubeTags_);
-    youtubeForm->addRow(tr("Idioma"), youtubeLanguage_);
+    youtubeForm->addRow(tr("Categoria do vídeo"), youtubeCategory_);
     youtubeForm->addRow(tr("Visibilidade"), visibility_);
     metadataLayout->addWidget(youtubeBox);
     formContentLayout->addWidget(formCard);
     formContentLayout->addStretch();
     formScroll->setWidget(formContent);
     broadcastLayout->addWidget(formScroll, 1);
-
-    broadcastStatus_ = StatusLabel(broadcast);
-    broadcastStatus_->setObjectName("broadcastStatus");
-    broadcastStatus_->setMaximumHeight(72);
-    broadcastStatus_->hide();
-    broadcastLayout->addWidget(broadcastStatus_, 0);
 
     auto *buttons = new QHBoxLayout();
     auto *loadButton = new QPushButton(tr("Carregar atuais"), broadcast);
@@ -590,6 +567,10 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     applyButton->setFixedHeight(34);
     connect(loadButton, &QPushButton::clicked, this, &StreamHubControlDock::LoadBroadcast);
     connect(applyButton, &QPushButton::clicked, this, &StreamHubControlDock::ApplyBroadcast);
+    connect(youtubeBroadcastSelector_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (index >= 0 && !youtubeBroadcastSelector_->currentData().toString().trimmed().isEmpty())
+            RefreshPlatformContentStatus(QStringLiteral("youtube"));
+    });
     buttons->setSpacing(6);
     buttons->addWidget(loadButton, 1);
     buttons->addWidget(applyButton, 1);
@@ -612,23 +593,6 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
         youtubeCategoryId_.clear();
         UpdatePreview();
     });
-    connect(youtubeBroadcastSelector_, &QComboBox::currentIndexChanged, this, [this](int index) {
-        if (index < 0) return;
-        const QString id = youtubeBroadcastSelector_->currentData().toString().trimmed();
-        if (id.isEmpty() || id == youtubeBroadcastContent_.value("broadcastId").toString()) return;
-        SetBroadcastOperationStatus(tr("Carregando a transmissão selecionada do YouTube…"));
-        Request("GET", "/api/broadcast/current?platform=youtube&broadcastId=" +
-                    QString::fromUtf8(QUrl::toPercentEncoding(id)), {},
-                [this](const QJsonObject &content, int status) {
-            if (status != 200 || content.isEmpty()) {
-                SetBroadcastOperationStatus(content.value("error").toString());
-                return;
-            }
-            youtubeBroadcastContent_ = content;
-            ApplyTransmissionMetadata(content, QStringLiteral("youtube"));
-        SetBroadcastOperationStatus({});
-        });
-    });
     connect(categoryTimer_, &QTimer::timeout, this, &StreamHubControlDock::SearchCategories);
     connect(categoryResults_, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
         categoryId_ = item->data(Qt::UserRole).toString();
@@ -641,10 +605,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     });
     connect(title_, &QTextEdit::textChanged, this, [this]() { LimitText(title_, titleCount_, 140); UpdatePreview(); });
     connect(notification_, &QTextEdit::textChanged, this, [this]() { LimitText(notification_, notificationCount_, 5000); UpdatePreview(); });
-    connect(twitchTags_, &QLineEdit::textChanged, this, &StreamHubControlDock::UpdatePreview);
-    connect(twitchLanguage_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
-    connect(youtubeTags_, &QLineEdit::textChanged, this, &StreamHubControlDock::UpdatePreview);
-    connect(youtubeLanguage_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
+    connect(tags_, &QLineEdit::textChanged, this, &StreamHubControlDock::UpdatePreview);
+    connect(language_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
     connect(visibility_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
     connect(classification_, &QComboBox::currentIndexChanged, this, &StreamHubControlDock::UpdatePreview);
     kickLoginTimer_ = new QTimer(this);
@@ -869,15 +831,19 @@ void StreamHubControlDock::ApplyTransmissionMetadata(const QJsonObject &transmis
         edit->setText(tags.join(", "));
     };
 
+    const bool sharedMetadataSource = normalized == primaryPlatform_;
+    if (sharedMetadataSource) {
+        setTags(tags_, transmission.value("tags").toArray());
+        const int languageIndex = language_->findData(language);
+        if (!language.isEmpty() && languageIndex >= 0)
+            language_->setCurrentIndex(languageIndex);
+    }
+
     if (normalized == "twitch") {
         if (!category.isEmpty() && category_->text().trimmed().isEmpty())
             category_->setText(category);
         categoryId_ = transmission.value("categoryId").toString().trimmed();
         categoryIdPlatform_ = categoryId_.isEmpty() ? QString() : QStringLiteral("twitch");
-        setTags(twitchTags_, transmission.value("tags").toArray());
-        const int languageIndex = twitchLanguage_->findData(language);
-        if (!language.isEmpty() && languageIndex >= 0)
-            twitchLanguage_->setCurrentIndex(languageIndex);
         const QJsonArray labels = transmission.value("classificationLabels").toArray();
         const int classificationIndex = labels.isEmpty()
                                             ? 0
@@ -896,10 +862,6 @@ void StreamHubControlDock::ApplyTransmissionMetadata(const QJsonObject &transmis
         if (!category.isEmpty())
             youtubeCategory_->setText(category);
         youtubeCategoryId_ = transmission.value("categoryId").toString().trimmed();
-        setTags(youtubeTags_, transmission.value("tags").toArray());
-        const int languageIndex = youtubeLanguage_->findData(language);
-        if (!language.isEmpty() && languageIndex >= 0)
-            youtubeLanguage_->setCurrentIndex(languageIndex);
         const QString visibility = transmission.value("visibility").toString().trimmed().toLower();
         if (!visibility.isEmpty()) {
             const int visibilityIndex = visibility == "public" ? 0 : visibility == "unlisted" ? 1 : 2;
@@ -925,72 +887,25 @@ void StreamHubControlDock::SetTransmissionSyncNotice(const QString &platform,
 
 void StreamHubControlDock::UpdateTransmissionSyncNotice()
 {
-    struct PlatformState {
-        QString name;
-        QJsonObject transmission;
-        QString notice;
+    const QVector<QPair<QString, QString>> notices{
+        {QStringLiteral("Twitch"), twitchSyncNotice_},
+        {QStringLiteral("Kick"), kickSyncNotice_},
+        {QStringLiteral("YouTube"), youtubeSyncNotice_},
     };
-    QVector<PlatformState> platforms{
-        {QStringLiteral("Twitch"), twitchBroadcastContent_, twitchSyncNotice_},
-        {QStringLiteral("Kick"), kickBroadcastContent_, kickSyncNotice_},
-        {QStringLiteral("YouTube"), youtubeBroadcastContent_, youtubeSyncNotice_},
-    };
-    int availableCount = 0;
-    for (const auto &platform : platforms)
-        availableCount += platform.transmission.isEmpty() ? 0 : 1;
-
-    const auto normalized = [](QString value) {
-        return value.normalized(QString::NormalizationForm_C).simplified().toCaseFolded();
-    };
-    const auto quoted = [](const QString &value) {
-        return value.isEmpty() ? QObject::tr("(vazio)") : QStringLiteral("“%1”").arg(value);
-    };
-    QStringList lines;
-    bool failure = false;
-    bool warning = availableCount < platforms.size();
-    for (const auto &platform : platforms) {
-        if (!platform.notice.isEmpty()) {
-            lines << QStringLiteral("%1: %2").arg(platform.name, platform.notice);
-            const QString notice = platform.notice.toLower();
-            failure = failure || notice.contains(QStringLiteral("falha")) || notice.contains(QStringLiteral("erro"));
-            warning = warning || !failure;
-        }
+    QStringList failedPlatforms;
+    for (const auto &notice : notices) {
+        const QString message = notice.second.toLower();
+        if (message.contains(QStringLiteral("falha")) || message.contains(QStringLiteral("erro")))
+            failedPlatforms << notice.first;
     }
+    if (failedPlatforms.isEmpty())
+        return;
 
-    const auto summarizeField = [&](const QString &label, const QString &key, bool youtubeComparable) {
-        QStringList values;
-        QSet<QString> distinct;
-        int compared = 0;
-        for (const auto &platform : platforms) {
-            if (platform.transmission.isEmpty() || (platform.name == QStringLiteral("YouTube") && !youtubeComparable))
-                continue;
-            const QString value = platform.transmission.value(key).toString().trimmed();
-            values << QStringLiteral("%1 %2").arg(platform.name, quoted(value));
-            distinct.insert(normalized(value));
-            ++compared;
-        }
-        if (compared == 0) {
-            lines << tr("%1: aguardando dados.").arg(label);
-        } else {
-            const bool differs = distinct.size() > 1;
-            lines << tr("%1: %2%3")
-                         .arg(label, values.join(QStringLiteral(" · ")),
-                              differs ? tr(" (divergente)") : tr(" (igual)"));
-            warning = warning || differs;
-        }
-    };
-
-    summarizeField(tr("Título"), QStringLiteral("title"), true);
-    summarizeField(tr("Categoria (Twitch/Kick)"), QStringLiteral("category"), false);
-    if (availableCount < platforms.size())
-        lines << tr("Comparação parcial: %1 de 3 plataformas consultadas.").arg(availableCount);
     if (transmissionSyncStatus_)
-        transmissionSyncStatus_->setText(lines.join('\n'));
+        transmissionSyncStatus_->setText(tr("Erro ao atualizar %1").arg(failedPlatforms.join(tr(", "))));
     if (transmissionSyncIndicator_) {
-        transmissionSyncIndicator_->setText(failure ? QStringLiteral("×")
-                                             : warning ? QStringLiteral("⚠")
-                                                       : QStringLiteral("✓"));
-        transmissionSyncIndicator_->setProperty("state", failure ? "error" : warning ? "warning" : "success");
+        transmissionSyncIndicator_->setText(QStringLiteral("×"));
+        transmissionSyncIndicator_->setProperty("state", "error");
         transmissionSyncIndicator_->style()->unpolish(transmissionSyncIndicator_);
         transmissionSyncIndicator_->style()->polish(transmissionSyncIndicator_);
     }
@@ -998,48 +913,63 @@ void StreamHubControlDock::UpdateTransmissionSyncNotice()
 
 void StreamHubControlDock::SetBroadcastOperationStatus(const QString &message)
 {
-    if (!broadcastStatus_)
-        return;
-    broadcastStatus_->setText(message);
-    broadcastStatus_->setVisible(!message.trimmed().isEmpty());
+    if (transmissionSyncStatus_)
+        transmissionSyncStatus_->setText(message);
+    if (transmissionSyncIndicator_) {
+        const bool failed = message.startsWith(tr("Erro"), Qt::CaseInsensitive);
+        transmissionSyncIndicator_->setText(failed ? QStringLiteral("×") : QStringLiteral("✓"));
+        transmissionSyncIndicator_->setProperty("state", failed ? "error" : "success");
+        transmissionSyncIndicator_->style()->unpolish(transmissionSyncIndicator_);
+        transmissionSyncIndicator_->style()->polish(transmissionSyncIndicator_);
+    }
 }
 
 void StreamHubControlDock::RefreshBroadcastContentStatus()
 {
     RefreshPlatformContentStatus(QStringLiteral("twitch"));
     RefreshPlatformContentStatus(QStringLiteral("kick"));
-    RefreshPlatformContentStatus(QStringLiteral("youtube"));
     RefreshYoutubeBroadcasts();
 }
 
 void StreamHubControlDock::RefreshYoutubeBroadcasts()
 {
-    Request("GET", "/api/broadcast/youtube/events", {}, [this](const QJsonObject &response, int status) {
-        if (status != 200 || !youtubeBroadcastSelector_) return;
-        const QString selectedId = youtubeBroadcastContent_.value("broadcastId").toString();
+    if (!youtubeBroadcastSelector_)
+        return;
+    const QString previousId = youtubeBroadcastSelector_->currentData().toString().trimmed();
+    SetTransmissionSyncNotice(QStringLiteral("youtube"), tr("Buscando eventos disponíveis no YouTube..."));
+    Request("GET", "/api/broadcast/youtube/events", {}, [this, previousId](const QJsonObject &response, int status) {
+        if (status != 200) {
+            const QString detail = response.value("error").toString().trimmed();
+            SetTransmissionSyncNotice(QStringLiteral("youtube"), detail.isEmpty()
+                ? tr("Não foi possível listar os eventos do YouTube.") : detail);
+            return;
+        }
         const QSignalBlocker blocker(youtubeBroadcastSelector_);
         youtubeBroadcastSelector_->clear();
-        for (const auto &value : response.value("items").toArray()) {
-            const auto event = value.toObject();
-            const QString id = event.value("id").toString();
+        const QJsonArray events = response.value("items").toArray();
+        for (const QJsonValue &value : events) {
+            const QJsonObject event = value.toObject();
+            const QString id = event.value("id").toString().trimmed();
             const QString title = event.value("title").toString().trimmed();
-            const QString broadcastTitle = event.value("broadcastTitle").toString().trimmed();
             const QString state = event.value("state").toString().trimmed();
-            const QString titleLabel = title.isEmpty() ? tr("Sem título") : title;
-            const QString eventTitleLabel = !broadcastTitle.isEmpty() && broadcastTitle != title
-                ? tr(" · evento: %1").arg(broadcastTitle)
-                : QString();
-            const QString label = QString("%1%2 · %3 · %4")
-                .arg(titleLabel, eventTitleLabel,
-                     state.isEmpty() ? tr("Estado desconhecido") : state,
-                     event.value("scheduledStartTime").toString());
+            if (id.isEmpty())
+                continue;
+            const QString label = tr("%1 · %2 · ID: %3")
+                .arg(title.isEmpty() ? tr("Sem título") : title,
+                     state.isEmpty() ? tr("estado desconhecido") : state, id);
             youtubeBroadcastSelector_->addItem(label, id);
         }
-        int selectedIndex = youtubeBroadcastSelector_->findData(selectedId);
-        if (selectedIndex < 0 && youtubeBroadcastSelector_->count() > 0) selectedIndex = 0;
-        if (selectedIndex >= 0) youtubeBroadcastSelector_->setCurrentIndex(selectedIndex);
-        if (youtubeBroadcastSelector_->count() == 0)
-            youtubeBroadcastSelector_->addItem(tr("Nenhuma transmissão editável encontrada"), QString());
+        if (youtubeBroadcastSelector_->count() == 0) {
+            youtubeBroadcastSelector_->addItem(tr("Nenhum evento editável encontrado"), QString());
+            youtubeBroadcastContent_ = {};
+            SetTransmissionSyncNotice(QStringLiteral("youtube"), tr("Nenhum evento editável foi retornado pelo YouTube."));
+            return;
+        }
+        int selected = youtubeBroadcastSelector_->findData(previousId);
+        if (selected < 0)
+            selected = 0;
+        youtubeBroadcastSelector_->setCurrentIndex(selected);
+        RefreshPlatformContentStatus(QStringLiteral("youtube"));
     });
 }
 
@@ -1053,10 +983,10 @@ void StreamHubControlDock::RefreshPlatformContentStatus(const QString &platform)
         youtubeBroadcastContent_ = {};
     SetTransmissionSyncNotice(platform, tr("Consultando conteúdo atual..."));
     QString path = "/api/broadcast/current?platform=" + platform;
-    if (platform == QStringLiteral("youtube")) {
-        const QString selectedId = youtubeBroadcastSelector_->currentData().toString().trimmed();
-        if (!selectedId.isEmpty())
-            path += "&broadcastId=" + QString::fromUtf8(QUrl::toPercentEncoding(selectedId));
+    if (platform == QStringLiteral("youtube") && youtubeBroadcastSelector_) {
+        const QString broadcastId = youtubeBroadcastSelector_->currentData().toString().trimmed();
+        if (!broadcastId.isEmpty())
+            path += "&broadcastId=" + QString::fromUtf8(QUrl::toPercentEncoding(broadcastId));
     }
     Request("GET", path, {},
             [this, platform](const QJsonObject &content, int status) {
@@ -1071,12 +1001,8 @@ void StreamHubControlDock::RefreshPlatformContentStatus(const QString &platform)
             twitchBroadcastContent_ = content;
         else if (platform == QStringLiteral("kick"))
             kickBroadcastContent_ = content;
-        else {
+        else
             youtubeBroadcastContent_ = content;
-            const QSignalBlocker blocker(youtubeBroadcastSelector_);
-            const int selected = youtubeBroadcastSelector_->findData(content.value("broadcastId").toString());
-            if (selected >= 0) youtubeBroadcastSelector_->setCurrentIndex(selected);
-        }
         ApplyTransmissionMetadata(content, platform);
         if (platform == QStringLiteral("youtube") && content.value("metadataMismatch").toBool()) {
             SetTransmissionSyncNotice(
@@ -1380,7 +1306,6 @@ void StreamHubControlDock::SyncYoutubeTransmission()
     youtubeSyncButton_->setEnabled(false);
     youtubeTransmission_ = {};
     RefreshYoutubeBroadcasts();
-    RefreshPlatformContentStatus(QStringLiteral("youtube"));
     youtubeLoginHelp_->setText(tr("Buscando dados oficiais do conteúdo da transmissão..."));
     emit youtubeTransmissionRequested();
 }
@@ -1394,8 +1319,6 @@ void StreamHubControlDock::SetYoutubeTransmission(const QJsonObject &transmissio
         return;
     }
     youtubeTransmission_ = transmission;
-    youtubeBroadcastContent_ = transmission;
-    ApplyTransmissionMetadata(youtubeTransmission_, "youtube");
     SetTransmissionSyncNotice("youtube", {});
     youtubeSyncButton_->setEnabled(true);
     youtubeLoginHelp_->setText(tr("RTMP e chave de transmissão atualizados em Múltiplas saídas."));
@@ -1447,7 +1370,7 @@ void StreamHubControlDock::LoadBroadcast()
     Request("GET", "/api/broadcast/current?platform=" + primaryPlatform_, {}, [this](const QJsonObject &o, int status) {
         if (status != 200) { SetBroadcastOperationStatus(o.value("error").toString()); return; }
         ApplyTransmissionMetadata(o, primaryPlatform_);
-        SetBroadcastOperationStatus(tr("Informações atuais de %1 carregadas.").arg(primaryPlatform_));
+    SetBroadcastOperationStatus(tr("Dados atualizados"));
     });
 }
 
@@ -1466,11 +1389,10 @@ void StreamHubControlDock::ApplyBroadcast()
     const QString description = notification_->toPlainText().trimmed();
     const QString gameTitle = category_->text().trimmed();
     const QString youtubeCategory = youtubeCategory_->text().trimmed();
-    const QJsonArray twitchTags = splitTags(twitchTags_->text());
-    const QJsonArray youtubeTags = splitTags(youtubeTags_->text());
-    const QString twitchLanguage = twitchLanguage_->currentData().toString();
-    const QString youtubeLanguage = youtubeLanguage_->currentData().toString();
-    const QString youtubeBroadcastId = youtubeBroadcastSelector_->currentData().toString().trimmed();
+    const QJsonArray tags = splitTags(tags_->text());
+    const QString language = language_->currentData().toString();
+    const QString youtubeBroadcastId = youtubeBroadcastSelector_
+        ? youtubeBroadcastSelector_->currentData().toString().trimmed() : QString();
     const QString classification = classification_->currentData().toString();
     const QString privacyStatus = visibility_->currentIndex() == 0
                                       ? QStringLiteral("public")
@@ -1485,8 +1407,8 @@ void StreamHubControlDock::ApplyBroadcast()
         {"enabled", true},
         {"gameName", gameTitle},
         {"gameId", categoryId_},
-        {"tags", twitchTags},
-        {"language", twitchLanguage},
+        {"tags", tags},
+        {"language", language},
         {"contentClassificationIds", classification.isEmpty() ? QJsonArray{} : QJsonArray{classification}},
     };
     const QJsonObject kickMetadata{
@@ -1496,13 +1418,13 @@ void StreamHubControlDock::ApplyBroadcast()
     };
     const QJsonObject youtubeMetadata{
         {"enabled", true},
-        {"broadcastId", youtubeBroadcastSelector_->currentData().toString()},
+        {"broadcastId", youtubeBroadcastId},
         {"description", description},
         {"privacyStatus", privacyStatus},
         {"categoryName", youtubeCategory},
         {"categoryId", youtubeCategoryId_},
-        {"tags", youtubeTags},
-        {"language", youtubeLanguage},
+        {"tags", tags},
+        {"language", language},
         {"madeForKids", false},
         {"selfDeclaredMadeForKids", false},
     };
@@ -1521,27 +1443,22 @@ void StreamHubControlDock::ApplyBroadcast()
         SetBroadcastOperationStatus(tr("Serviço principal OBS não identificado."));
         return;
     }
-    if (youtubeBroadcastId.isEmpty()) {
-        SetBroadcastOperationStatus(tr("Selecione uma transmissão alvo do YouTube antes de aplicar."));
-        return;
-    }
     UpdateTransmissionSyncNotice();
-    SetBroadcastOperationStatus(tr("Aplicando em Twitch, Kick e YouTube..."));
+    SetBroadcastOperationStatus(tr("Atualizando dados..."));
     Request("POST", "/api/broadcast/apply", body, [this](const QJsonObject &o, int status) {
-        if (status != 200) { SetBroadcastOperationStatus(o.value("error").toString()); return; }
-        QStringList failures;
+        if (status != 200) { SetBroadcastOperationStatus(tr("Erro ao atualizar dados")); return; }
+        QStringList failedPlatforms;
         for (const auto &v : o.value("results").toArray()) {
             const auto result = v.toObject();
-            if (!result.value("ok").toBool()) {
-                QString line = QString("%1: %2").arg(result.value("platform").toString(), result.value("message").toString());
-                const QString broadcastId = result.value("broadcastId").toString().trimmed();
-                if (!broadcastId.isEmpty())
-                    line += tr(" (transmissão %1)").arg(broadcastId);
-                failures << line;
-            }
+            if (result.value("skipped").toBool())
+                continue;
+            if (!result.value("ok").toBool())
+                failedPlatforms << result.value("platform").toString();
         }
-        UpdateTransmissionSyncNotice();
-        SetBroadcastOperationStatus(failures.join('\n'));
+        if (failedPlatforms.isEmpty())
+            SetBroadcastOperationStatus(tr("Dados atualizados"));
+        else
+            SetBroadcastOperationStatus(tr("Erro ao atualizar %1").arg(failedPlatforms.join(tr(", "))));
         RefreshBroadcastContentStatus();
     });
 }
@@ -1581,7 +1498,7 @@ void StreamHubControlDock::UpdatePreview()
 {
     const QString title = title_->toPlainText().trimmed(); previewTitle_->setText(title.isEmpty() ? tr("Título da transmissão") : title);
     const QString category = category_->text().trimmed();
-    const QString language = primaryPlatform_ == "youtube" ? youtubeLanguage_->currentText() : twitchLanguage_->currentText();
+    const QString language = language_->currentText();
     previewCategory_->setText(category.isEmpty() ? tr("Nenhum jogo selecionado") : QString("%1 · %2").arg(category, language));
     const QString notification = notification_->toPlainText().trimmed(); previewNotification_->setText(notification.isEmpty() ? tr("A prévia é atualizada enquanto você edita.") : notification);
 }

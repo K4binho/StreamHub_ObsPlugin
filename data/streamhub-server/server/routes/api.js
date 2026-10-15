@@ -244,6 +244,7 @@ router.get('/broadcast/current', async (req, res) => {
       videoDescription: String(transmission.videoDescription || ''),
       videoCategoryId: String(transmission.videoCategoryId || ''),
       metadataMismatch: Boolean(transmission.metadataMismatch),
+      fieldAvailability: transmission.fieldAvailability || {},
       tags: Array.isArray(transmission.tags) ? transmission.tags : [],
       language: String(transmission.language || ''),
       visibility: String(transmission.visibility || ''),
