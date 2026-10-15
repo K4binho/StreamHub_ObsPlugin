@@ -77,7 +77,7 @@ ctest --test-dir build_x64 -C RelWithDebInfo --output-on-failure
 
 No OBS, adicione **StreamHub — Supressor de ruído (RNNoise)** aos filtros de áudio da fonte do microfone. Comece pelo preset **Equilibrado**; **Qualidade** e **Desempenho** ajustam intensidade e resposta do gate. Os controles avançados incluem intensidade de redução, nível/ataque/sustentação/fechamento do gate, remoção de ruído grave, ganho, limitador e bypass. O processamento é feito em 48 kHz/480 amostras; outras taxas passam pelo resamplador do OBS e podem adicionar latência. Não empilhe outro RNNoise sem comparar o áudio.
 
-O filtro preserva o identificador `obs_noise_suppressor_filter`, para manter configurações de filtros já salvas no OBS. O RNNoise é distribuído sob licença BSD-style; o aviso está em [noise-suppressor/LICENSE-RNNOISE.txt](noise-suppressor/LICENSE-RNNOISE.txt).
+O filtro preserva o identificador `obs_noise_suppressor_filter`, para manter configurações de filtros já salvas no OBS. O RNNoise é distribuído sob licença BSD-style; o aviso está em [licenses/RNNOISE.txt](licenses/RNNOISE.txt).
 
 Node.js não é pré-requisito. Plugin usa Node do PATH ou baixa runtime portátil na primeira execução. QtWebSockets não é necessário; chat usa long-poll HTTP via `Qt6::Network`.
 
@@ -93,12 +93,12 @@ Adicione URL como **Fonte de navegador** no OBS. Fundo permanece transparente.
 
 ## Documentação
 
-- [Arquitetura, contexto, regras de desenvolvimento e roadmap](PLANOS/ARQUITETURA_E_CONTEXTO.md)
-- [Manual de uso, build, instalação, overlay, tema e Flatpak](PLANOS/MANUAL_E_BUILD.md)
+- [Arquitetura, contexto, regras de desenvolvimento e roadmap](docs/project/ARCHITECTURE.md)
+- [Manual de uso, build, instalação, overlay, tema e Flatpak](docs/project/BUILD_AND_USAGE.md)
 - [Build Flatpak especializado](FLATPAK.md)
 - [Instalação do tema](themes/INSTALACAO.md)
 - [Documentação do servidor](data/streamhub-server/README.md)
-- [Detalhes do supressor de ruído](noise-suppressor/README.md)
+- [Detalhes do supressor de ruído](docs/audio/noise-suppressor.md)
 
 ## Segurança
 

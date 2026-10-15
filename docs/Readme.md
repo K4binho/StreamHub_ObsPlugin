@@ -15,7 +15,7 @@ A DLL inclui recursos, ícones, traduções e servidor local. Configuração pú
 - Twitch OAuth não preenche stream key. Destino Twitch sem chave fica **Pendente**; informe chave manualmente e marque **Iniciar junto com a transmissão principal do OBS**.
 - **Sincronizar** Kick ou YouTube busca servidor RTMP e stream key somente por ação manual e cria ou atualiza um único destino da plataforma, preservando configurações existentes. Conectar conta não inicia RTMP sync. Falha de sincronização aparece como aviso separado; não troca estado OAuth **Conectada**. YouTube respondeu `HTTP 200` em teste interno com servidor e stream key presentes; Kick respondeu `HTTP 400` porque autorização atual não fornece dados RTMP. Nunca expor stream keys.
 
-Contexto detalhado: [PLANOS/ARQUITETURA_E_CONTEXTO.md](../PLANOS/ARQUITETURA_E_CONTEXTO.md).
+Contexto detalhado: [docs/project/ARCHITECTURE.md](project/ARCHITECTURE.md).
 
 <!-- registro histórico -->
 
@@ -37,7 +37,7 @@ Esta documentação registra integração preliminar da sincronização Kick. Co
 
 Kick公式OAuth、PKCE、ローカルコールバック、refresh token、認証済み同期の暫定実装を追加しました。接続後、取得できるRTMPサーバーと配信キーをネイティブ出力へ同期し、出力先が事前設定されていなければKick出力先を一度だけ作成します。既存の順序、名前、encoder、詳細設定、他サービスの出力先は保持します。公式エンドポイント、スコープ、配信キー項目、実配信は未確認です。
 
-Node.jsはプラットフォームAPIと認証情報、C++はOBSネイティブ出力と `GlobalMultiOutputConfig()` を管理します。KickアカウントとRTMP出力を同期するローカル認証済み橋渡しは暫定実装済みです。公式契約と実配信の検証は未完了です。秘密情報をURL、ログ、通常イベント、ドキュメント、Gitへ流しません。詳細は [PLANOS/ARQUITETURA_E_CONTEXTO.md](../PLANOS/ARQUITETURA_E_CONTEXTO.md) を参照してください。
+Node.jsはプラットフォームAPIと認証情報、C++はOBSネイティブ出力と `GlobalMultiOutputConfig()` を管理します。KickアカウントとRTMP出力を同期するローカル認証済み橋渡しは暫定実装済みです。公式契約と実配信の検証は未完了です。秘密情報をURL、ログ、通常イベント、ドキュメント、Gitへ流しません。詳細は [docs/project/ARCHITECTURE.md](project/ARCHITECTURE.md) を参照してください。
 
 # OBS 同時配信プラグイン
 

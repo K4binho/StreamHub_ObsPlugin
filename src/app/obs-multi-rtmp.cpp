@@ -22,7 +22,7 @@
 #include "streamhub-theme-installer.h"
 #include "streamhub-native-theme.h"
 #include "streamhub-updater.h"
-#include "../noise-suppressor/src/noise-suppressor-registration.h"
+#include "../audio/noise-suppressor-registration.h"
 #include <QCheckBox>
 #include <QClipboard>
 #include <QColorDialog>

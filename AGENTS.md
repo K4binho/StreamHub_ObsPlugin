@@ -2,8 +2,8 @@
 
 Leia antes de alterar código:
 
-- [Arquitetura, contexto, regras estritas, segurança e roadmap](PLANOS/ARQUITETURA_E_CONTEXTO.md)
-- [Manual, build e operação](PLANOS/MANUAL_E_BUILD.md)
+- [Arquitetura, contexto, regras estritas, segurança e roadmap](docs/project/ARCHITECTURE.md)
+- [Manual, build e operação](docs/project/BUILD_AND_USAGE.md)
 
 ## Regras rápidas
 
@@ -12,7 +12,7 @@ Leia antes de alterar código:
 - Não hardcode caminhos de máquina. Use `StreamHubWritableDataPath()`, `StreamHubServerPath()` e `StreamHubModuleConfigPath()`.
 - Nunca registre, commite ou exponha Client Secret, tokens ou stream keys.
 - Node gerencia APIs, OAuth e credenciais. C++ gerencia saídas RTMP e `GlobalMultiOutputConfig()`.
-- Ao alterar arquivos embutidos em `qrc/streamhub-data.qrc`, aumente `kBundleVersion` em `src/streamhub-bundle.cpp`.
+- Ao alterar arquivos embutidos em `qrc/streamhub-data.qrc`, aumente `kBundleVersion` em `src/core/streamhub-bundle.cpp`.
 - Preserve `config.json`, `accounts-private.json`, `node_modules`, campos JSON desconhecidos, ordem de destinos, encoders e configurações avançadas durante migrações ou extração.
 - Mantenha compatibilidade com configurações antigas e defaults seguros para campos ausentes.
 - Antes de concluir, execute `node --check` nos arquivos Node alterados, configure/compile com CMake quando código for alterado e rode `git diff --check`.

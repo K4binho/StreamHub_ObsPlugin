@@ -20,4 +20,4 @@ Adicione o filtro à fonte do microfone e comece pelo preset **Equilibrado**. Ev
 
 O RNNoise processa quadros de 480 amostras a 48 kHz; outras taxas são convertidas pelo resamplador de áudio do OBS, com latência adicional dependente da configuração. Este filtro não usa código proprietário do Discord e não promete equivalência de resultado.
 
-Consulte `LICENSE-RNNOISE.txt` para os avisos de licença do RNNoise incorporado.
+Consulte `licenses/RNNOISE.txt` para os avisos de licença do RNNoise incorporado.

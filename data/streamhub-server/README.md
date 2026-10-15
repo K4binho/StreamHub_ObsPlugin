@@ -25,7 +25,7 @@ O overlay tem fundo transparente, ícone e cor fixa por plataforma, badges de mo
 - Credenciais manuais preenchidas vencem `.env`; campos manuais vazios usam `KICK_*` ou `YOUTUBE_*` correspondente. Kick e YouTube resolvem credenciais e fluxos independentemente.
 - Endpoints, escopos e campos de stream key Kick ainda precisam confirmação oficial e teste real; envio autenticado e moderação permanecem pendentes.
 
-Contexto detalhado: [PLANOS/ARQUITETURA_E_CONTEXTO.md](../../PLANOS/ARQUITETURA_E_CONTEXTO.md).
+Contexto detalhado: [docs/project/ARCHITECTURE.md](../../docs/project/ARCHITECTURE.md).
 
 O servidor é iniciado pelo launcher do plugin com `STREAMHUB_OBS_PID`, `STREAMHUB_INSTANCE_TOKEN` e porta configurada. O servidor escuta em `localhost`, com porta padrão `605`. O lifecycle local usa `runtime.json`, `GET /internal/status` e `POST /internal/shutdown`; ambos endpoints exigem loopback e `X-StreamHub-Token`. Watchdog verifica o PID do OBS a cada 2 segundos. Sincronização Kick usa `POST /internal/kick-sync/nonce` e `POST /internal/kick-sync`; YouTube usa `POST /internal/youtube-sync/nonce` e `POST /internal/youtube-sync`. Ambas usam mesmo handshake e nonce temporário.
 
@@ -72,7 +72,7 @@ No modo standalone, endpoints internos continuam sem token válido e watchdog n�
 
 O painel de múltiplas saídas é nativo em C++ e compartilha os recursos do OBS. O servidor Node cuida dos chats, overlay, OAuth e chamadas autenticadas das plataformas; C++ controla destinos RTMP. Durante sincronização Kick ou YouTube, stream key transita somente na resposta HTTP interna autenticada e fica em memória para atualizar o destino; não é registrada em log ou resposta pública.
 
-A execução pelo plugin OBS é caminho suportado. Ver [PLANOS/ARQUITETURA_E_CONTEXTO.md](../../PLANOS/ARQUITETURA_E_CONTEXTO.md) para estado, arquitetura, requisitos e critérios de validação.
+A execução pelo plugin OBS é caminho suportado. Ver [docs/project/ARCHITECTURE.md](../../docs/project/ARCHITECTURE.md) para estado, arquitetura, requisitos e critérios de validação.
 
 **Segurança:** nunca registrar Client Secret, tokens ou stream keys em logs, URLs, documentação, screenshots ou Git.
 

@@ -143,7 +143,7 @@ wsl -e flatpak run com.obsproject.Studio
 
 ## 发布时需要调整的内容
 
-当前清单使用 `type: dir` 读取工作区，适合本地开发和生成 bundle。主文档见 `PLANOS/MANUAL_E_BUILD.md`。提交 Flathub
+当前清单使用 `type: dir` 读取工作区，适合本地开发和生成 bundle。主文档见 `docs/project/BUILD_AND_USAGE.md`。提交 Flathub
 时应把 source 改为固定 `tag` 与 `commit` 的 Git source，并把
 `flatpak/com.obsproject.Studio.Plugin.MultiRTMP.metainfo.xml` 的 release 版本和日期
 同步到正式发布版本。Flathub 通常还需要一个独立打包仓库及 `flathub.json`；其中

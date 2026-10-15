@@ -1,4 +1,4 @@
-#include "../../src/streamhub-paths.h"
+#include "../../src/core/streamhub-paths.h"
 
 #include <QCoreApplication>
 #include <QFile>

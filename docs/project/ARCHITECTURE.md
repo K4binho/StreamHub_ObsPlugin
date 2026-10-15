@@ -78,18 +78,19 @@ Servidor escuta somente localmente. Chaves RTMP não pertencem ao fluxo comum de
 
 ### 3.2 Plugin C++/Qt
 
-- `src/obs-multi-rtmp.cpp`: dock de múltiplas saídas, cartão principal e `obs_module_load()`.
-- `src/push-widget.cpp`: cartão, estado, início e parada de cada destino.
-- `src/output-config.h/.cpp`: `GlobalMultiOutputConfig()`, persistência de `targets`, encoders, vídeo e áudio.
-- `src/streamhub-chat-dock.cpp/.h`: polling HTTP, filtros, deduplicação, envio e renderização.
-- `src/streamhub-chat-settings.cpp`: formulário e gravação atômica de `config.json`.
-- `src/streamhub-chat-admin.cpp/.h`: moderação, configurações administrativas, recompensas e resgates.
-- `src/streamhub-control-dock.cpp/.h`: contas, OAuth, editor da live, prévia e busca de categoria.
-- `src/streamhub-launcher.cpp`: ciclo de vida Node, runtime, `npm install`, processo filho e reinício.
-- `src/streamhub-node-provision.cpp`: resolução/download do Node portátil e reparação de dependências.
-- `src/streamhub-paths.h`: resolução de caminhos graváveis, servidor e configuração.
-- `src/streamhub-bundle.cpp`: extração versionada do Qt Resource System.
-- `src/streamhub-platforms.cpp`: presets, ícones, cores e servidores conhecidos.
+- `src/app/obs-multi-rtmp.cpp`: dock de múltiplas saídas, cartão principal e `obs_module_load()`.
+- `src/streaming/push-widget.cpp`: cartão, estado, início e parada de cada destino.
+- `src/streaming/output-config.h/.cpp`: `GlobalMultiOutputConfig()`, persistência de `targets`, encoders, vídeo e áudio.
+- `src/chat/streamhub-chat-dock.cpp/.h`: polling HTTP, filtros, deduplicação, envio e renderização.
+- `src/chat/streamhub-chat-settings.cpp`: formulário e gravação atômica de `config.json`.
+- `src/chat/streamhub-chat-admin.cpp/.h`: moderação, configurações administrativas, recompensas e resgates.
+- `src/broadcast/streamhub-control-dock.cpp/.h`: contas, OAuth, editor da live, prévia e busca de categoria.
+- `src/core/streamhub-launcher.cpp`: ciclo de vida Node, runtime, `npm install`, processo filho e reinício.
+- `src/core/streamhub-node-provision.cpp`: resolução/download do Node portátil e reparação de dependências.
+- `src/core/streamhub-paths.h`: resolução de caminhos graváveis, servidor e configuração.
+- `src/core/streamhub-bundle.cpp`: extração versionada do Qt Resource System.
+- `src/streaming/streamhub-platforms.cpp`: presets, ícones, cores e servidores conhecidos.
+- `src/audio/noise-suppressor-filter.c`: filtro RNNoise integrado à DLL principal.
 - `qrc/streamhub-data.qrc`: arquivos embutidos na DLL.
 
 C++ é autoridade para saídas RTMP, `GlobalMultiOutputConfig()` e `obs-multi-rtmp.json` no perfil ativo do OBS.
@@ -98,7 +99,7 @@ C++ é autoridade para saídas RTMP, `GlobalMultiOutputConfig()` e `obs-multi-rt
 
 `qrc/streamhub-data.qrc` embute recursos necessários para DLL funcionar sem `data/` copiado manualmente. `StreamHub_EnsureBundledData()` extrai para caminho gravável retornado pelo OBS.
 
-`kBundleVersion` em `src/streamhub-bundle.cpp` controla reextração. Ao alterar qualquer arquivo listado no QRC, aumentar `kBundleVersion`. Não confundir versão do bundle com `PLUGIN_VERSION`.
+`kBundleVersion` em `src/core/streamhub-bundle.cpp` controla reextração. Ao alterar qualquer arquivo listado no QRC, aumentar `kBundleVersion`. Não confundir versão do bundle com `PLUGIN_VERSION`.
 
 Extração nunca deve sobrescrever:
 
@@ -230,7 +231,7 @@ Objetivo da Etapa 2: manter o servidor Node ligado somente enquanto a instância
 - Executar encerramento em fases: endpoint autenticado, `terminate()`, espera limitada e `kill()` como último recurso.
 - Evitar corrida entre restart, sinal `finished` e destrutor.
 
-**Estado:** implementado em `src/streamhub-launcher.cpp` e `src/streamhub-launcher.h`. `PreparePreviousInstance()` remove runtime obsoleto quando PID não existe, preserva processo quando handshake falha e só solicita shutdown após resposta autenticada com PID do Node e PID do OBS esperados. `Stop()` tenta endpoint interno, espera até 3 segundos por encerramento gracioso e usa `kill()` somente como fallback.
+**Estado:** implementado em `src/core/streamhub-launcher.cpp` e `src/core/streamhub-launcher.h`. `PreparePreviousInstance()` remove runtime obsoleto quando PID não existe, preserva processo quando handshake falha e só solicita shutdown após resposta autenticada com PID do Node e PID do OBS esperados. `Stop()` tenta endpoint interno, espera até 3 segundos por encerramento gracioso e usa `kill()` somente como fallback.
 
 **Validação pendente:** testar PID reutilizado por processo diferente, runtime com token válido apontando para porta errada, restart repetido e falha de resposta durante shutdown.
 
@@ -257,7 +258,7 @@ Objetivo da Etapa 2: manter o servidor Node ligado somente enquanto a instância
 - Não substituir `config.json`, `accounts-private.json`, `node_modules` ou configurações do usuário durante extração e runtime.
 - Versionar reextração por `kBundleVersion` quando conteúdo de `qrc/streamhub-data.qrc` mudar.
 
-**Estado:** launcher usa `QCoreApplication::applicationPid()` e bundle usa extração versionada. `src/streamhub-bundle.cpp` preserva `streamhub-server/config.json`; arquivos privados e dependências existentes não devem ser substituídos. O servidor embutido escuta `127.0.0.1` e anuncia `localhost` na porta `605` por padrão. `kBundleVersion` está em `32` após mudanças Twitch, Kick e YouTube; futuras mudanças em arquivo embutido exigem novo incremento antes de distribuir a DLL.
+**Estado:** launcher usa `QCoreApplication::applicationPid()` e bundle usa extração versionada. `src/core/streamhub-bundle.cpp` preserva `streamhub-server/config.json`; arquivos privados e dependências existentes não devem ser substituídos. O servidor embutido escuta `127.0.0.1` e anuncia `localhost` na porta `605` por padrão. `kBundleVersion` está em `32` após mudanças Twitch, Kick e YouTube; futuras mudanças em arquivo embutido exigem novo incremento antes de distribuir a DLL.
 
 #### Fase 6 — Validação integrada
 

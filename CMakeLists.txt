@@ -43,50 +43,50 @@ if(ENABLE_QT)
 endif()
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-  ./src/pch.h
-  ./src/obs-multi-rtmp.h
-  ./src/obs-multi-rtmp.cpp 
-  ./src/edit-widget.h
-  ./src/edit-widget.cpp
-  ./src/push-widget.h
-  ./src/push-widget.cpp
-  ./src/json-util.hpp
-  ./src/output-config.h
-  ./src/output-config.cpp
-  ./src/obs-properties-widget.h
-  ./src/obs-properties-widget.cpp
-  ./src/protocols.h
-  ./src/protocols.cpp
-  ./src/helpers.h
-  ./src/helpers.cpp
-  ./src/streamhub-launcher.h
-  ./src/streamhub-launcher.cpp
-  ./src/streamhub-node-provision.h
-  ./src/streamhub-node-provision.cpp
-  ./src/streamhub-chat-dock.h
-  ./src/streamhub-chat-dock.cpp
-  ./src/streamhub-chat-settings.h
-  ./src/streamhub-chat-settings.cpp
-  ./src/streamhub-chat-admin.h
-  ./src/streamhub-chat-admin.cpp
-  ./src/streamhub-control-dock.h
-  ./src/streamhub-control-dock.cpp
-  ./src/streamhub-youtube-direct.h
-  ./src/streamhub-youtube-direct.cpp
-  ./src/streamhub-platforms.h
-  ./src/streamhub-platforms.cpp
-  ./src/streamhub-theme-installer.h
-  ./src/streamhub-theme-installer.cpp
-  ./src/streamhub-native-theme.h
-  ./src/streamhub-native-theme.cpp
-  ./src/streamhub-bundle.h
-  ./src/streamhub-bundle.cpp
-  ./src/streamhub-updater.h
-  ./src/streamhub-updater.cpp
+  ./src/app/pch.h
+  ./src/app/obs-multi-rtmp.h
+  ./src/app/obs-multi-rtmp.cpp
+  ./src/streaming/edit-widget.h
+  ./src/streaming/edit-widget.cpp
+  ./src/streaming/push-widget.h
+  ./src/streaming/push-widget.cpp
+  ./src/core/json-util.hpp
+  ./src/streaming/output-config.h
+  ./src/streaming/output-config.cpp
+  ./src/streaming/obs-properties-widget.h
+  ./src/streaming/obs-properties-widget.cpp
+  ./src/streaming/protocols.h
+  ./src/streaming/protocols.cpp
+  ./src/core/helpers.h
+  ./src/core/helpers.cpp
+  ./src/core/streamhub-launcher.h
+  ./src/core/streamhub-launcher.cpp
+  ./src/core/streamhub-node-provision.h
+  ./src/core/streamhub-node-provision.cpp
+  ./src/chat/streamhub-chat-dock.h
+  ./src/chat/streamhub-chat-dock.cpp
+  ./src/chat/streamhub-chat-settings.h
+  ./src/chat/streamhub-chat-settings.cpp
+  ./src/chat/streamhub-chat-admin.h
+  ./src/chat/streamhub-chat-admin.cpp
+  ./src/broadcast/streamhub-control-dock.h
+  ./src/broadcast/streamhub-control-dock.cpp
+  ./src/broadcast/streamhub-youtube-direct.h
+  ./src/broadcast/streamhub-youtube-direct.cpp
+  ./src/streaming/streamhub-platforms.h
+  ./src/streaming/streamhub-platforms.cpp
+  ./src/ui/streamhub-theme-installer.h
+  ./src/ui/streamhub-theme-installer.cpp
+  ./src/ui/streamhub-native-theme.h
+  ./src/ui/streamhub-native-theme.cpp
+  ./src/core/streamhub-bundle.h
+  ./src/core/streamhub-bundle.cpp
+  ./src/core/streamhub-updater.h
+  ./src/core/streamhub-updater.cpp
   ./qrc/streamhub-data.qrc
-  ./noise-suppressor/src/noise-suppressor-dsp.c
-  ./noise-suppressor/src/noise-suppressor-dsp.h
-  ./noise-suppressor/src/noise-suppressor-filter.c
+  ./src/audio/noise-suppressor-dsp.c
+  ./src/audio/noise-suppressor-dsp.h
+  ./src/audio/noise-suppressor-filter.c
 )
 
 # Build RNNoise into the main OBS module so the filter is available from the
@@ -113,7 +113,7 @@ set_target_properties(streamhub-rnnoise PROPERTIES
 )
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE $<TARGET_OBJECTS:streamhub-rnnoise>)
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-  ./noise-suppressor/src
+  ./src/audio
   "${RNNOISE_SOURCE_DIR}/include"
 )
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED TRUE)
@@ -121,12 +121,12 @@ set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES C_STANDARD 11 C_STANDARD_
 include(CTest)
 if(BUILD_TESTING)
   add_executable(streamhub-noise-suppressor-dsp-test
-    noise-suppressor/tests/test_dsp.c
-    noise-suppressor/src/noise-suppressor-dsp.c
+    tests/audio/test_noise_suppressor_dsp.c
+    src/audio/noise-suppressor-dsp.c
     $<TARGET_OBJECTS:streamhub-rnnoise>
   )
   target_include_directories(streamhub-noise-suppressor-dsp-test PRIVATE
-    noise-suppressor/src
+    src/audio
     "${RNNOISE_SOURCE_DIR}/include"
   )
   set_target_properties(streamhub-noise-suppressor-dsp-test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED TRUE)
@@ -137,6 +137,14 @@ if(BUILD_TESTING)
 endif()
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+  ./src
+  ./src/app
+  ./src/core
+  ./src/streaming
+  ./src/chat
+  ./src/broadcast
+  ./src/ui
+  ./src/audio
   ./dep/nlohmann-json
   .deps/obs-studio-32.2.1/libobs
 )
