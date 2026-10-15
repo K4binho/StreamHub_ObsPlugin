@@ -1,126 +1,150 @@
 # StreamHub OBS Plugin
 
-Plugin nativo para OBS Studio, desenvolvido e mantido principalmente por K4binho.
+Plugin nativo para OBS Studio que reúne multistream RTMP, chat, contas, edição de informações da transmissão e ferramentas do canal em docks Qt. O projeto é mantido principalmente por K4binho e parte da base do [`obs-multi-rtmp`](https://github.com/sorayuki/obs-multi-rtmp).
 
-## Recursos
+## Em poucas palavras
 
-- Saídas RTMP nativas para múltiplas plataformas.
-- Transmissão principal do OBS exibida como primeiro cartão.
-- Docks nativos Qt para saídas, chat e informações da transmissão.
-- Chat unificado com filtros por plataforma, envio e deduplicação.
-- Moderação e recompensas pelo painel **ADM**, conforme autorização da conta.
-- Twitch OAuth para chat, dados da live, moderação e recompensas.
-- YouTube e Kick usam OAuth compartilhado por navegador quando broker HTTPS real está implantado e `STREAMHUB_OAUTH_BROKER_URL` está configurado: usuário clica **Conectar**, autoriza na página oficial e volta ao OBS. Broker OAuth mantém Client Secrets fora da DLL; configuração manual ou `.env` fica como fallback avançado até essa configuração.
-- Overlay transparente para **Fonte de navegador** do OBS.
-- Runtime Node.js provisionado automaticamente, sem instalação externa obrigatória.
-- Servidor Node.js, locale, ícones, branding e tema embutidos na DLL via Qt Resource System.
-- Tema **K4binho — Má Fase** e fundo de cena 1920×1080.
-- Supressor de ruído de microfone com RNNoise, gate adaptativo, filtro passa-altas e limitador, registrado na mesma DLL do StreamHub.
-- Compatibilidade com OBS instalado e portátil por resolução dinâmica de caminhos.
+O StreamHub adiciona ao OBS:
 
-## Estado atual
+- múltiplas saídas RTMP em uma única tela;
+- chat unificado com filtros, envio e deduplicação;
+- conexão de contas e sincronização de dados da live;
+- moderação e recompensas, quando a plataforma e a autorização permitem;
+- overlay transparente para fonte de navegador;
+- servidor Node.js local gerenciado pelo plugin;
+- tema K4binho — Má Fase;
+- supressor de ruído RNNoise dentro da mesma DLL principal.
 
-- Twitch: leitura, envio, dados da live, moderação e recompensas implementados.
-- YouTube: OAuth compartilhado por broker, status, renovação, descoberta de transmissão e sincronização nativa integrados. Configuração manual ou `.env` permanece fallback avançado. Conta permanece **Conectada** mesmo quando sincronização manual não encontra live ou dados RTMP; Chat, consulta/edição da live e transmissão RTMP real ainda precisam validação.
-- Servidor Node: `localhost:605` por padrão, watchdog de 2 segundos e lifecycle interno autenticado por token em `runtime.json`. `server.port` explícita continua respeitada.
-- Launcher C++: shutdown gracioso, validação de instância anterior e Job Object Windows implementados. Teste real de encerramento anormal do OBS ainda pendente.
-- Kick: leitura de chat existente; OAuth e sincronização nativa preliminares integrados. Contrato oficial de endpoints, escopos e campos de stream key, envio autenticado, moderação e teste real ainda pendentes.
-- Twitch: OAuth não fornece stream key neste fluxo. Preencha chave manualmente no cartão Twitch e ative o toggle antes de usar **Iniciar tudo**.
-- TikTok: experimental.
-- Facebook: destino RTMP disponível; chat ainda não possui conector funcional.
-- Kick e YouTube conectados buscam servidor RTMP e stream key pelos canais internos autenticados e criam ou atualizam um único destino por plataforma, preservando configurações existentes. Credenciais manuais vazias usam `.env`; manual preenchida vence `.env`.
-- Transmissão RTMP real ainda não foi validada de ponta a ponta. Destino sem stream key fica **Pendente** e não inicia.
-- Supressor RNNoise: o filtro de áudio está integrado em `obs-multi-rtmp.dll`; não instale uma segunda DLL de supressor. O DSP tem teste automatizado de valores finitos e limites de saída; qualidade percebida e latência precisam ser avaliadas no microfone/OBS de cada usuário.
+## O que está disponível
+
+| Área | Situação |
+| --- | --- |
+| Saídas RTMP múltiplas | Disponível para destinos configuráveis |
+| Twitch | Chat, dados da live, moderação e recompensas integrados |
+| Kick | Chat existente e sincronização nativa preliminar |
+| YouTube | OAuth, renovação, descoberta e sincronização nativa integrados |
+| TikTok | Experimental |
+| Facebook | Destino RTMP; chat ainda não integrado |
+| Supressor RNNoise | Integrado à `obs-multi-rtmp.dll` |
+| Overlay | Disponível em `http://localhost:605/overlay.html` |
+
+Alguns recursos dependem de contas reais e de permissões da plataforma. Chat YouTube, edição completa da live, transmissão RTMP ponta a ponta e validação de encerramento anormal do OBS continuam pendentes de validação real. Um destino sem servidor ou stream key válidos fica **Pendente** e não é iniciado.
 
 ## Instalação rápida
 
-1. Baixe ou compile o plugin.
-2. Feche OBS.
-3. Copie `obs-multi-rtmp.dll` para `obs-plugins\64bit` na instalação do OBS.
-4. Abra OBS e aguarde primeira extração do bundle e instalação das dependências Node.
-5. Abra **Painéis** e confirme:
+1. Baixe uma DLL compilada ou compile o projeto.
+2. Feche o OBS.
+3. Copie `obs-multi-rtmp.dll` para `obs-plugins\\64bit` da instalação do OBS.
+4. Abra o OBS e aguarde a primeira extração dos recursos e a preparação do Node.js.
+5. Em **Painéis**, confirme:
    - **Múltiplas saídas · K4**;
    - **StreamHub Chat · K4**;
    - **Informações de transmissão K4**.
 
-Não copie `data/` manualmente quando usar DLL com recursos embutidos. Não sobrescreva configuração, tokens ou `node_modules` existentes.
+Quando a DLL contém o bundle, não é necessário copiar a pasta `data/` manualmente. O plugin preserva `config.json`, tokens, configurações desconhecidas e `node_modules` existentes.
 
-## Build Windows
+## Como usar
 
-Pré-requisitos:
+### Múltiplas saídas
 
-- Visual Studio Community 2026 com **Desenvolvimento para desktop com C++**;
-- CMake 3.28+;
-- Git.
+Abra **Painéis → Múltiplas saídas · K4**, adicione um destino, preencha servidor RTMP e stream key e use **Iniciar tudo** ou o controle individual. A transmissão principal do OBS aparece como o primeiro cartão e os destinos auxiliares ficam abaixo dela.
 
-Na raiz do repositório:
+### Contas e informações da live
 
-```powershell
-cmake --preset windows-x64
-```
+Abra **Painéis → Informações de transmissão K4**. Na aba **Contas**, conecte Twitch, Kick ou YouTube. Na aba **Transmissão**, use **Carregar atuais**, edite os campos suportados e aplique as alterações.
 
-```powershell
-cmake --build --preset windows-x64 --config RelWithDebInfo
-```
+O fluxo normal de Kick e YouTube usa OAuth pelo navegador quando `STREAMHUB_OAUTH_BROKER_URL` aponta para um broker HTTPS configurado. O Client Secret permanece fora da DLL. A seção **Avançado** e o `.env` são alternativas para desenvolvimento e fallback local.
 
-DLL gerada normalmente:
+### Chat e overlay
 
-```text
-build_x64\RelWithDebInfo\obs-multi-rtmp.dll
-```
-
-O supressor e o código RNNoise também são compilados dentro desse mesmo módulo. Para executar o teste automatizado do DSP:
-
-```powershell
-ctest --test-dir build_x64 -C RelWithDebInfo --output-on-failure
-```
-
-No OBS, adicione **StreamHub — Supressor de ruído (RNNoise)** aos filtros de áudio da fonte do microfone. Comece pelo preset **Equilibrado**; **Qualidade** e **Desempenho** ajustam intensidade e resposta do gate. Os controles avançados incluem intensidade de redução, nível/ataque/sustentação/fechamento do gate, remoção de ruído grave, ganho, limitador e bypass. O processamento é feito em 48 kHz/480 amostras; outras taxas passam pelo resamplador do OBS e podem adicionar latência. Não empilhe outro RNNoise sem comparar o áudio.
-
-O filtro preserva o identificador `obs_noise_suppressor_filter`, para manter configurações de filtros já salvas no OBS. O RNNoise é distribuído sob licença BSD-style; o aviso está em [licenses/RNNOISE.txt](licenses/RNNOISE.txt).
-
-Node.js não é pré-requisito. Plugin usa Node do PATH ou baixa runtime portátil na primeira execução. QtWebSockets não é necessário; chat usa long-poll HTTP via `Qt6::Network`.
-
-## Overlay
-
-Abra engrenagem de **StreamHub Chat · K4**, selecione **Overlay** e clique **Copiar URL**. URL padrão:
+Abra **Painéis → StreamHub Chat · K4** para filtrar por plataforma, enviar mensagens e acessar o painel ADM. Na engrenagem do chat, copie a URL do overlay e adicione-a ao OBS como **Fonte de navegador**:
 
 ```text
 http://localhost:605/overlay.html
 ```
 
-Adicione URL como **Fonte de navegador** no OBS. Fundo permanece transparente.
+### Supressor de ruído
+
+Adicione **StreamHub — Supressor de ruído (RNNoise)** aos filtros de áudio da fonte do microfone. Comece pelo preset **Equilibrado**. O filtro oferece redução RNNoise, gate adaptativo, remoção de graves, ganho, limitador e bypass.
+
+O processamento usa quadros de 480 amostras a 48 kHz. Outras taxas passam pelo resamplador do OBS e podem adicionar latência. Não instale nem empilhe uma segunda DLL RNNoise. O identificador `obs_noise_suppressor_filter` foi preservado para manter filtros já salvos no OBS.
+
+## Build Windows
+
+### Requisitos
+
+- Windows x64;
+- Visual Studio 2022 ou Build Tools com **Desenvolvimento para desktop com C++**;
+- CMake 3.28 ou mais recente;
+- Git.
+
+Node.js não é obrigatório: o plugin usa o Node do PATH ou baixa um runtime portátil na primeira execução. O projeto usa OBS Studio 32.2.1, Qt6 e `Qt6::Network`; QtWebSockets não é necessário.
+
+### Compilar
+
+Na raiz do repositório:
+
+```powershell
+cmake --preset windows-x64
+cmake --build --preset windows-x64 --config RelWithDebInfo
+```
+
+DLL gerada:
+
+```text
+build_x64\RelWithDebInfo\obs-multi-rtmp.dll
+```
+
+Teste do processamento de áudio:
+
+```powershell
+ctest --test-dir build_x64 -C RelWithDebInfo --output-on-failure
+```
+
+Verificação sintática do servidor:
+
+```powershell
+Get-ChildItem data/streamhub-server,oauth-broker -Recurse -Filter *.js |
+  ForEach-Object { node --check $_.FullName }
+```
+
+## Arquitetura
+
+O plugin mantém responsabilidades separadas:
+
+- `src/app`: entrada da DLL e inicialização do OBS;
+- `src/core`: paths, bundle, launcher, Node, updater e utilitários;
+- `src/streaming`: saídas RTMP, protocolos e widgets de destino;
+- `src/chat`: chat, configurações, moderação e recompensas;
+- `src/broadcast`: contas, OAuth, prévia e edição da transmissão;
+- `src/ui`: tema e integração visual;
+- `src/audio`: DSP e filtro RNNoise;
+- `data/streamhub-server`: servidor local, APIs e frontend do overlay;
+- `oauth-broker`: serviço OAuth externo opcional;
+- `tests`: testes automatizados;
+- `docs`: arquitetura, manual e documentação específica.
+
+Node gerencia APIs, OAuth e credenciais. C++ gerencia a DLL, os docks Qt e as saídas RTMP nativas. O servidor local escuta em `localhost:605` por padrão, possui lifecycle autenticado por token e watchdog que acompanha a instância correta do OBS.
 
 ## Documentação
 
-- [Arquitetura, contexto, regras de desenvolvimento e roadmap](docs/project/ARCHITECTURE.md)
-- [Manual de uso, build, instalação, overlay, tema e Flatpak](docs/project/BUILD_AND_USAGE.md)
-- [Build Flatpak especializado](FLATPAK.md)
+- [Arquitetura, regras e roadmap](docs/project/ARCHITECTURE.md)
+- [Manual de uso, build, instalação e operação](docs/project/BUILD_AND_USAGE.md)
+- [Detalhes do supressor RNNoise](docs/audio/noise-suppressor.md)
+- [Documentação do servidor Node](data/streamhub-server/README.md)
+- [Build Flatpak](FLATPAK.md)
 - [Instalação do tema](themes/INSTALACAO.md)
-- [Documentação do servidor](data/streamhub-server/README.md)
-- [Detalhes do supressor de ruído](docs/audio/noise-suppressor.md)
 
 ## Segurança
 
-Nunca publique Client Secret, access token, refresh token, stream key ou URL OAuth contendo `code=`. Segredos não devem aparecer em logs, Markdown, screenshots, URLs, eventos comuns, commits ou releases.
+Nunca publique Client Secret, access token, refresh token, stream key ou URL OAuth contendo `code=`. Segredos não devem aparecer em logs, screenshots, Markdown, URLs, eventos comuns, commits ou releases. Uma Client Secret exposta deve ser revogada e substituída.
 
-## Como validar mudanças
+## Licenças e créditos
 
-- Build Windows: `cmake --build --preset windows-x64 --config RelWithDebInfo`.
-- Testes disponíveis: `ctest --test-dir build_x64 -C RelWithDebInfo --output-on-failure`; atualmente cobre limites e valores finitos do processamento DSP do supressor.
-- Verificação sintática do servidor: executar `node --check` nos arquivos JavaScript de `data/streamhub-server` e `oauth-broker`.
-- Essas verificações não substituem teste de conta OAuth, qualidade de áudio no microfone ou transmissão real nas plataformas; esses pontos dependem de contas e sessões reais.
-
-## Créditos
-
+- Projeto principal: [GPL-2.0](LICENSE) · [tradução PT-BR](LICENSE.pt-BR)
+- RNNoise incorporado: [aviso de licença](licenses/RNNOISE.txt)
 - Desenvolvimento e manutenção: K4binho
-- Apoio técnico no desenvolvimento: Claude Code
-- Apoio ao StreamHub: [LivePix](https://livepix.gg/k4binho)
-- Referência técnica: [`obs-multi-rtmp`](https://github.com/sorayuki/obs-multi-rtmp) · apoio ao projeto: [PayPal](https://paypal.me/sorayuki0)
+- Apoio ao projeto: [LivePix](https://livepix.gg/k4binho)
+- Referência técnica: [`obs-multi-rtmp`](https://github.com/sorayuki/obs-multi-rtmp)
 
-## Licença
-
-- [GPL-2.0 — tradução para português do Brasil](LICENSE.pt-BR)
-- [GPL-2.0 — texto original em inglês](LICENSE)
-
-A tradução PT-BR é não oficial e pode conter erros por ter sido traduzida do inglês. Em caso de divergência, `LICENSE` contém versão juridicamente válida. Consulte também licenças de dependências incluídas antes de redistribuir.
+A tradução PT-BR da GPL é não oficial. Em caso de divergência, `LICENSE` contém a versão juridicamente válida.
