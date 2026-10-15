@@ -1,7 +1,9 @@
 #pragma once
 
 #include <functional>
+#include <QHash>
 #include <QJsonObject>
+#include <QPixmap>
 #include <QWidget>
 
 class QLabel;
@@ -61,7 +63,7 @@ private:
     void LoadBroadcast();
     void ApplyBroadcast();
     void SearchCategories();
-    void LoadCategoryCover(const QString &categoryId);
+    void LoadCategoryCover(const QString &categoryId, int attempt = 0);
     void UpdatePreviewPlatformVisual();
     void UpdatePreview();
 
@@ -121,5 +123,6 @@ private:
     QLabel *previewNotification_ = nullptr;
     QLabel *previewCover_ = nullptr;
     bool previewHasCategoryCover_ = false;
+    QHash<QString, QPixmap> categoryCoverCache_;
     QString primaryPlatform_;
 };

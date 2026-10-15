@@ -1332,7 +1332,7 @@ void StreamHubControlDock::SetYoutubeTransmissionError(const QString &error)
     youtubeLoginHelp_->setText(tr("Falha na sincronização: %1").arg(error));
 }
 
-void StreamHubControlDock::LoadCategoryCover(const QString &categoryId)
+void StreamHubControlDock::LoadCategoryCover(const QString &categoryId, int attempt)
 {
     const QString id = categoryId.trimmed();
     if (id.isEmpty()) {
@@ -1340,21 +1340,43 @@ void StreamHubControlDock::LoadCategoryCover(const QString &categoryId)
         UpdatePreviewPlatformVisual();
         return;
     }
+    const auto cached = categoryCoverCache_.constFind(id);
+    if (cached != categoryCoverCache_.cend()) {
+        previewHasCategoryCover_ = true;
+        previewCover_->setPixmap(cached.value().scaled(previewCover_->size(), Qt::KeepAspectRatio,
+                                                       Qt::SmoothTransformation));
+        return;
+    }
 
     const QString path = QString("http://localhost:%1/api/twitch/category-cover?id=%2")
                              .arg(port_)
                              .arg(QString::fromUtf8(QUrl::toPercentEncoding(id)));
     QNetworkReply *reply = network_->get(QNetworkRequest(QUrl(path)));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, id]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, id, attempt]() {
         const QByteArray payload = reply->readAll();
         QPixmap art;
         art.loadFromData(payload);
-        const bool valid = reply->error() == QNetworkReply::NoError && !art.isNull();
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const bool valid = reply->error() == QNetworkReply::NoError &&
+                           (httpStatus == 0 || (httpStatus >= 200 && httpStatus < 300)) && !art.isNull();
         reply->deleteLater();
-        if (valid && categoryId_ == id) {
-            previewHasCategoryCover_ = true;
-            previewCover_->setPixmap(art.scaled(previewCover_->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        } else if (!valid && categoryId_ == id) {
+        if (valid) {
+            categoryCoverCache_.insert(id, art);
+            if (categoryCoverCache_.size() > 100)
+                categoryCoverCache_.erase(categoryCoverCache_.begin());
+            if (categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch")) {
+                previewHasCategoryCover_ = true;
+                previewCover_->setPixmap(art.scaled(previewCover_->size(), Qt::KeepAspectRatio,
+                                                    Qt::SmoothTransformation));
+            }
+            return;
+        }
+        if (attempt < 2 && categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch")) {
+            QTimer::singleShot(400 * (attempt + 1), this, [this, id, attempt]() {
+                if (categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch"))
+                    LoadCategoryCover(id, attempt + 1);
+            });
+        } else if (categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch")) {
             previewHasCategoryCover_ = false;
             UpdatePreviewPlatformVisual();
         }
