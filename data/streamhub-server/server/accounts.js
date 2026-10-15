@@ -395,7 +395,7 @@ function createAccounts(directory, request = fetch) {
       category: String(category.name || ''),
       tags: Array.isArray(channel.tags) ? channel.tags : [],
       language: String(channel.language || ''),
-      isLive: Boolean(stream.is_live),
+      isLive: stream.is_live === true,
       viewerCount: Number(stream.viewer_count || 0),
       fieldAvailability: {
         title: has(channel, 'stream_title') || has(channel, 'title'),
@@ -797,17 +797,35 @@ function createAccounts(directory, request = fetch) {
         body.category_id = numericCategoryId;
       }
       await kickRequest('/channels', { method: 'PATCH', body: JSON.stringify(body) });
-      const saved = await kickBroadcastContent();
+      // Kick acknowledges channel updates with HTTP 204 (no response body).
+      // Its channel read can also return empty stream_title/category while the
+      // channel is offline, so only compare values the API actually exposes.
+      let saved = null;
+      try {
+        saved = await kickBroadcastContent();
+      } catch (_) {
+        // The successful PATCH remains authoritative for acceptance; a failed
+        // follow-up GET means the result cannot be independently confirmed.
+      }
       const mismatches = [];
-      if (saved.title.trim() !== title) mismatches.push('título');
-      if (kickCategoryId && saved.categoryId !== String(kickCategoryId)) mismatches.push('jogo');
+      const returnedTitle = String(saved?.title || '').trim();
+      const returnedCategoryId = String(saved?.categoryId || '').trim();
+      if (returnedTitle && returnedTitle !== title) mismatches.push('título');
+      if (kickCategoryId && returnedCategoryId && returnedCategoryId !== String(kickCategoryId))
+        mismatches.push('jogo');
       if (mismatches.length) {
         throw new Error(`A Kick recebeu a alteração, mas não confirmou: ${mismatches.join(', ')}.`);
       }
+      const fullyConfirmed = returnedTitle === title &&
+        (!kickCategoryId || returnedCategoryId === String(kickCategoryId));
       return {
         platform: 'kick',
         broadcasterId: String(account.userId || ''),
-        message: 'Título e jogo confirmados pela Kick.',
+        message: fullyConfirmed
+          ? 'Título e jogo confirmados pela Kick.'
+          : saved?.isLive === false
+            ? 'A Kick aceitou a atualização; não expôs título e jogo para conferência enquanto o canal está offline.'
+            : 'A Kick aceitou a atualização; a leitura não retornou dados suficientes para confirmar título e jogo.',
       };
     }
 
