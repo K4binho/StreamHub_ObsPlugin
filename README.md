@@ -15,6 +15,7 @@ Plugin nativo para OBS Studio, desenvolvido e mantido principalmente por K4binho
 - Runtime Node.js provisionado automaticamente, sem instalação externa obrigatória.
 - Servidor Node.js, locale, ícones, branding e tema embutidos na DLL via Qt Resource System.
 - Tema **K4binho — Má Fase** e fundo de cena 1920×1080.
+- Supressor de ruído de microfone com RNNoise, gate adaptativo, filtro passa-altas e limitador, registrado na mesma DLL do StreamHub.
 - Compatibilidade com OBS instalado e portátil por resolução dinâmica de caminhos.
 
 ## Estado atual
@@ -29,6 +30,7 @@ Plugin nativo para OBS Studio, desenvolvido e mantido principalmente por K4binho
 - Facebook: destino RTMP disponível; chat ainda não possui conector funcional.
 - Kick e YouTube conectados buscam servidor RTMP e stream key pelos canais internos autenticados e criam ou atualizam um único destino por plataforma, preservando configurações existentes. Credenciais manuais vazias usam `.env`; manual preenchida vence `.env`.
 - Transmissão RTMP real ainda não foi validada de ponta a ponta. Destino sem stream key fica **Pendente** e não inicia.
+- Supressor RNNoise: o filtro de áudio está integrado em `obs-multi-rtmp.dll`; não instale uma segunda DLL de supressor. O DSP tem teste automatizado de valores finitos e limites de saída; qualidade percebida e latência precisam ser avaliadas no microfone/OBS de cada usuário.
 
 ## Instalação rápida
 
@@ -67,6 +69,16 @@ DLL gerada normalmente:
 build_x64\RelWithDebInfo\obs-multi-rtmp.dll
 ```
 
+O supressor e o código RNNoise também são compilados dentro desse mesmo módulo. Para executar o teste automatizado do DSP:
+
+```powershell
+ctest --test-dir build_x64 -C RelWithDebInfo --output-on-failure
+```
+
+No OBS, adicione **StreamHub — Supressor de ruído (RNNoise)** aos filtros de áudio da fonte do microfone. Comece pelo preset **Equilibrado**; **Qualidade** e **Desempenho** ajustam intensidade e resposta do gate. Os controles avançados incluem intensidade de redução, nível/ataque/sustentação/fechamento do gate, remoção de ruído grave, ganho, limitador e bypass. O processamento é feito em 48 kHz/480 amostras; outras taxas passam pelo resamplador do OBS e podem adicionar latência. Não empilhe outro RNNoise sem comparar o áudio.
+
+O filtro preserva o identificador `obs_noise_suppressor_filter`, para manter configurações de filtros já salvas no OBS. O RNNoise é distribuído sob licença BSD-style; o aviso está em [noise-suppressor/LICENSE-RNNOISE.txt](noise-suppressor/LICENSE-RNNOISE.txt).
+
 Node.js não é pré-requisito. Plugin usa Node do PATH ou baixa runtime portátil na primeira execução. QtWebSockets não é necessário; chat usa long-poll HTTP via `Qt6::Network`.
 
 ## Overlay
@@ -86,10 +98,18 @@ Adicione URL como **Fonte de navegador** no OBS. Fundo permanece transparente.
 - [Build Flatpak especializado](FLATPAK.md)
 - [Instalação do tema](themes/INSTALACAO.md)
 - [Documentação do servidor](data/streamhub-server/README.md)
+- [Detalhes do supressor de ruído](noise-suppressor/README.md)
 
 ## Segurança
 
 Nunca publique Client Secret, access token, refresh token, stream key ou URL OAuth contendo `code=`. Segredos não devem aparecer em logs, Markdown, screenshots, URLs, eventos comuns, commits ou releases.
+
+## Como validar mudanças
+
+- Build Windows: `cmake --build --preset windows-x64 --config RelWithDebInfo`.
+- Testes disponíveis: `ctest --test-dir build_x64 -C RelWithDebInfo --output-on-failure`; atualmente cobre limites e valores finitos do processamento DSP do supressor.
+- Verificação sintática do servidor: executar `node --check` nos arquivos JavaScript de `data/streamhub-server` e `oauth-broker`.
+- Essas verificações não substituem teste de conta OAuth, qualidade de áudio no microfone ou transmissão real nas plataformas; esses pontos dependem de contas e sessões reais.
 
 ## Créditos
 

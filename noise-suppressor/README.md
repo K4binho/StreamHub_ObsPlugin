@@ -1,31 +1,23 @@
-# OBS Noise Suppressor
+# Supressor de ruído StreamHub
 
-OBS audio filter DLL using RNNoise plus adaptive voice gate, high-pass rumble removal and output limiter.
+Este componente é compilado e registrado dentro de `obs-multi-rtmp.dll`. Não existe uma DLL de filtro separada para instalar. O código usa RNNoise do código-fonte do OBS e combina redução de ruído, gate adaptativo, filtro passa-altas e limitador.
 
-Not Discord proprietary code. Behavior target: low-latency voice cleanup for common microphones.
+## Compilar e testar
 
-## Build
-
-From repository root:
+Na raiz do repositório:
 
 ```powershell
-cmake --preset windows-x64 -S noise-suppressor
+cmake --preset windows-x64
 cmake --build --preset windows-x64 --config RelWithDebInfo
-ctest --test-dir build_noise_suppressor -C RelWithDebInfo --output-on-failure
+ctest --test-dir build_x64 -C RelWithDebInfo --output-on-failure
 ```
 
-DLL output:
+O filtro aparece no OBS como **StreamHub — Supressor de ruído (RNNoise)**, na categoria de filtros de áudio. Instale somente `obs-multi-rtmp.dll`.
 
-```text
-build_noise_suppressor/RelWithDebInfo/obs-noise-suppressor.dll
-```
+## Uso recomendado
 
-Install into OBS `obs-plugins/64bit`. Keep `LICENSE-RNNOISE.txt` with distributed binary.
+Adicione o filtro à fonte do microfone e comece pelo preset **Equilibrado**. Evite empilhar outro filtro RNNoise. Se precisar controlar o volume depois da redução de ruído, aplique um compressor após este filtro.
 
-## Filter order
+O RNNoise processa quadros de 480 amostras a 48 kHz; outras taxas são convertidas pelo resamplador de áudio do OBS, com latência adicional dependente da configuração. Este filtro não usa código proprietário do Discord e não promete equivalência de resultado.
 
-Use after microphone source. Start with `Balanced`. Add compressor after filter when stream loudness needs more control. Do not stack multiple RNNoise filters.
-
-## Limits
-
-RNNoise expects 48 kHz, 480-sample frames. Filter resamples other OBS rates and adds block/resampler latency. Exact latency depends on OBS audio rate and resampler buffering. Discord parity is not guaranteed.
+Consulte `LICENSE-RNNOISE.txt` para os avisos de licença do RNNoise incorporado.

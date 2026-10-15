@@ -22,6 +22,7 @@
 #include "streamhub-theme-installer.h"
 #include "streamhub-native-theme.h"
 #include "streamhub-updater.h"
+#include "../noise-suppressor/src/noise-suppressor-registration.h"
 #include <QCheckBox>
 #include <QClipboard>
 #include <QColorDialog>
@@ -1602,6 +1603,7 @@ OBS_MODULE_AUTHOR("SoraYuki (@sorayukinoyume); melhorias StreamHub por K4binho")
 
 bool obs_module_load()
 {
+    streamhub_register_noise_suppressor();
     // --- StreamHub: recria a pasta data/ a partir do que está embutido na
     // própria DLL (qrc/streamhub-data.qrc). Precisa rodar ANTES do primeiro
     // obs_module_text() logo abaixo, que já lê locale/*.ini do disco — por

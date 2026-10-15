@@ -20,7 +20,6 @@
 #define TIMESTAMP_RESET_NS 1000000000ULL
 
 #define S_PRESET "preset"
-#define S_PRESET_APPLIED "preset_applied"
 #define S_SUPPRESSION "suppression_strength"
 #define S_GATE_FLOOR "gate_floor"
 #define S_ATTACK "attack_ms"
@@ -37,38 +36,7 @@
 #define PRESET_BALANCED "balanced"
 #define PRESET_PERFORMANCE "performance"
 
-#define TEXT_FILTER_NAME "FilterName"
-#define TEXT_DESCRIPTION "Description"
-#define TEXT_PRESET "Preset"
-#define TEXT_PRESET_QUALITY "Preset.Quality"
-#define TEXT_PRESET_BALANCED "Preset.Balanced"
-#define TEXT_PRESET_PERFORMANCE "Preset.Performance"
-#define TEXT_PRESET_TT "Preset.ToolTip"
-#define TEXT_SUPPRESSION "Suppression"
-#define TEXT_GATE_FLOOR "GateFloor"
-#define TEXT_ATTACK "GateAttack"
-#define TEXT_HOLD "GateHold"
-#define TEXT_RELEASE "GateRelease"
-#define TEXT_HIGHPASS "Highpass"
-#define TEXT_HIGHPASS_HZ "HighpassFrequency"
-#define TEXT_OUTPUT_GAIN "OutputGain"
-#define TEXT_LIMITER "Limiter"
-#define TEXT_CEILING "LimiterCeiling"
-#define TEXT_BYPASS "Bypass"
-#define TEXT_SUPPRESSION_TT "Suppression.ToolTip"
-#define TEXT_GATE_FLOOR_TT "GateFloor.ToolTip"
-#define TEXT_ATTACK_TT "GateAttack.ToolTip"
-#define TEXT_HOLD_TT "GateHold.ToolTip"
-#define TEXT_RELEASE_TT "GateRelease.ToolTip"
-#define TEXT_HIGHPASS_TT "Highpass.ToolTip"
-#define TEXT_HIGHPASS_HZ_TT "HighpassFrequency.ToolTip"
-#define TEXT_OUTPUT_GAIN_TT "OutputGain.ToolTip"
-#define TEXT_LIMITER_TT "Limiter.ToolTip"
-#define TEXT_CEILING_TT "LimiterCeiling.ToolTip"
-#define TEXT_BYPASS_TT "Bypass.ToolTip"
-
-OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE("obs-noise-suppressor", "en-US")
+#include "noise-suppressor-registration.h"
 
 typedef struct ns_audio_info {
 	uint32_t frames;
@@ -414,7 +382,7 @@ static struct obs_audio_data *filter_audio(void *data, struct obs_audio_data *au
 static const char *filter_name(void *unused)
 {
 	UNUSED_PARAMETER(unused);
-	return obs_module_text(TEXT_FILTER_NAME);
+	return "StreamHub — Supressor de ruído (RNNoise)";
 }
 
 static void filter_defaults(obs_data_t *settings)
@@ -437,21 +405,21 @@ static obs_properties_t *filter_properties(void *unused)
 {
 	UNUSED_PARAMETER(unused);
 	obs_properties_t *properties = obs_properties_create();
-	obs_property_t *preset = obs_properties_add_list(properties, S_PRESET, "Preset", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(preset, "Quality", PRESET_QUALITY);
-	obs_property_list_add_string(preset, "Balanced", PRESET_BALANCED);
-	obs_property_list_add_string(preset, "Performance", PRESET_PERFORMANCE);
-	obs_properties_add_float_slider(properties, S_SUPPRESSION, "Suppression strength", 0.0, 1.0, 0.01);
-	obs_properties_add_float_slider(properties, S_GATE_FLOOR, "Gate floor", 0.0, 1.0, 0.01);
-	obs_properties_add_float_slider(properties, S_ATTACK, "Gate attack (ms)", 1.0, 80.0, 1.0);
-	obs_properties_add_float_slider(properties, S_HOLD, "Gate hold (ms)", 0.0, 500.0, 5.0);
-	obs_properties_add_float_slider(properties, S_RELEASE, "Gate release (ms)", 20.0, 1000.0, 5.0);
-	obs_properties_add_bool(properties, S_HIGHPASS, "Remove rumble");
-	obs_properties_add_float_slider(properties, S_HIGHPASS_HZ, "High-pass frequency (Hz)", 20.0, 300.0, 5.0);
-	obs_properties_add_float_slider(properties, S_OUTPUT_GAIN, "Output gain", 0.0, 2.0, 0.01);
-	obs_properties_add_bool(properties, S_LIMITER, "Limiter");
-	obs_properties_add_float_slider(properties, S_CEILING, "Limiter ceiling", 0.5, 1.0, 0.01);
-	obs_properties_add_bool(properties, S_BYPASS, "Bypass");
+	obs_property_t *preset = obs_properties_add_list(properties, S_PRESET, "Predefinição", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(preset, "Qualidade", PRESET_QUALITY);
+	obs_property_list_add_string(preset, "Equilibrado", PRESET_BALANCED);
+	obs_property_list_add_string(preset, "Desempenho", PRESET_PERFORMANCE);
+	obs_properties_add_float_slider(properties, S_SUPPRESSION, "Força da redução de ruído", 0.0, 1.0, 0.01);
+	obs_properties_add_float_slider(properties, S_GATE_FLOOR, "Nível mínimo do gate", 0.0, 1.0, 0.01);
+	obs_properties_add_float_slider(properties, S_ATTACK, "Abertura do gate (ms)", 1.0, 80.0, 1.0);
+	obs_properties_add_float_slider(properties, S_HOLD, "Sustentação do gate (ms)", 0.0, 500.0, 5.0);
+	obs_properties_add_float_slider(properties, S_RELEASE, "Fechamento do gate (ms)", 20.0, 1000.0, 5.0);
+	obs_properties_add_bool(properties, S_HIGHPASS, "Remover ruído grave (vento/manuseio)");
+	obs_properties_add_float_slider(properties, S_HIGHPASS_HZ, "Frequência do filtro passa-altas (Hz)", 20.0, 300.0, 5.0);
+	obs_properties_add_float_slider(properties, S_OUTPUT_GAIN, "Ganho de saída", 0.0, 2.0, 0.01);
+	obs_properties_add_bool(properties, S_LIMITER, "Limitador de volume");
+	obs_properties_add_float_slider(properties, S_CEILING, "Limite máximo", 0.5, 1.0, 0.01);
+	obs_properties_add_bool(properties, S_BYPASS, "Desativar processamento (bypass)");
 	return properties;
 }
 
@@ -495,15 +463,8 @@ struct obs_source_info obs_noise_suppressor_filter = {
 	.get_properties = filter_properties,
 };
 
-OBS_DECLARE_MODULE()
-MODULE_EXPORT const char *obs_module_description(void)
-{
-	return "RNNoise voice noise suppressor for OBS";
-}
-
-bool obs_module_load(void)
+void streamhub_register_noise_suppressor(void)
 {
 	obs_register_source(&obs_noise_suppressor_filter);
-	blog(LOG_INFO, "[obs-noise-suppressor] loaded");
-	return true;
+	blog(LOG_INFO, "[streamhub] filtro supressor de ruido RNNoise registrado");
 }

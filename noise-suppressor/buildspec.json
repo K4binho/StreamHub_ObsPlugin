@@ -1,8 +1,0 @@
-{
-  "name": "obs-noise-suppressor",
-  "version": "0.1.0",
-  "author": "StreamHub",
-  "website": "",
-  "license": "GPL-2.0-or-later",
-  "description": "RNNoise voice noise suppressor filter for OBS"
-}

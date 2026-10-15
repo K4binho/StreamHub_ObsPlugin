@@ -84,7 +84,57 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/streamhub-updater.h
   ./src/streamhub-updater.cpp
   ./qrc/streamhub-data.qrc
+  ./noise-suppressor/src/noise-suppressor-dsp.c
+  ./noise-suppressor/src/noise-suppressor-dsp.h
+  ./noise-suppressor/src/noise-suppressor-filter.c
 )
+
+# Build RNNoise into the main OBS module so the filter is available from the
+# StreamHub DLL alone (no second plugin DLL or runtime RNNoise dependency).
+set(RNNOISE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-32.2.1/plugins/obs-filters/rnnoise")
+add_library(streamhub-rnnoise OBJECT
+  "${RNNOISE_SOURCE_DIR}/src/celt_lpc.c"
+  "${RNNOISE_SOURCE_DIR}/src/denoise.c"
+  "${RNNOISE_SOURCE_DIR}/src/kiss_fft.c"
+  "${RNNOISE_SOURCE_DIR}/src/pitch.c"
+  "${RNNOISE_SOURCE_DIR}/src/rnn.c"
+  "${RNNOISE_SOURCE_DIR}/src/rnn_data.c"
+  "${RNNOISE_SOURCE_DIR}/src/rnn_reader.c"
+)
+target_include_directories(streamhub-rnnoise PUBLIC
+  "${RNNOISE_SOURCE_DIR}/include"
+  "${RNNOISE_SOURCE_DIR}/src"
+)
+target_compile_definitions(streamhub-rnnoise PUBLIC COMPILE_OPUS)
+set_target_properties(streamhub-rnnoise PROPERTIES
+  C_STANDARD 11
+  C_STANDARD_REQUIRED TRUE
+  POSITION_INDEPENDENT_CODE TRUE
+)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE $<TARGET_OBJECTS:streamhub-rnnoise>)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+  ./noise-suppressor/src
+  "${RNNOISE_SOURCE_DIR}/include"
+)
+set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED TRUE)
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(streamhub-noise-suppressor-dsp-test
+    noise-suppressor/tests/test_dsp.c
+    noise-suppressor/src/noise-suppressor-dsp.c
+    $<TARGET_OBJECTS:streamhub-rnnoise>
+  )
+  target_include_directories(streamhub-noise-suppressor-dsp-test PRIVATE
+    noise-suppressor/src
+    "${RNNOISE_SOURCE_DIR}/include"
+  )
+  set_target_properties(streamhub-noise-suppressor-dsp-test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED TRUE)
+  if(NOT WIN32)
+    target_link_libraries(streamhub-noise-suppressor-dsp-test PRIVATE m)
+  endif()
+  add_test(NAME streamhub-noise-suppressor-dsp COMMAND streamhub-noise-suppressor-dsp-test)
+endif()
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
   ./dep/nlohmann-json
