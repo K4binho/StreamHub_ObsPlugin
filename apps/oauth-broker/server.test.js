@@ -47,3 +47,11 @@ test('solicita todas as permissões que o plugin valida para a Kick', async () =
 
   for (const scope of requiredScopes) assert.ok(grantedScopes.has(scope), `permissão ausente: ${scope}`);
 });
+
+test('mantém termos e política de privacidade públicos', async () => {
+  for (const [path, expected] of [['/termos', 'Termos de Uso'], ['/privacidade', 'Política de Privacidade']]) {
+    const response = await fetch(`${baseUrl}${path}`, { headers: { 'x-forwarded-proto': 'https' } });
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), new RegExp(expected));
+  }
+});

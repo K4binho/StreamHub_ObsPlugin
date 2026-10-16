@@ -210,11 +210,44 @@ function callbackPage(connected) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex"><title>StreamHub</title><style>:root{color-scheme:dark;font-family:Segoe UI,sans-serif;background:#080c14;color:#f2f7ff}body{min-height:100vh;margin:0;display:grid;place-items:center}main{width:min(430px,calc(100vw - 32px));box-sizing:border-box;padding:28px;border:1px solid ${connected ? '#16d86a' : '#d94155'};border-radius:14px;background:#0d1726;text-align:center}h1{margin:0 0 10px;font-size:22px}p{margin:0;color:#b8c8dc;line-height:1.5}.icon{width:48px;height:48px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;background:${connected ? '#16d86a' : '#d94155'};color:#080c14;font-size:28px;font-weight:800}</style></head><body><main><div class="icon">${connected ? '✓' : '!'}</div><h1>${heading}</h1><p>${message}</p></main><script>history.replaceState({},document.title,window.location.pathname)</script></body></html>`;
 }
 
+function legalPage(kind) {
+  const privacy = kind === 'privacy';
+  const title = privacy ? 'Política de Privacidade' : 'Termos de Uso';
+  const intro = privacy
+    ? 'Esta página explica como o StreamHub trata as informações usadas para conectar contas de transmissão.'
+    : 'Estes termos descrevem as condições básicas para usar o StreamHub e o serviço de autorização OAuth.';
+  const body = privacy ? `
+    <h2>Dados acessados</h2>
+    <p>Quando você conecta o YouTube ou a Kick, o StreamHub solicita somente as permissões necessárias para os recursos escolhidos, como identificar o canal, ler dados da transmissão, atualizar informações e usar o chat quando a plataforma permitir.</p>
+    <h2>Como os dados são tratados</h2>
+    <p>O broker recebe a autorização da plataforma, troca o código por tokens e entrega o resultado ao servidor local do StreamHub por uma transação temporária. A transação expira automaticamente e o broker não mantém uma cópia permanente dos tokens.</p>
+    <p>O servidor local do StreamHub armazena os tokens no computador do usuário, em arquivo privado da instalação, para renovar a autorização. O StreamHub não vende dados nem usa as informações da conta para publicidade.</p>
+    <h2>Compartilhamento e segurança</h2>
+    <p>As credenciais não são exibidas em telas, logs ou URLs comuns. O fluxo usa HTTPS, estado de autorização, PKCE, expiração e proteção contra reutilização da transação. Os dados são enviados apenas ao provedor escolhido pelo usuário e ao próprio StreamHub.</p>
+    <h2>Revogação e exclusão</h2>
+    <p>Você pode revogar o acesso nas configurações da sua conta Google, Kick ou YouTube. Também pode remover os dados locais da conta pela instalação do StreamHub. Ao revogar o acesso, os recursos que dependem daquela conta deixam de funcionar até uma nova autorização.</p>
+    <h2>Contato</h2>
+    <p>Para dúvidas, sugestões ou solicitações relacionadas a dados, use o <a href="https://github.com/K4binho/StreamHub_ObsPlugin/issues">repositório oficial do projeto</a>.</p>
+  ` : `
+    <h2>Uso permitido</h2>
+    <p>O StreamHub é uma ferramenta para gerenciar transmissões, chats e informações de contas nas plataformas compatíveis. Você deve usar o aplicativo de acordo com as regras do OBS, do YouTube, da Kick, do Google e das demais plataformas conectadas.</p>
+    <h2>Autorização de contas</h2>
+    <p>O usuário escolhe quais contas conectar e quais permissões conceder. O StreamHub não solicita a senha da plataforma. A autorização acontece na página oficial do provedor e pode ser revogada a qualquer momento.</p>
+    <h2>Disponibilidade</h2>
+    <p>Os recursos dependem da disponibilidade, das APIs, das permissões e das regras de cada plataforma. O serviço pode ser alterado, interrompido ou limitado sem garantia de disponibilidade contínua.</p>
+    <h2>Responsabilidade</h2>
+    <p>Você é responsável pelo uso das suas contas, chaves de transmissão, mensagens e configurações. Não compartilhe tokens, chaves ou outras credenciais. O StreamHub não é afiliado ao Google, YouTube, Kick ou OBS Studio.</p>
+    <h2>Contato</h2>
+    <p>Para dúvidas ou sugestões, use o <a href="https://github.com/K4binho/StreamHub_ObsPlugin/issues">repositório oficial do projeto</a>.</p>
+  `;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow"><title>${title} — StreamHub</title><style>:root{color-scheme:dark;font-family:Segoe UI,system-ui,sans-serif;background:#080c14;color:#f2f7ff}body{margin:0;padding:32px 16px;line-height:1.6}main{max-width:760px;margin:auto;padding:32px;border:1px solid #1c2b40;border-radius:14px;background:#0d1726}h1{margin-top:0;color:#fff}h2{margin-top:28px;color:#8fc7ff;font-size:18px}p{color:#c2cfdf}a{color:#67b7ff}footer{margin-top:32px;padding-top:16px;border-top:1px solid #1c2b40;color:#8394aa;font-size:13px}</style></head><body><main><h1>${title}</h1><p>${intro}</p>${body}<footer>StreamHub · Última atualização: ${new Date().toISOString().slice(0, 10)}</footer></main></body></html>`;
+}
+
 function brokerStatusPage(settings) {
   const kickReady = Boolean(settings.config.kick.clientId && settings.config.kick.clientSecret);
   const youtubeReady = Boolean(settings.config.youtube.clientId && settings.config.youtube.clientSecret);
   const row = (name, ready) => `<tr><td>${name}</td><td><span class="dot ${ready ? 'ok' : 'off'}"></span>${ready ? 'Online' : 'Configuração pendente'}</td></tr>`;
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex"><title>StreamHub OAuth Broker</title><style>:root{color-scheme:dark;font-family:Segoe UI,sans-serif;background:#080c14;color:#f2f7ff}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;box-sizing:border-box}main{width:min(560px,100%);box-sizing:border-box;padding:30px;border:1px solid #1c2b40;border-radius:14px;background:#0d1726}h1{margin:0 0 8px;font-size:24px}p{margin:0 0 24px;color:#b8c8dc;line-height:1.5}table{width:100%;border-collapse:collapse}td{padding:12px 8px;border-bottom:1px solid #1c2b40}td:last-child{text-align:right}.dot{display:inline-block;width:9px;height:9px;margin-right:8px;border-radius:50%}.ok{background:#16d86a}.off{background:#d94155}footer{margin-top:22px;color:#72839a;font-size:12px}</style></head><body><main><h1>StreamHub OAuth Broker</h1><p>Serviço compartilhado de autorização OAuth para StreamHub.</p><table><tbody><tr><td>Broker</td><td><span class="dot ok"></span>Online</td></tr>${row('Kick OAuth', kickReady)}${row('YouTube OAuth', youtubeReady)}</tbody></table><footer>Health check: <a href="/healthz">/healthz</a></footer></main></body></html>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta name="robots" content="index,follow"><title>StreamHub OAuth Broker</title><style>:root{color-scheme:dark;font-family:Segoe UI,sans-serif;background:#080c14;color:#f2f7ff}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;box-sizing:border-box}main{width:min(560px,100%);box-sizing:border-box;padding:30px;border:1px solid #1c2b40;border-radius:14px;background:#0d1726}h1{margin:0 0 8px;font-size:24px}p{margin:0 0 24px;color:#b8c8dc;line-height:1.5}table{width:100%;border-collapse:collapse}td{padding:12px 8px;border-bottom:1px solid #1c2b40}td:last-child{text-align:right}.dot{display:inline-block;width:9px;height:9px;margin-right:8px;border-radius:50%}.ok{background:#16d86a}.off{background:#d94155}footer{margin-top:22px;color:#72839a;font-size:12px}nav{margin-top:18px;display:flex;gap:16px;flex-wrap:wrap}</style></head><body><main><h1>StreamHub OAuth Broker</h1><p>Serviço compartilhado de autorização OAuth para StreamHub.</p><table><tbody><tr><td>Broker</td><td><span class="dot ok"></span>Online</td></tr>${row('Kick OAuth', kickReady)}${row('YouTube OAuth', youtubeReady)}</tbody></table><nav><a href="/privacidade">Política de Privacidade</a><a href="/termos">Termos de Uso</a></nav><footer>Health check: <a href="/healthz">/healthz</a></footer></main></body></html>`;
 }
 
 function createBroker(options = {}) {
@@ -241,6 +274,9 @@ function createBroker(options = {}) {
   app.get('/', (_req, res) => {
     res.type('html').send(brokerStatusPage(settings));
   });
+
+  app.get('/privacidade', (_req, res) => res.type('html').send(legalPage('privacy')));
+  app.get('/termos', (_req, res) => res.type('html').send(legalPage('terms')));
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
