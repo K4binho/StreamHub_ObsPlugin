@@ -1,0 +1,61 @@
+<RCC>
+  <qresource prefix="/streamhub-data">
+    <file alias="locale/en-US.ini">../resources/locale/en-US.ini</file>
+    <file alias="locale/pt-BR.ini">../resources/locale/pt-BR.ini</file>
+
+    <file alias="streamhub-server/package.json">../../../apps/local-server/package.json</file>
+    <file alias="streamhub-server/package-lock.json">../../../apps/local-server/package-lock.json</file>
+    <file alias="streamhub-server/config.example.json">../../../apps/local-server/config.example.json</file>
+
+    <file alias="streamhub-server/server/index.js">../../../apps/local-server/server/index.js</file>
+    <file alias="streamhub-server/server/config-store.js">../../../apps/local-server/server/config-store.js</file>
+    <file alias="streamhub-server/server/routes/api.js">../../../apps/local-server/server/routes/api.js</file>
+    <file alias="streamhub-server/server/accounts.js">../../../apps/local-server/server/accounts.js</file>
+    <file alias="streamhub-server/server/platform-actions.js">../../../apps/local-server/server/platform-actions.js</file>
+    <file alias="streamhub-server/server/chat/twitch.js">../../../apps/local-server/server/chat/twitch.js</file>
+    <file alias="streamhub-server/server/chat/kick.js">../../../apps/local-server/server/chat/kick.js</file>
+    <file alias="streamhub-server/server/chat/youtube.js">../../../apps/local-server/server/chat/youtube.js</file>
+    <file alias="streamhub-server/server/chat/tiktok.js">../../../apps/local-server/server/chat/tiktok.js</file>
+    <file alias="streamhub-server/server/chat/resolve-config.js">../../../apps/local-server/server/chat/resolve-config.js</file>
+
+    <file alias="streamhub-server/public/dashboard.html">../../../apps/local-server/public/dashboard.html</file>
+    <file alias="streamhub-server/public/dashboard.js">../../../apps/local-server/public/dashboard.js</file>
+    <file alias="streamhub-server/public/dashboard.css">../../../apps/local-server/public/dashboard.css</file>
+    <file alias="streamhub-server/public/overlay.html">../../../apps/local-server/public/overlay.html</file>
+    <file alias="streamhub-server/public/overlay.js">../../../apps/local-server/public/overlay.js</file>
+    <file alias="streamhub-server/public/overlay.css">../../../apps/local-server/public/overlay.css</file>
+    <file alias="streamhub-server/public/icons/twitch.svg">../../../apps/local-server/public/icons/twitch.svg</file>
+    <file alias="streamhub-server/public/icons/kick.svg">../../../apps/local-server/public/icons/kick.svg</file>
+    <file alias="streamhub-server/public/icons/youtube.svg">../../../apps/local-server/public/icons/youtube.svg</file>
+    <file alias="streamhub-server/public/icons/tiktok.svg">../../../apps/local-server/public/icons/tiktok.svg</file>
+  </qresource>
+
+  <qresource prefix="/streamhub-ui">
+    <file alias="icons/twitch.svg">../resources/assets/icons/twitch.svg</file>
+    <file alias="icons/kick.svg">../resources/assets/icons/kick.svg</file>
+    <file alias="icons/youtube.svg">../resources/assets/icons/youtube.svg</file>
+    <file alias="icons/tiktok.svg">../resources/assets/icons/tiktok.svg</file>
+    <file alias="icons/facebook.svg">../resources/assets/icons/facebook.svg</file>
+    <file alias="icons/settings.svg">../resources/assets/icons/settings.svg</file>
+    <file alias="icons/camera.svg">../resources/assets/icons/camera.svg</file>
+    <file alias="icons/play.svg">../resources/assets/icons/play.svg</file>
+    <file alias="icons/stop.svg">../resources/assets/icons/stop.svg</file>
+    <file alias="branding/streamhub-background.png">../resources/assets/branding/streamhub-background.png</file>
+    <file alias="branding/k4-crown.png">../resources/assets/branding/k4-crown.png</file>
+    <file alias="branding/k4-logo.png">../resources/assets/branding/k4-logo.png</file>
+  </qresource>
+
+  <qresource prefix="/streamhub-theme">
+    <file alias="K4binho_Ma_Fase.obt">../resources/themes/K4binho_Ma_Fase.obt</file>
+    <file alias="K4binho_Ma_Fase.qss">../resources/themes/K4binho_Ma_Fase.qss</file>
+    <file alias="INSTALACAO.md">../resources/themes/INSTALACAO.md</file>
+    <file alias="backgrounds/ma-fase-background-1920x1080.png">../resources/themes/K4binho-Ma-Fase/backgrounds/ma-fase-background-1920x1080.png</file>
+    <file alias="assets/crown-watermark.png">../resources/themes/K4binho-Ma-Fase/crown-watermark.png</file>
+    <file alias="assets/checkbox_checked.svg">../resources/themes/K4binho-Ma-Fase/checkbox_checked.svg</file>
+    <file alias="assets/checkbox_checked_disabled.svg">../resources/themes/K4binho-Ma-Fase/checkbox_checked_disabled.svg</file>
+    <file alias="assets/checkbox_checked_focus.svg">../resources/themes/K4binho-Ma-Fase/checkbox_checked_focus.svg</file>
+    <file alias="assets/checkbox_unchecked.svg">../resources/themes/K4binho-Ma-Fase/checkbox_unchecked.svg</file>
+    <file alias="assets/checkbox_unchecked_disabled.svg">../resources/themes/K4binho-Ma-Fase/checkbox_unchecked_disabled.svg</file>
+    <file alias="assets/checkbox_unchecked_focus.svg">../resources/themes/K4binho-Ma-Fase/checkbox_unchecked_focus.svg</file>
+  </qresource>
+</RCC>

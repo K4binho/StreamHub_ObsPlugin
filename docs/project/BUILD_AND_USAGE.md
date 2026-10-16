@@ -1,7 +1,7 @@
 # StreamHub OBS Plugin — Manual e Build
 
 **Versão base:** OBS Studio 32.2.1+
-**Bundle StreamHub:** 40
+**Bundle StreamHub:** 57
 
 StreamHub é fork de `obs-multi-rtmp`, com saídas RTMP nativas, chat unificado, contas, moderação, recompensas, editor de transmissão, overlay e tema K4binho — Má Fase.
 
@@ -24,7 +24,7 @@ Twitch, sync RTMP/key Twitch, sync RTMP/key Kick e sync RTMP/key YouTube estão 
 
 ### Pré-requisitos
 
-- Visual Studio Community 2026 com **Desenvolvimento para desktop com C++**.
+- Visual Studio 2022 ou Build Tools com **Desenvolvimento para desktop com C++**.
 - CMake 3.28+.
 - Git.
 - OBS Studio compatível com dependências do projeto.
@@ -33,7 +33,7 @@ Node.js não é pré-requisito. Plugin usa Node instalado no PATH ou baixa runti
 
 ### Comandos
 
-Execute na raiz do repositório:
+Execute em `plugins/obs` dentro do repositório:
 
 ```powershell
 cmake --preset windows-x64
@@ -45,12 +45,12 @@ Compile:
 cmake --build --preset windows-x64 --config RelWithDebInfo
 ```
 
-Preset usa OBS Studio 32.2.1, dependências pré-compiladas de 2026-07-15, Qt6 e gerador `Visual Studio 18 2026`. Build usa `Qt6::Core`, `Qt6::Widgets` e `Qt6::Network`; QtWebSockets não é necessário.
+Preset usa OBS Studio 32.2.1, dependências pré-compiladas de 2026-07-15, Qt6 e gerador `Visual Studio 17 2022`. Build usa `Qt6::Core`, `Qt6::Widgets` e `Qt6::Network`; QtWebSockets não é necessário.
 
 DLL costuma ser gerada em:
 
 ```text
-build_x64\RelWithDebInfo\obs-multi-rtmp.dll
+plugins\obs\build_x64\RelWithDebInfo\obs-multi-rtmp.dll
 ```
 
 Nome final segue `buildspec.json`.

@@ -59,7 +59,7 @@ Não marcar item pendente como implementado sem teste correspondente.
 
 ### 3.1 Servidor Node
 
-Diretório-fonte: `data/streamhub-server/`.
+Diretório-fonte: `apps/local-server/`.
 
 - `server/index.js`: entrypoint, servidor HTTP local em `localhost`, histórico, long-poll, eventos de status, watchdog e lifecycle autenticado.
 - `server/accounts.js`: OAuth, renovação e persistência privada de tokens por plataforma.
@@ -85,19 +85,19 @@ Servidor escuta somente localmente. Chaves RTMP não pertencem ao fluxo comum de
 - `src/chat/streamhub-chat-settings.cpp`: formulário e gravação atômica de `config.json`.
 - `src/chat/streamhub-chat-admin.cpp/.h`: moderação, configurações administrativas, recompensas e resgates.
 - `src/broadcast/streamhub-control-dock.cpp/.h`: contas, OAuth, editor da live, prévia e busca de categoria.
-- `src/core/streamhub-launcher.cpp`: ciclo de vida Node, runtime, `npm install`, processo filho e reinício.
-- `src/core/streamhub-node-provision.cpp`: resolução/download do Node portátil e reparação de dependências.
-- `src/core/streamhub-paths.h`: resolução de caminhos graváveis, servidor e configuração.
-- `src/core/streamhub-bundle.cpp`: extração versionada do Qt Resource System.
-- `src/streaming/streamhub-platforms.cpp`: presets, ícones, cores e servidores conhecidos.
-- `src/audio/noise-suppressor-filter.c`: filtro RNNoise integrado à DLL principal.
-- `qrc/streamhub-data.qrc`: arquivos embutidos na DLL.
+- `plugins/obs/src/core/streamhub-launcher.cpp`: ciclo de vida Node, runtime, `npm install`, processo filho e reinício.
+- `plugins/obs/src/core/streamhub-node-provision.cpp`: resolução/download do Node portátil e reparação de dependências.
+- `plugins/obs/src/core/streamhub-paths.h`: resolução de caminhos graváveis, servidor e configuração.
+- `plugins/obs/src/core/streamhub-bundle.cpp`: extração versionada do Qt Resource System.
+- `plugins/obs/src/streaming/streamhub-platforms.cpp`: presets, ícones, cores e servidores conhecidos.
+- `libraries/noise-suppressor/src/noise-suppressor-filter.c`: filtro RNNoise integrado à DLL principal.
+- `plugins/obs/qrc/streamhub-data.qrc`: arquivos embutidos na DLL.
 
 C++ é autoridade para saídas RTMP, `GlobalMultiOutputConfig()` e `obs-multi-rtmp.json` no perfil ativo do OBS.
 
 ### 3.3 Bundle e distribuição
 
-`qrc/streamhub-data.qrc` embute recursos necessários para DLL funcionar sem `data/` copiado manualmente. `StreamHub_EnsureBundledData()` extrai para caminho gravável retornado pelo OBS.
+`plugins/obs/qrc/streamhub-data.qrc` embute recursos necessários para DLL funcionar sem `apps/` copiado manualmente. `StreamHub_EnsureBundledData()` extrai para caminho gravável retornado pelo OBS.
 
 `kBundleVersion` em `src/core/streamhub-bundle.cpp` controla reextração. Ao alterar qualquer arquivo listado no QRC, aumentar `kBundleVersion`. Não confundir versão do bundle com `PLUGIN_VERSION`.
 
