@@ -55,3 +55,9 @@ test('mantém termos e política de privacidade públicos', async () => {
     assert.match(await response.text(), new RegExp(expected));
   }
 });
+
+test('publica a verificação de propriedade na página inicial', async () => {
+  const response = await fetch(`${baseUrl}/`);
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /google-site-verification" content="KwRm3dysSljZzYimU4XSbiEnY9-yCDcD6Vi_Nu8c3aI/);
+});
