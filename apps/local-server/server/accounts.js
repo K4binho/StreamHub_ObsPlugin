@@ -1,85 +1,31 @@
-const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 const { config: loadEnv } = require('dotenv');
+const { createAccountStore } = require('./accounts/account-store');
+const { createHttpClient } = require('./accounts/http-client');
+const platformConfig = require('./accounts/platform-config');
 
 loadEnv({ path: path.join(__dirname, '..', '.env') });
-
-// Client IDs are public. Client Secrets stay in accounts-private.json and never
-// belong in source, config.json, logs, responses, or documentation.
-const TWITCH_CLIENT_ID = 'qujbqnms1y167wc7dpt4t7v8k0dwtj';
-const TWITCH_SCOPES = [
-  'user:read:chat', 'user:write:chat', 'channel:manage:broadcast',
-  'channel:read:stream_key', 'moderator:manage:banned_users',
-  'moderator:manage:chat_messages', 'moderator:manage:chat_settings',
-  'moderator:manage:automod',
-].join(' ');
-const TWITCH_DEVICE_URL = 'https://id.twitch.tv/oauth2/device';
-const TWITCH_TOKEN_URL = 'https://id.twitch.tv/oauth2/token';
-const TWITCH_USERS_URL = 'https://api.twitch.tv/helix/users';
-
-const KICK_AUTHORIZE_URL = 'https://id.kick.com/oauth/authorize';
-const KICK_TOKEN_URL = 'https://id.kick.com/oauth/token';
-const KICK_API_BASE = 'https://api.kick.com/public/v1';
-const KICK_REDIRECT_URI = 'http://localhost:605/api/accounts/kick/callback';
-const KICK_SCOPES = [
-  'user:read', 'channel:read', 'channel:write', 'streamkey:read', 'chat:write', 'moderation:ban',
-].join(' ');
-
-const YOUTUBE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const YOUTUBE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
-const YOUTUBE_REDIRECT_URI = 'http://localhost:605/api/accounts/youtube/callback';
-const YOUTUBE_SCOPE = 'https://www.googleapis.com/auth/youtube.force-ssl';
-const DEFAULT_OAUTH_BROKER_URL =
-  'https://streamhub-oauth-broker.onrender.com';
-
-const SHARED_OAUTH_BROKER_URL = String(
-  process.env.STREAMHUB_OAUTH_BROKER_URL ||
-  DEFAULT_OAUTH_BROKER_URL
-)
-  .trim()
-  .replace(/\/+$/, '');
+const {
+  TWITCH_CLIENT_ID, TWITCH_SCOPES, TWITCH_DEVICE_URL, TWITCH_TOKEN_URL, TWITCH_USERS_URL,
+  KICK_AUTHORIZE_URL, KICK_TOKEN_URL, KICK_API_BASE, KICK_REDIRECT_URI, KICK_SCOPES,
+  YOUTUBE_AUTHORIZE_URL, YOUTUBE_TOKEN_URL, YOUTUBE_API_BASE, YOUTUBE_REDIRECT_URI, YOUTUBE_SCOPE,
+  SHARED_OAUTH_BROKER_URL,
+} = platformConfig;
 
 
 function createAccounts(directory, request = fetch) {
   const file = path.join(directory, 'accounts-private.json');
   const pending = new Map();
   const refreshing = new Map();
-  const read = (name) => fs.existsSync(name) ? JSON.parse(fs.readFileSync(name, 'utf8')) : {};
-  let accounts = read(file);
-
+  const store = createAccountStore(file);
+  let accounts = store.snapshot;
   const save = () => {
-    fs.writeFileSync(`${file}.tmp`, JSON.stringify(accounts), { mode: 0o600 });
-    fs.renameSync(`${file}.tmp`, file);
+    store.replace(accounts);
+    store.save();
   };
-
-  const postForm = async (url, fields, platform) => {
-    const response = await request(url, { method: 'POST', body: new URLSearchParams(fields), timeout: 15000 });
-    const result = await response.json();
-    if (!response.ok) {
-      const error = new Error(result.message || result.error_description || `${platform} recusou a operação (HTTP ${response.status}).`);
-      error.code = result.message || result.error;
-      throw error;
-    }
-    return result;
-  };
-
-  const requestJson = async (url, options = {}, platform = 'Twitch') => {
-    const response = await request(url, { ...options, timeout: 15000 });
-    if (!response.ok) {
-      let detail = '';
-      try {
-        const result = await response.json();
-        detail = result.message || result.error?.message || result.error?.errors?.[0]?.reason || result.error || '';
-      } catch (_) {
-        // Keep platform errors safe when response is not JSON.
-      }
-      throw new Error(`${platform} recusou a operação (HTTP ${response.status})${detail ? `: ${detail}` : ''}.`);
-    }
-    return response.status === 204 ? {} : response.json();
-  };
+  const { postForm, requestJson } = createHttpClient(request);
 
   const exchange = async (fields) => {
     const result = await postForm(TWITCH_TOKEN_URL, { ...fields, client_id: TWITCH_CLIENT_ID }, 'A Twitch');

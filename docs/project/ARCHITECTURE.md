@@ -62,7 +62,10 @@ Não marcar item pendente como implementado sem teste correspondente.
 Diretório-fonte: `apps/local-server/`.
 
 - `server/index.js`: entrypoint, servidor HTTP local em `localhost`, histórico, long-poll, eventos de status, watchdog e lifecycle autenticado.
-- `server/accounts.js`: OAuth, renovação e persistência privada de tokens por plataforma.
+- `server/accounts.js`: fachada/coordenador compatível para OAuth, renovação e operações de conta.
+- `server/accounts/platform-config.js`: URLs, escopos e configurações fixas dos provedores.
+- `server/accounts/account-store.js`: leitura, snapshot e gravação atômica de `accounts-private.json`.
+- `server/accounts/http-client.js`: cliente HTTP compartilhado e normalização de erros dos provedores.
 - `server/routes/api.js`: endpoints locais para contas, transmissão, chat, moderação e recompensas.
 - `server/chat/*.js`: conectores Twitch, Kick, YouTube e TikTok.
 - `server/config-store.js`: leitura e gravação da configuração pública.
@@ -182,6 +185,10 @@ Contrato aplicado à sincronização Kick:
 11. Operação idempotente; repetição não cria cartões duplicados.
 
 ## 6. Roadmap
+
+### 6.0 Modularização interna
+
+A separação por diretórios já está aplicada. A primeira extração interna foi concluída no servidor local, separando configuração de plataformas, persistência de contas e cliente HTTP. O diagnóstico detalhado e o plano de divisão dos arquivos C++ grandes estão em [`MODULARIZATION.md`](MODULARIZATION.md).
 
 ### 6.1 Plano de execução faseado — Etapa 2
 
