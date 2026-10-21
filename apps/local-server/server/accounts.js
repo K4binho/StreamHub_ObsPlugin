@@ -978,6 +978,29 @@ function createAccounts(directory, request = fetch) {
       };
     },
 
+    disconnect(platform) {
+      const normalized = String(platform || '').trim().toLowerCase();
+      if (!['twitch', 'kick', 'youtube'].includes(normalized)) {
+        throw new Error('Plataforma inválida para desconectar.');
+      }
+      const current = accounts[normalized];
+      if (!current) return { connected: false };
+      if (normalized === 'twitch') {
+        delete accounts.twitch;
+      } else {
+        const appCredentials = {};
+        if (current.clientId) appCredentials.clientId = current.clientId;
+        if (current.clientSecret) appCredentials.clientSecret = current.clientSecret;
+        if (Object.keys(appCredentials).length) accounts[normalized] = appCredentials;
+        else delete accounts[normalized];
+      }
+      for (const [flowId, flow] of pending.entries()) {
+        if (flowId.startsWith(`${normalized}:`) || flow.platform === normalized) pending.delete(flowId);
+      }
+      save();
+      return { connected: false };
+    },
+
     async youtubeActiveChat() {
       const account = await youtubeAccess();
       const broadcasts = await youtubeRequest(

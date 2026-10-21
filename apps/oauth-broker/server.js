@@ -292,7 +292,7 @@ function createBroker(options = {}) {
 
   app.use(express.json({ limit: '8kb' }));
   app.get('/v1/kick/events', rateLimit('kick:events', 120, 60000), async (req, res) => {
-    const token = String(req.get('authorization') || '').replace(/^Bearer\\s+/i, '').trim();
+    const token = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
     if (!token || token.length > 4096) return publicError(res, 401, 'Conta Kick não autorizada.');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     let identity = kickIdentities.get(tokenHash);

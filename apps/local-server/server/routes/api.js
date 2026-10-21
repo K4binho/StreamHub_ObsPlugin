@@ -2,7 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const { readConfig, writeConfig } = require('../config-store');
 
-function createApiRouter(accounts, getChatStatus = () => null) {
+function createApiRouter(accounts, getChatStatus = () => null, onAccountsChanged = () => {}) {
 const router = express.Router();
 
 function escapeHtml(value) {
@@ -70,6 +70,14 @@ router.get('/accounts/kick/status', (_req, res) => {
 
 router.get('/accounts/youtube/status', (_req, res) => {
   res.json(accounts.youtubeStatus());
+});
+
+router.post('/accounts/:platform/disconnect', async (req, res) => {
+  try {
+    const result = accounts.disconnect(req.params.platform);
+    await onAccountsChanged();
+    res.json({ ok: true, ...result });
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 router.get('/accounts/chat-identities', (_req, res) => {

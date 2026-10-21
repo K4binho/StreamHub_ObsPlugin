@@ -134,7 +134,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     auto openAccountOptions = [this](const QString &platform, QLabel *accountName, QLabel *accountStatus,
                                      QPushButton *connectState, QPushButton *syncState,
                                      std::function<void()> connectAction, std::function<void()> syncAction,
-                                     QPushButton *extraState, std::function<void()> extraAction) {
+                                     QPushButton *extraState, std::function<void()> extraAction,
+                                     std::function<void()> disconnectAction) {
         QWidget *dialogParent = qobject_cast<QMainWindow *>(window());
         if (!dialogParent) {
             for (QWidget *candidate : QApplication::topLevelWidgets()) {
@@ -183,6 +184,10 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
                 dialog.accept();
             });
         }
+        auto *disconnectOption = new QPushButton(tr("Sair da conta"), &dialog);
+        disconnectOption->setObjectName("accountOptionsDisconnect");
+        disconnectOption->setEnabled(accountStatus->property("authenticated").toBool());
+        layout->addWidget(disconnectOption);
         auto *closeOption = new QPushButton(tr("Fechar"), &dialog);
         closeOption->setObjectName("accountOptionsClose");
         layout->addWidget(closeOption);
@@ -194,6 +199,10 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
             selectedAction = 2;
             dialog.accept();
         });
+        connect(disconnectOption, &QPushButton::clicked, &dialog, [&dialog, &selectedAction]() {
+            selectedAction = 4;
+            dialog.accept();
+        });
         connect(closeOption, &QPushButton::clicked, &dialog, &QDialog::reject);
 
         dialog.setStyleSheet(QStringLiteral(
@@ -203,6 +212,9 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
             "QPushButton#accountOptionsAction { min-height:34px; padding:5px 12px; background:#17283a; color:white; border:1px solid #29496f; border-radius:7px; }"
             "QPushButton#accountOptionsAction:hover { border-color:#00c8ff; background:#1b3248; }"
             "QPushButton#accountOptionsAction:disabled { color:#71839b; }"
+            "QPushButton#accountOptionsDisconnect { min-height:34px; padding:5px 12px; background:#351923; color:#ffbac4; border:1px solid #8d3344; border-radius:7px; }"
+            "QPushButton#accountOptionsDisconnect:hover { background:#51202b; border-color:#e24d65; }"
+            "QPushButton#accountOptionsDisconnect:disabled { color:#71839b; background:#101a27; border-color:#29496f; }"
             "QPushButton#accountOptionsClose { min-height:30px; padding:4px 10px; background:transparent; color:#b8c8dc; border:1px solid #29496f; border-radius:7px; }"));
         dialog.adjustSize();
         const QPoint center = dialogParent->window()->frameGeometry().center();
@@ -214,6 +226,11 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
             syncAction();
         else if (selectedAction == 3 && extraAction)
             extraAction();
+        else if (selectedAction == 4 && disconnectAction &&
+                 QMessageBox::question(this, tr("Sair da conta"),
+                     tr("Desconectar %1 do StreamHub? As configurações de transmissão serão mantidas.").arg(platform),
+                     QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+            disconnectAction();
     };
     auto *accountCard = new QWidget(accounts);
     accountCard->setObjectName("accountCard");
@@ -251,7 +268,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     accountCardLayout->addLayout(accountIdentity);
     connect(twitchGear, &QPushButton::clicked, this, [openAccountOptions, this]() {
         openAccountOptions(tr("Twitch"), accountName_, accountStatus_, connectButton_, twitchSyncButton_,
-                           [this]() { StartTwitchLogin(); }, [this]() { SyncTwitchTransmission(); }, nullptr, {});
+                           [this]() { StartTwitchLogin(); }, [this]() { SyncTwitchTransmission(); }, nullptr, {},
+                           [this]() { Request("POST", "/api/accounts/twitch/disconnect", {}, [this](const QJsonObject &, int) { RefreshAccount(); }); });
     });
     accountsLayout->addWidget(accountCard);
 
@@ -304,7 +322,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     connect(kickGear, &QPushButton::clicked, this, [openAccountOptions, this]() {
         openAccountOptions(tr("Kick"), kickAccountName_, kickAccountStatus_, kickConnectButton_, kickSyncButton_,
                            [this]() { StartKickLogin(); }, [this]() { SyncKickTransmission(); }, kickCopyLinkButton_,
-                           [this]() { kickCopyLinkButton_->click(); });
+                           [this]() { kickCopyLinkButton_->click(); },
+                           [this]() { Request("POST", "/api/accounts/kick/disconnect", {}, [this](const QJsonObject &, int) { RefreshKickAccount(); }); });
     });
     accountsLayout->addWidget(kickCard);
 
@@ -343,7 +362,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     youtubeCardLayout->addLayout(youtubeIdentity);
     connect(youtubeGear, &QPushButton::clicked, this, [openAccountOptions, this]() {
         openAccountOptions(tr("YouTube"), youtubeAccountName_, youtubeAccountStatus_, youtubeConnectButton_, youtubeSyncButton_,
-                           [this]() { StartYoutubeLogin(); }, [this]() { SyncYoutubeTransmission(); }, nullptr, {});
+                           [this]() { StartYoutubeLogin(); }, [this]() { SyncYoutubeTransmission(); }, nullptr, {},
+                           [this]() { Request("POST", "/api/accounts/youtube/disconnect", {}, [this](const QJsonObject &, int) { RefreshYoutubeAccount(); }); });
     });
     accountsLayout->addWidget(youtubeCard);
 
@@ -741,6 +761,7 @@ void StreamHubControlDock::RefreshAccount()
     Request("GET", "/api/accounts/twitch/status", {}, [this](const QJsonObject &o, int status) {
         if (status != 200) { accountStatus_->setText(tr("● Aguardando o serviço local...")); accountStatus_->setProperty("connected", false); QTimer::singleShot(1500, this, &StreamHubControlDock::RefreshAccount); return; }
         const bool connected = o.value("connected").toBool(); const bool reconnect = o.value("needsReconnect").toBool();
+        accountStatus_->setProperty("authenticated", connected);
         accountStatus_->setProperty("connected", connected && !reconnect); accountStatus_->style()->unpolish(accountStatus_); accountStatus_->style()->polish(accountStatus_);
         if (!connected) {
             accountName_->setText(tr("Twitch")); accountStatus_->setText(tr("● Não conectada"));
@@ -1059,6 +1080,7 @@ void StreamHubControlDock::RefreshKickAccount()
         const bool configured = o.value("configured").toBool();
         const bool connected = o.value("connected").toBool();
         const bool reconnect = o.value("needsReconnect").toBool();
+        kickAccountStatus_->setProperty("authenticated", connected);
         kickAccountStatus_->setProperty("connected", connected && !reconnect);
         kickAccountStatus_->style()->unpolish(kickAccountStatus_);
         kickAccountStatus_->style()->polish(kickAccountStatus_);
@@ -1286,6 +1308,7 @@ void StreamHubControlDock::RefreshYoutubeAccount()
         const bool configured = o.value("configured").toBool();
         const bool connected = o.value("connected").toBool();
         const bool reconnect = o.value("needsReconnect").toBool();
+        youtubeAccountStatus_->setProperty("authenticated", connected);
         const QString source = o.value("credentialSource").toString();
         youtubeAccountStatus_->setProperty("connected", connected && !reconnect);
         youtubeAccountStatus_->style()->unpolish(youtubeAccountStatus_);

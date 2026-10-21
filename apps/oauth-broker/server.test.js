@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const http = require('node:http');
 const { after, before, test } = require('node:test');
 const { createBroker, buildConfig } = require('./server');
 
@@ -74,6 +75,46 @@ test('recebe webhook Kick com corpo bruto antes do parser JSON', async () => {
     assert.equal(captured.headers['kick-event-message-id'], 'event-1');
   } finally {
     await new Promise((resolve, reject) => webhookServer.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test('aceita Bearer token ao consultar eventos do chat Kick', async () => {
+  let authorizationHeader = '';
+  const eventServer = createBroker({
+    settings: buildConfig(env),
+    kickEvents: {
+      verifyAndStore: async () => ({ ok: true }),
+      read: (userId) => ({ events: [{ platform: 'kick', user: 'viewer' }], cursor: userId === '42' ? 7 : 0 }),
+    },
+  }).listen(0, '127.0.0.1');
+  await new Promise((resolve) => eventServer.once('listening', resolve));
+  const originalFetch = global.fetch;
+  global.fetch = async (_url, options) => {
+    authorizationHeader = options.headers.Authorization;
+    return { ok: true, json: async () => ({ data: [{ user_id: 42 }] }) };
+  };
+  try {
+    const response = await new Promise((resolve, reject) => {
+      const request = http.get({
+        hostname: '127.0.0.1',
+        port: eventServer.address().port,
+        path: '/v1/kick/events?since=0',
+        headers: { Authorization: 'Bearer test-access-token' },
+      }, (incoming) => {
+        let body = '';
+        incoming.setEncoding('utf8');
+        incoming.on('data', (chunk) => { body += chunk; });
+        incoming.on('end', () => resolve({ status: incoming.statusCode, body: JSON.parse(body) }));
+      });
+      request.on('error', reject);
+    });
+    assert.equal(response.status, 200);
+    assert.equal(authorizationHeader, 'Bearer test-access-token');
+    assert.equal(response.body.cursor, 7);
+    assert.equal(response.body.events.length, 1);
+  } finally {
+    global.fetch = originalFetch;
+    await new Promise((resolve, reject) => eventServer.close((error) => error ? reject(error) : resolve()));
   }
 });
 

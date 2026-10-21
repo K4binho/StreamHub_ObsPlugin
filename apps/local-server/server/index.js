@@ -80,7 +80,11 @@ function startBrokerHeartbeat() {
 app.use(express.json());
 app.get('/overlay.html', (_req, res) => res.sendFile(path.join(PUBLIC_PATH, 'overlay.html')));
 app.use(express.static(PUBLIC_PATH));
-app.use('/api', createApiRouter(accounts, (platform) => connectionStates.get(platform) || null));
+app.use('/api', createApiRouter(
+  accounts,
+  (platform) => connectionStates.get(platform) || null,
+  () => reconcileChatConnectors(),
+));
 
 const overlayConfig = {
   messageDurationSeconds: Math.max(3, Number(config.overlay?.messageDurationSeconds) || 20),
