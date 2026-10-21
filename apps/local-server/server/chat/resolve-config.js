@@ -16,7 +16,7 @@ function resolveChatConfigurations(saved, identities) {
   };
   const kick = {
     ...(saved.kick || {}),
-    enabled: Boolean(kickIdentity.connected || saved.kick?.enabled),
+    enabled: Boolean(kickIdentity.connected && !kickIdentity.needsReconnect && kickIdentity.oauthMode === 'shared'),
     channel: normalizedChannel(
       kickIdentity.connected ? kickIdentity.name : saved.kick?.channel,
     ),
@@ -26,7 +26,7 @@ function resolveChatConfigurations(saved, identities) {
     enabled: Boolean(youtubeIdentity.connected || saved.youtube?.enabled),
   };
 
-  return { twitch, kick, youtube, tiktok: saved.tiktok || {} };
+  return { twitch, kick, youtube, tiktok: { ...(saved.tiktok || {}), enabled: false } };
 }
 
 module.exports = { resolveChatConfigurations };

@@ -7,9 +7,8 @@ const { Server } = require('socket.io');
 const fetch = require('node-fetch');
 
 const { startTwitch } = require('./chat/twitch');
-const { startYoutube } = require('./chat/youtube');
 const { startKick } = require('./chat/kick');
-const { startTiktok } = require('./chat/tiktok');
+const { startYoutube } = require('./chat/youtube');
 const { createApiRouter } = require('./routes/api');
 const { createAccounts, SHARED_OAUTH_BROKER_URL } = require('./accounts');
 const { readConfig } = require('./config-store');
@@ -261,10 +260,15 @@ async function reconcileChatConnectors() {
         },
         {
           platform: 'kick', config: kick,
-          identity: `${kickIdentity.connected}:${kickIdentity.name || ''}`,
+          identity: `${kickIdentity.connected}:${kickIdentity.needsReconnect}:${kickIdentity.oauthMode || ''}:${kickIdentity.name || ''}`,
           start: () => startKick(kick, broadcastMessage,
-            (state, detail) => updateConnectionStatus('kick', state, detail)),
-          available: Boolean(kick.enabled && kick.channel),
+            (state, detail) => updateConnectionStatus('kick', state, detail), accounts),
+          available: Boolean(kick.enabled && kickIdentity.connected && !kickIdentity.needsReconnect && kickIdentity.oauthMode === 'shared'),
+          unavailableReason: kickIdentity.connected && kickIdentity.needsReconnect
+            ? 'Reconecte a conta Kick para autorizar a leitura oficial do chat.'
+            : kickIdentity.connected && kickIdentity.oauthMode !== 'shared'
+              ? 'Reconecte a Kick pelo OAuth compartilhado para habilitar o webhook oficial.'
+              : undefined,
         },
         {
           platform: 'youtube', config: youtube,
@@ -276,9 +280,8 @@ async function reconcileChatConnectors() {
         {
           platform: 'tiktok', config: tiktok,
           identity: String(tiktok.username || ''),
-          start: () => startTiktok(tiktok, broadcastMessage,
-            (state, detail) => updateConnectionStatus('tiktok', state, detail)),
-          available: Boolean(tiktok.enabled && tiktok.username),
+          available: false,
+          unavailableReason: 'Leitura do chat TikTok pausada até haver uma integração autorizada e validada.',
         },
       ];
 
@@ -294,7 +297,9 @@ async function reconcileChatConnectors() {
         }
 
         if (!entry.available) {
-          if (entry.config.enabled) {
+          if (entry.unavailableReason) {
+            updateConnectionStatus(entry.platform, 'disconnected', entry.unavailableReason);
+          } else if (entry.config.enabled) {
             updateConnectionStatus(entry.platform, 'reconnecting',
               `Conecte a conta ${entry.platform} para detectar o canal automaticamente.`);
           } else {

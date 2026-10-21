@@ -20,7 +20,7 @@ O StreamHub adiciona três áreas principais ao OBS: **Múltiplas saídas · K4*
 | --- | --- |
 | **Múltiplas saídas** | Organiza a transmissão principal do OBS e destinos RTMP adicionais em cartões, com controles individuais ou ações para iniciar e parar tudo. |
 | **Destinos** | Permite configurar Twitch, Kick, YouTube, TikTok, Facebook e RTMP personalizado. Servidor e chave ficam ocultos por padrão. |
-| **Chat unificado** | Reúne mensagens por plataforma, permite filtrar e enviar mensagens, e evita repetir no dock a mesma mensagem enviada para vários chats. |
+| **Chat unificado** | Reúne mensagens dos conectores habilitados, permite filtrar e enviar mensagens, e evita repetir no dock a mesma mensagem enviada para vários chats. Kick usa eventos oficiais via webhook; TikTok continua sem leitura até haver uma API oficial de chat LIVE disponível. |
 | **Moderação** | Oferece ações disponíveis conforme a plataforma e as permissões autorizadas da conta. |
 | **Informações da transmissão** | Conecta contas e organiza título, categoria, tags, idioma, descrição e outras opções suportadas por cada plataforma. |
 | **Overlay** | Exibe mensagens em uma fonte de navegador transparente do OBS, com duração, canal destacado e filtros configuráveis. |
@@ -61,9 +61,9 @@ O projeto oferece destinos RTMP para Twitch, Kick, YouTube, TikTok, Facebook e s
 | Plataforma | Saída RTMP | Chat e recursos da conta |
 | --- | --- | --- |
 | **Twitch** | Destino RTMP e sincronização de servidor/chave disponíveis. | Chat, envio e moderação conforme permissões concedidas. |
-| **Kick** | Destino RTMP e fluxo OAuth/sincronização disponíveis. | Chat e ações dependem da autorização e dos recursos atualmente disponíveis na API. |
+| **Kick** | Destino RTMP e fluxo OAuth/sincronização disponíveis. | Leitura usa evento oficial `chat.message.sent` via webhook; exige `events:subscribe`, webhook público configurado e autorização renovada. Envio e moderação usam a API oficial. |
 | **YouTube** | Destino RTMP e fluxo OAuth disponíveis. | O chat exige uma live com chat ativo; leitura, edição da live e envio precisam ser validados em uma transmissão real. |
-| **TikTok** | Pode ser configurado como destino RTMP. | Integração de chat experimental. |
+| **TikTok** | Pode ser configurado como destino RTMP. | Leitura do chat pausada; não é iniciada integração baseada em protocolo não oficial. |
 | **Facebook** | Pode ser configurado como destino RTMP. | O conector de chat não está implementado. |
 | **RTMP personalizado** | Endereço e chave configuráveis pelo usuário. | Sem integração de chat fornecida pelo StreamHub. |
 
@@ -123,6 +123,7 @@ O plugin OBS controla os docks e as saídas RTMP. O servidor local concentra con
 - Client Secrets do fluxo OAuth compartilhado ficam no broker, fora da DLL.
 - O servidor local escuta em loopback por padrão.
 - Não envie arquivos `.env` ou `accounts-private.json` ao GitHub.
+- Consulte a [Política de Privacidade](https://streamhub-oauth-broker.onrender.com/privacidade) e os [Termos de Uso](https://streamhub-oauth-broker.onrender.com/termos). Não inclua dados pessoais em issues públicas.
 
 ## Desenvolvimento e contribuição
 

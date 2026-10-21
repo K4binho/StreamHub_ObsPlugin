@@ -224,12 +224,12 @@ function collectChatFields() {
     videoId: document.getElementById('youtube-videoid').value.trim(),
   };
   config.kick = {
-    enabled: document.getElementById('kick-enabled').checked,
+    enabled: false,
     channel: document.getElementById('kick-channel').value.trim(),
     chatroomId: document.getElementById('kick-chatroomid').value.trim() || undefined,
   };
   config.tiktok = {
-    enabled: document.getElementById('tiktok-enabled').checked,
+    enabled: false,
     username: document.getElementById('tiktok-username').value.trim(),
   };
   config.rtmp = config.rtmp || {};

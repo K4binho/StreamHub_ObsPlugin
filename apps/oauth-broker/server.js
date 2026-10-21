@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const express = require('express');
+const { createKickEventStore } = require('./kick-events');
 
 const PLATFORMS = {
   kick: {
@@ -10,7 +11,7 @@ const PLATFORMS = {
     authorizeUrl: 'https://id.kick.com/oauth/authorize',
     tokenUrl: 'https://id.kick.com/oauth/token',
     apiBase: 'https://api.kick.com/public/v1',
-    scopes: 'user:read channel:read channel:write streamkey:read chat:write moderation:ban',
+    scopes: 'user:read channel:read channel:write streamkey:read chat:write moderation:ban events:subscribe',
     identity: 'kick',
   },
   youtube: {
@@ -217,26 +218,30 @@ function legalPage(kind) {
     ? 'Esta página explica como o StreamHub trata as informações usadas para conectar contas de transmissão.'
     : 'Estes termos descrevem as condições básicas para usar o StreamHub e o serviço de autorização OAuth.';
   const body = privacy ? `
-    <h2>Dados acessados</h2>
-    <p>Quando você conecta o YouTube ou a Kick, o StreamHub solicita somente as permissões necessárias para os recursos escolhidos, como identificar o canal, ler dados da transmissão, atualizar informações e usar o chat quando a plataforma permitir.</p>
-    <h2>Como os dados são tratados</h2>
-    <p>O broker recebe a autorização da plataforma, troca o código por tokens e entrega o resultado ao servidor local do StreamHub por uma transação temporária. A transação expira automaticamente e o broker não mantém uma cópia permanente dos tokens.</p>
-    <p>O servidor local do StreamHub armazena os tokens no computador do usuário, em arquivo privado da instalação, para renovar a autorização. O StreamHub não vende dados nem usa as informações da conta para publicidade.</p>
-    <h2>Compartilhamento e segurança</h2>
-    <p>As credenciais não são exibidas em telas, logs ou URLs comuns. O fluxo usa HTTPS, estado de autorização, PKCE, expiração e proteção contra reutilização da transação. Os dados são enviados apenas ao provedor escolhido pelo usuário e ao próprio StreamHub.</p>
-    <h2>Revogação e exclusão</h2>
-    <p>Você pode revogar o acesso nas configurações da sua conta Google, Kick ou YouTube. Também pode remover os dados locais da conta pela instalação do StreamHub. Ao revogar o acesso, os recursos que dependem daquela conta deixam de funcionar até uma nova autorização.</p>
-    <h2>Contato</h2>
-    <p>Para dúvidas, sugestões ou solicitações relacionadas a dados, use o <a href="https://github.com/K4binho/StreamHub_ObsPlugin/issues">repositório oficial do projeto</a>.</p>
+    <h2>Quem trata os dados</h2>
+    <p>O StreamHub é um software independente mantido pelo responsável pelo projeto indicado no repositório. O broker OAuth compartilhado é hospedado no Render. Google/YouTube e Kick recebem dados diretamente durante autorização e chamadas às respectivas APIs, conforme as políticas próprias desses provedores.</p>
+    <h2>Dados e finalidades</h2>
+    <p>Conforme os recursos usados, o StreamHub trata identificadores e nomes de canal, dados de transmissão, permissões OAuth e tokens de acesso/renovação. O servidor local também processa mensagens e nomes públicos do chat, mantendo até 100 eventos recentes apenas em memória enquanto o processo estiver ativo. Chaves RTMP e configurações de destino são armazenadas localmente para permitir a transmissão.</p>
+    <p>Esses dados são usados somente para conectar contas, consultar ou atualizar informações solicitadas pelo usuário, ler/enviar mensagens e operar destinos configurados. O StreamHub não vende dados nem os usa para publicidade.</p>
+    <h2>Fluxo OAuth e armazenamento</h2>
+    <p>O broker hospedado recebe o código de autorização, troca-o por tokens e consulta a API do provedor para identificar a conta. O token e a identificação ficam temporariamente em uma transação em memória, com validade máxima de 10 minutos, e são entregues ao servidor local; o broker não mantém armazenamento permanente desses tokens. Registros técnicos de requisições podem ser tratados pelo provedor de hospedagem, conforme as políticas e prazos dele.</p>
+    <p>O servidor local salva tokens e identificadores no arquivo privado <code>accounts-private.json</code>, no computador do usuário, até que a conta seja desconectada ou os dados da instalação sejam removidos. O histórico de chat fica em memória e desaparece quando o servidor local é encerrado.</p>
+    <h2>Compartilhamento e transferências</h2>
+    <p>O broker e o servidor local transmitem os dados necessários aos provedores cuja conta o usuário conectou. Para a leitura oficial do chat Kick, o webhook do Kick envia mensagens ao broker hospedado no Render; após validação da assinatura, elas ficam temporariamente em memória por até cinco minutos, em fila limitada a 1.000 eventos, até serem consultadas pelo servidor local ou expirarem. O broker não mantém essa fila em armazenamento permanente. Provedores e infraestrutura podem processar dados em outros países, segundo seus termos e políticas.</p>
+    <h2>Segurança, revogação e exclusão</h2>
+    <p>O fluxo OAuth usa HTTPS, estado, PKCE, expiração e proteção contra reutilização de transação. As credenciais não devem ser incluídas em issues públicas, capturas de tela ou mensagens de suporte. O usuário pode revogar a autorização nas configurações da conta Google ou Kick. Para apagar tokens locais, feche o OBS e remova o arquivo <code>accounts-private.json</code> da pasta de dados do servidor local do StreamHub; isso desconecta as contas no aplicativo, mas a revogação no provedor deve ser feita separadamente.</p>
+    <p>Para exercer direitos ou fazer uma solicitação sobre dados, não publique informações pessoais em issues públicas. Use o canal privado de contato disponibilizado na página Security do <a href="https://github.com/K4binho/StreamHub_ObsPlugin/security">repositório oficial</a>. Se o canal privado não estiver habilitado, peça apenas orientação por uma issue, sem incluir dados pessoais; o responsável deve fornecer um meio privado para concluir a solicitação.</p>
+    <h2>Serviços Google/YouTube</h2>
+    <p>O uso dos serviços da API do YouTube está sujeito aos <a href="https://www.youtube.com/t/terms" rel="noreferrer">Termos de Serviço do YouTube</a> e às <a href="https://policies.google.com/privacy" rel="noreferrer">Políticas de Privacidade do Google</a>. O usuário pode revogar o acesso Google a qualquer momento.</p>
   ` : `
     <h2>Uso permitido</h2>
-    <p>O StreamHub é uma ferramenta para gerenciar transmissões, chats e informações de contas nas plataformas compatíveis. Você deve usar o aplicativo de acordo com as regras do OBS, do YouTube, da Kick, do Google e das demais plataformas conectadas.</p>
+    <p>O StreamHub é um software independente para gerenciar transmissões, chats e informações de contas nas plataformas compatíveis. Ao conectar ou usar uma conta YouTube com o StreamHub, você concorda em cumprir os <a href="https://www.youtube.com/t/terms" rel="noreferrer">Termos de Serviço do YouTube</a>, as <a href="https://developers.google.com/youtube/terms/developer-policies" rel="noreferrer">políticas para desenvolvedores do YouTube</a> e as regras da plataforma conectada. A Política de Privacidade do Google está disponível <a href="https://policies.google.com/privacy" rel="noreferrer">neste link</a>.</p>
     <h2>Autorização de contas</h2>
     <p>O usuário escolhe quais contas conectar e quais permissões conceder. O StreamHub não solicita a senha da plataforma. A autorização acontece na página oficial do provedor e pode ser revogada a qualquer momento.</p>
     <h2>Disponibilidade</h2>
     <p>Os recursos dependem da disponibilidade, das APIs, das permissões e das regras de cada plataforma. O serviço pode ser alterado, interrompido ou limitado sem garantia de disponibilidade contínua.</p>
     <h2>Responsabilidade</h2>
-    <p>Você é responsável pelo uso das suas contas, chaves de transmissão, mensagens e configurações. Não compartilhe tokens, chaves ou outras credenciais. O StreamHub não é afiliado ao Google, YouTube, Kick ou OBS Studio.</p>
+    <p>Você é responsável pelo uso das suas contas, chaves de transmissão, mensagens e configurações. Não compartilhe tokens, chaves ou outras credenciais. O StreamHub não é afiliado nem endossado pelo Google, YouTube, Kick, Twitch, TikTok ou OBS Studio.</p>
     <h2>Contato</h2>
     <p>Para dúvidas ou sugestões, use o <a href="https://github.com/K4binho/StreamHub_ObsPlugin/issues">repositório oficial do projeto</a>.</p>
   `;
@@ -254,9 +259,10 @@ function createBroker(options = {}) {
   const env = options.env || process.env;
   const settings = options.settings || buildConfig(env);
   const app = express();
+  const kickEvents = options.kickEvents || createKickEventStore(options.kickEventOptions);
+  const kickIdentities = new Map();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '8kb' }));
   app.use((req, res, next) => {
     res.set({
       'Cache-Control': 'no-store',
@@ -269,6 +275,42 @@ function createBroker(options = {}) {
     }
     cleanupTransactions();
     next();
+  });
+
+  app.post('/v1/webhooks/kick', express.raw({ type: 'application/json', limit: '1mb' }), async (req, res) => {
+    try {
+      const result = await kickEvents.verifyAndStore(req.headers, req.body || Buffer.alloc(0));
+      if (!result.ok) {
+        res.status(result.reason === 'invalid_signature' ? 401 : 400).json({ error: 'Webhook Kick inválido.' });
+        return;
+      }
+      res.status(200).json({ ok: true });
+    } catch (_) {
+      res.status(503).json({ error: 'Não foi possível validar o webhook Kick.' });
+    }
+  });
+
+  app.use(express.json({ limit: '8kb' }));
+  app.get('/v1/kick/events', rateLimit('kick:events', 120, 60000), async (req, res) => {
+    const token = String(req.get('authorization') || '').replace(/^Bearer\\s+/i, '').trim();
+    if (!token || token.length > 4096) return publicError(res, 401, 'Conta Kick não autorizada.');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    let identity = kickIdentities.get(tokenHash);
+    if (!identity || identity.expiresAt <= Date.now()) {
+      try {
+        const result = await providerJson(`${settings.config.kick.apiBase}/users`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        }, 'kick');
+        const userId = String(result.data?.[0]?.user_id ?? result.data?.[0]?.id ?? '');
+        if (!userId) return publicError(res, 401, 'Conta Kick não autorizada.');
+        identity = { userId, expiresAt: Date.now() + 5 * 60 * 1000 };
+        kickIdentities.set(tokenHash, identity);
+      } catch (_) {
+        return publicError(res, 401, 'Conta Kick não autorizada.');
+      }
+    }
+    const result = kickEvents.read(identity.userId, req.query?.since);
+    res.json(result);
   });
 
   app.get('/', (_req, res) => {
@@ -328,6 +370,21 @@ function createBroker(options = {}) {
       try {
         const token = await exchangeCode(provider, platform, String(req.query.code), transaction.verifier);
         const identity = await identify(provider, platform, token);
+        if (platform === 'kick') {
+          const subscription = await providerJson(`${provider.apiBase}/events/subscriptions`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              broadcaster_user_id: Number(identity.userId),
+              method: 'webhook',
+              events: [{ name: 'chat.message.sent', version: 1 }],
+            }),
+          }, platform);
+          const chatEvent = (subscription.data || []).find((event) => event.name === 'chat.message.sent');
+          if (chatEvent?.error || !chatEvent?.subscription_id) {
+            throw providerError(platform);
+          }
+        }
         transaction.status = 'connected';
         transaction.payload = { ...token, ...identity };
         res.type('html').send(callbackPage(true));

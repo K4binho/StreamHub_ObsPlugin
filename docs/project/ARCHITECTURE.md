@@ -42,8 +42,8 @@ Componentes principais:
 - Leitura do chat YouTube, consulta de transmissão e atualização de live ainda não foram validadas em live real. O conector atual descobre `activeLiveChatId` por `videos.list` e lê mensagens por `liveChatMessages.list`; rotas de contas e edição ainda precisam de validação ponta a ponta.
 - Resultado Twitch ainda informa notificação como limitação da API; esse campo não é enviado à Twitch.
 - Transmissão RTMP real ainda não foi validada de ponta a ponta.
-- Kick envio autenticado, moderação e chat OAuth permanecem pendentes. Chat atual continua experimental.
-- TikTok continua experimental. Facebook possui modelo de destino RTMP, sem conector de chat funcional.
+- Kick OAuth, envio autenticado e ações pela API oficial estão integrados. A leitura usa `chat.message.sent` via webhook no broker, valida assinatura com chave pública dinâmica e entrega eventos por uma fila volátil (até 1.000 itens/5 minutos) autenticada por conta.
+- A leitura experimental de chat TikTok foi removida até haver integração autorizada. Facebook possui destino RTMP, sem conector de chat funcional.
 - Fluxo normal Kick/YouTube usa broker OAuth HTTPS compartilhado: usuário abre página oficial, autoriza e volta ao OBS. Broker mantém Client Secrets fora da DLL; Node local recebe tokens somente por transação curta e claim token. Fallback avançado mantém credenciais manual ou `.env`.
 - UI Kick, YouTube e Twitch em **Informações de transmissão K4** atualiza estado e inicia OAuth pelo broker. **Sincronizar** continua ação manual separada. Estado OAuth **Conectada** fica separado de erro ou ausência de dados RTMP; aviso de sincronização usa mensagem auxiliar do cartão.
 - Sincronização cria um único destino por plataforma ausente ou atualiza somente `serviceParam.server` e `serviceParam.key`, preservando demais configurações.
@@ -67,7 +67,7 @@ Diretório-fonte: `apps/local-server/`.
 - `server/accounts/account-store.js`: leitura, snapshot e gravação atômica de `accounts-private.json`.
 - `server/accounts/http-client.js`: cliente HTTP compartilhado e normalização de erros dos provedores.
 - `server/routes/api.js`: endpoints locais para contas, transmissão, chat, moderação e recompensas.
-- `server/chat/*.js`: conectores Twitch, Kick, YouTube e TikTok.
+- `server/chat/*.js`: conectores Twitch, Kick (polling do broker) e YouTube. TikTok permanece sem leitura porque não há API pública oficial de chat LIVE disponível para esta integração.
 - `server/config-store.js`: leitura e gravação da configuração pública.
 - `public/overlay.html` e arquivos associados: overlay transparente do chat.
 

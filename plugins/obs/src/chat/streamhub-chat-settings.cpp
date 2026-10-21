@@ -122,10 +122,12 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath,
     form->addRow(new QLabel(ChatStatusText(QObject::tr("Kick"), kickIdentity), chatPage));
     form->addRow(new QLabel(ChatStatusText(QObject::tr("YouTube"), youtubeIdentity), chatPage));
 
-    auto *tiktokEnabled = new QCheckBox(QObject::tr("Ativar TikTok (experimental)"), chatPage);
-    tiktokEnabled->setChecked(tiktok.value("enabled").toBool(false));
+    auto *tiktokEnabled = new QCheckBox(QObject::tr("Chat TikTok pausado — integração não oficial"), chatPage);
+    tiktokEnabled->setChecked(false);
+    tiktokEnabled->setEnabled(false);
     auto *tiktokUsername = new QLineEdit(tiktok.value("username").toString(), chatPage);
     tiktokUsername->setPlaceholderText(QObject::tr("Usuário sem @"));
+    tiktokUsername->setEnabled(false);
     form->addRow(tiktokEnabled);
     form->addRow(QObject::tr("Usuário do TikTok:"), tiktokUsername);
     auto *showTimestamps = new QCheckBox(QObject::tr("Mostrar horário nas mensagens"), chatPage);
@@ -202,19 +204,12 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath,
         QObject::connect(check, &QCheckBox::toggled, check, [update](bool) { update(); });
         update();
     };
-    bindEnabled(tiktokEnabled, {tiktokUsername});
-
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
     buttons->button(QDialogButtonBox::Save)->setText(QObject::tr("Salvar e aplicar"));
     buttons->button(QDialogButtonBox::Cancel)->setText(QObject::tr("Cancelar"));
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
         const QString tiktokName = NormalizedChannel(tiktokUsername->text());
-        if (tiktokEnabled->isChecked() && tiktokName.isEmpty()) {
-            QMessageBox::warning(&dialog, QObject::tr("Usuário obrigatório"),
-                                 QObject::tr("Informe o usuário do TikTok ou desative esse chat."));
-            return;
-        }
 
         QJsonObject updatedTwitch = twitch;
         updatedTwitch.insert("enabled", twitchOAuthConnected || twitch.value("enabled").toBool(false));
@@ -233,7 +228,7 @@ bool StreamHubChatSettings::Edit(QWidget *parent, const QString &configPath,
         config.insert("youtube", updatedYoutube);
 
         QJsonObject updatedTiktok = tiktok;
-        updatedTiktok.insert("enabled", tiktokEnabled->isChecked());
+        updatedTiktok.insert("enabled", false);
         updatedTiktok.insert("username", tiktokName);
         config.insert("tiktok", updatedTiktok);
 

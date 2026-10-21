@@ -47,22 +47,21 @@
           <div class="platform-head">
             <span class="dot kick"></span>
             <strong>Kick</strong>
-            <label class="switch"><input type="checkbox" id="kick-enabled"><span></span></label>
+            <label class="switch"><input type="checkbox" id="kick-enabled" disabled title="Leitura oficial requer conta Kick reautorizada e webhook do broker configurado"><span></span></label>
           </div>
-          <label>Canal</label>
-          <input type="text" id="kick-channel" placeholder="seucanal">
-          <label>Chatroom ID (opcional, só se a busca automática falhar)</label>
-          <input type="text" id="kick-chatroomid" placeholder="deixe em branco pra tentar automático">
+          <p class="hint">Leitura pelo webhook oficial da Kick. Requer reconectar a conta com events:subscribe e configurar o webhook do broker no painel de desenvolvedor da Kick. Envio e moderação são recursos separados.</p>
+          <input type="hidden" id="kick-channel">
+          <input type="hidden" id="kick-chatroomid">
         </div>
 
         <div class="platform-card">
           <div class="platform-head">
             <span class="dot tiktok"></span>
             <strong>TikTok</strong>
-            <label class="switch"><input type="checkbox" id="tiktok-enabled"><span></span></label>
+            <label class="switch"><input type="checkbox" id="tiktok-enabled" disabled title="Leitura de chat pausada nesta versão"><span></span></label>
           </div>
-          <label>Usuário (sem @)</label>
-          <input type="text" id="tiktok-username" placeholder="seuusuario">
+          <p class="hint">Não há API pública oficial de leitura do chat LIVE disponível para esta integração. O destino RTMP não é afetado.</p>
+          <input type="hidden" id="tiktok-username">
         </div>
       </section>
 

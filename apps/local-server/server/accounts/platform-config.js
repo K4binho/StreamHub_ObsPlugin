@@ -15,6 +15,7 @@ const KICK_API_BASE = 'https://api.kick.com/public/v1';
 const KICK_REDIRECT_URI = 'http://localhost:605/api/accounts/kick/callback';
 const KICK_SCOPES = [
   'user:read', 'channel:read', 'channel:write', 'streamkey:read', 'chat:write', 'moderation:ban',
+  'events:subscribe',
 ].join(' ');
 
 const YOUTUBE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';

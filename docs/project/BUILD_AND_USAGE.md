@@ -18,7 +18,7 @@ StreamHub é fork de `obs-multi-rtmp`, com saídas RTMP nativas, chat unificado,
 - **Node.js embutido:** runtime do sistema é usado quando disponível; caso contrário, plugin baixa runtime portátil e instala dependências.
 - **Tema:** **K4binho — Má Fase**, ícones, branding e fundo 1920×1080.
 
-Twitch, sync RTMP/key Twitch, sync RTMP/key Kick e sync RTMP/key YouTube estão implementados e testados pelo canal interno. OAuth Kick e YouTube usam broker HTTPS compartilhado no fluxo normal; Client Secrets ficam no broker, fora da DLL. **Avançado** mantém OAuth local com credenciais manual ou `.env` como fallback. Chat YouTube, consulta, atualização da live e transmissão RTMP real ainda precisam de validação. TikTok completo e chat Facebook permanecem pendentes.
+Twitch, sync RTMP/key Twitch, sync RTMP/key Kick e sync RTMP/key YouTube estão implementados e testados pelo canal interno. OAuth Kick e YouTube usam broker HTTPS compartilhado no fluxo normal; Client Secrets ficam no broker, fora da DLL. **Avançado** mantém OAuth local com credenciais manual ou `.env` como fallback. Chat YouTube e Kick, consulta, atualização da live e transmissão RTMP real precisam de validação ao vivo. Kick requer `events:subscribe`, webhook público do broker e reconexão OAuth. TikTok não tem leitor porque não foi encontrada API pública oficial de chat LIVE disponível; chat Facebook permanece pendente.
 
 ## 2. Build Windows
 
@@ -174,13 +174,13 @@ Campos Twitch usam somente propriedades suportadas pela API da Twitch. Descriç�
 
 ### Kick
 
-Leitura atual de chat pode funcionar pelo protocolo usado pelo site. Fluxo normal usa broker OAuth HTTPS, callback público, PKCE, `state`, refresh token e armazenamento em `accounts-private.json`. **Avançado** mantém OAuth local, callback loopback e configuração de Client ID/Client Secret somente para fallback; nada vai para `config.json`.
+Leitura do chat Kick usa a Events API oficial (`chat.message.sent`): o broker valida a assinatura do webhook e mantém eventos em memória por até cinco minutos (máximo de 1.000) para o servidor local consultar. Configure no app Kick o webhook `https://streamhub-oauth-broker.onrender.com/v1/webhooks/kick`, habilite webhooks e reconecte a conta para conceder `events:subscribe`. O fluxo OAuth usa broker HTTPS, callback público, PKCE, `state`, refresh token e armazenamento em `accounts-private.json`. Envio, moderação e sincronização continuam separados, via API autenticada. A leitura real depende de deploy e validação com mensagem de uma segunda conta.
 
 Após OAuth, sincronização interna autenticada busca servidor e stream key e atualiza/cria cartão Kick sem duplicação. Kick usa escopo `streamkey:read`; API oficial fornece dados em `channel.stream.url` e `channel.stream.key`. Sync interno respondeu `HTTP 200`; transmissão RTMP real ainda pendente. Não informe stream key por chat ou URL.
 
 ### TikTok e Facebook
 
-TikTok permanece experimental até teste ponta a ponta em live real. Facebook oferece destino RTMP, mas não conector de chat funcional no servidor.
+Leitura do chat TikTok está pausada e seu conector experimental foi removido; o destino RTMP permanece disponível. Facebook oferece destino RTMP, mas não conector de chat funcional no servidor.
 
 ## 7. Tema K4binho — Má Fase
 

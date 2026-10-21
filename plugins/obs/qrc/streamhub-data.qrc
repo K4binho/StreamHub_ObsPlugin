@@ -15,7 +15,6 @@
     <file alias="streamhub-server/server/chat/twitch.js">../../../apps/local-server/server/chat/twitch.js</file>
     <file alias="streamhub-server/server/chat/kick.js">../../../apps/local-server/server/chat/kick.js</file>
     <file alias="streamhub-server/server/chat/youtube.js">../../../apps/local-server/server/chat/youtube.js</file>
-    <file alias="streamhub-server/server/chat/tiktok.js">../../../apps/local-server/server/chat/tiktok.js</file>
     <file alias="streamhub-server/server/chat/resolve-config.js">../../../apps/local-server/server/chat/resolve-config.js</file>
 
     <file alias="streamhub-server/public/dashboard.html">../../../apps/local-server/public/dashboard.html</file>

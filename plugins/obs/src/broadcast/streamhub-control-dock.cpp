@@ -20,6 +20,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QMainWindow>
+#include <QMessageBox>
 #include <QPair>
 #include <QPushButton>
 #include <QScrollArea>
@@ -1199,6 +1200,21 @@ void StreamHubControlDock::SetKickTransmissionError(const QString &error)
 
 void StreamHubControlDock::StartYoutubeLogin()
 {
+    QMessageBox consent(QMessageBox::Information, tr("Conectar ao YouTube"),
+        tr("Ao continuar, você concorda em usar os serviços da API do YouTube e aceita a Política de Privacidade do StreamHub, conforme os "
+           "<a href=\"https://www.youtube.com/t/terms\">Termos de Serviço do YouTube</a> e as "
+           "<a href=\"https://developers.google.com/youtube/terms/developer-policies\">políticas para desenvolvedores</a>. "
+           "Consulte a <a href=\"https://streamhub-oauth-broker.onrender.com/privacidade\">Política de Privacidade do StreamHub</a> e a "
+           "<a href=\"https://policies.google.com/privacy\">Política de Privacidade do Google</a>."),
+        QMessageBox::NoButton, this);
+    auto *agreeButton = consent.addButton(tr("Concordar e continuar"), QMessageBox::AcceptRole);
+    consent.addButton(tr("Cancelar"), QMessageBox::RejectRole);
+    consent.setTextFormat(Qt::RichText);
+    consent.setTextInteractionFlags(Qt::TextBrowserInteraction);
+    consent.exec();
+    if (consent.clickedButton() != agreeButton)
+        return;
+
     youtubeConnectButton_->setEnabled(false);
     youtubeAccountStatus_->setProperty("connected", false);
     youtubeAccountStatus_->style()->unpolish(youtubeAccountStatus_);

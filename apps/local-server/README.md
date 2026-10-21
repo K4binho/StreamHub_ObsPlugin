@@ -31,12 +31,12 @@ O servidor é iniciado pelo launcher do plugin com `STREAMHUB_OBS_PID`, `STREAMH
 
 <!-- histórico -->
 
-- **Kick:** canal público por protocolo usado pelo site; validado ponta a ponta. (Registro histórico; implementação atual descrita acima.)
+- **Kick:** leitura usa `chat.message.sent` pela Events API oficial, com assinatura validada no broker HTTPS e fila temporária em memória por até cinco minutos (máximo de 1.000 mensagens). Requer `events:subscribe`, novo consentimento OAuth e webhook `https://streamhub-oauth-broker.onrender.com/v1/webhooks/kick` configurado no app Kick. Envio e moderação seguem independentes. A entrega precisa ser confirmada em live real após deploy.
 - **YouTube:** OAuth persistente e descoberta de `activeLiveChatId` por `videos.list`; leitura usa `liveChatMessages.list`. Consulta, atualização e leitura em live real ainda precisam de validação.
-- **TikTok:** requer o usuário sem `@`; permanece experimental até validação ponta a ponta em uma live real.
+- **TikTok:** leitura do chat está pausada nesta versão; o conector anterior dependia de protocolo não oficial. O destino RTMP continua separado e pode ser configurado normalmente.
 - **Facebook:** ainda não possui conector de chat.
 
-Kick e TikTok dependem de protocolos não oficiais e podem exigir manutenção caso as plataformas mudem seus serviços.
+O leitor Kick anterior (Pusher interno) e o leitor TikTok não oficial foram removidos. Kick foi substituída pelo webhook oficial descrito acima. TikTok permanece sem leitor: não foi encontrada API pública oficial de chat LIVE disponível para esta integração. Isso não desativa destinos RTMP.
 
 ### OAuth do YouTube
 

@@ -958,6 +958,7 @@ function createAccounts(directory, request = fetch) {
         clientId: String(account?.clientId || sharedClientId('kick') || kickConfig().clientId || ''),
         connected: Boolean(account?.access_token),
         name: account?.name || '',
+        oauthMode: String(account?.oauthMode || 'local'),
         needsReconnect: Boolean(account?.access_token && missingScopes.length),
         missingScopes,
       };
@@ -1168,6 +1169,21 @@ function createAccounts(directory, request = fetch) {
       const account = await access();
       const headers = { Authorization: `Bearer ${account.access_token}`, 'Client-Id': TWITCH_CLIENT_ID, 'Content-Type': 'application/json' };
       return requestJson(`https://api.twitch.tv/helix${endpoint}`, { ...(options || {}), headers: { ...headers, ...(options || {}).headers } });
+    },
+
+    async kickWebhookEvents(since = 0) {
+      const account = await kickAccess();
+      if (account.oauthMode !== 'shared') {
+        throw new Error('A leitura oficial da Kick requer o broker OAuth compartilhado.');
+      }
+      const result = await brokerRequest(
+        'GET',
+        `/v1/kick/events?since=${encodeURIComponent(String(since))}`,
+        {},
+        'kick',
+        { Authorization: `Bearer ${account.access_token}` },
+      );
+      return result;
     },
 
     userId: async (platform = 'twitch') => (platform === 'kick' ? (await kickAccess()).userId : (await access()).userId),
