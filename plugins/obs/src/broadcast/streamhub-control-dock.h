@@ -1,9 +1,7 @@
 #pragma once
 
 #include <functional>
-#include <QHash>
 #include <QJsonObject>
-#include <QPixmap>
 #include <QWidget>
 
 class QLabel;
@@ -14,6 +12,7 @@ class QListWidget;
 class QPushButton;
 class QTimer;
 class QNetworkAccessManager;
+class StreamHubCategoryCoverService;
 
 class StreamHubControlDock : public QWidget {
     Q_OBJECT
@@ -63,12 +62,12 @@ private:
     void LoadBroadcast();
     void ApplyBroadcast();
     void SearchCategories();
-    void LoadCategoryCover(const QString &categoryId, int attempt = 0);
     void UpdatePreviewPlatformVisual();
     void UpdatePreview();
 
     int port_ = 605;
     QNetworkAccessManager *network_ = nullptr;
+    StreamHubCategoryCoverService *categoryCoverService_ = nullptr;
     QTimer *loginTimer_ = nullptr;
     QTimer *kickLoginTimer_ = nullptr;
     QTimer *youtubeLoginTimer_ = nullptr;
@@ -123,6 +122,5 @@ private:
     QLabel *previewNotification_ = nullptr;
     QLabel *previewCover_ = nullptr;
     bool previewHasCategoryCover_ = false;
-    QHash<QString, QPixmap> categoryCoverCache_;
     QString primaryPlatform_;
 };

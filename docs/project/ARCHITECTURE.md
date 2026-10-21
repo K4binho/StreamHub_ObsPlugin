@@ -188,7 +188,7 @@ Contrato aplicado à sincronização Kick:
 
 ### 6.0 Modularização interna
 
-A separação por diretórios já está aplicada. A primeira extração interna foi concluída no servidor local, separando configuração de plataformas, persistência de contas e cliente HTTP. O diagnóstico detalhado e o plano de divisão dos arquivos C++ grandes estão em [`MODULARIZATION.md`](MODULARIZATION.md).
+A separação por diretórios já está aplicada. No servidor local, contas foram divididas entre configuração de plataformas, persistência e cliente HTTP; no plugin OBS, a montagem do payload de transmissão e o carregamento compartilhado de capas de categoria foram extraídos do dock. O diagnóstico e os próximos cortes estão em [`MODULARIZATION.md`](MODULARIZATION.md).
 
 ### 6.1 Plano de execução faseado — Etapa 2
 

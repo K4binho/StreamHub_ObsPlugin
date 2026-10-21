@@ -18,9 +18,9 @@ Conclusão: a modularização estrutural estava boa, mas a modularização inter
 - `plugins/obs/src/chat/streamhub-chat-dock.cpp`: rede, estado de conexão, filtros e renderização.
 - `apps/local-server/server/accounts.js`: credenciais, OAuth, chamadas HTTP, persistência e regras das plataformas.
 
-## Correções aplicadas nesta etapa
+## Correções aplicadas
 
-O primeiro corte foi feito no servidor local, que concentra credenciais e integrações externas. O comportamento público não foi alterado.
+As extrações abaixo preservam os contratos públicos e reduzem responsabilidades concentradas nos módulos coordenadores.
 
 ### Configuração de plataformas
 
@@ -35,6 +35,30 @@ Responsabilidade única:
 - URL do broker compartilhado.
 
 `accounts.js` deixou de ser dono da configuração fixa das plataformas e agora apenas consome essa interface.
+
+### Construção do pedido de atualização da transmissão
+
+Arquivos: `plugins/obs/src/broadcast/streamhub-broadcast-request.h/.cpp`
+
+Responsabilidade única:
+
+- transformar os campos editados no dock em payload JSON para a API local;
+- normalizar a lista de tags;
+- manter os metadados Twitch, Kick e YouTube no contrato esperado pelo servidor.
+
+O construtor não depende de widgets, rede ou estado do OBS. `StreamHubControlDock` permanece responsável por ler a tela, validar a plataforma principal e enviar a requisição HTTP.
+
+### Carregamento e cache de capas de categoria
+
+Arquivos: `plugins/obs/src/broadcast/streamhub-category-cover-service.h/.cpp`
+
+Responsabilidade única:
+
+- buscar capas de categoria no servidor local;
+- validar a resposta e decodificar a imagem;
+- manter cache limitado a 100 capas e repetir até duas vezes em caso de falha.
+
+A prévia da transmissão e a lista de resultados da busca usam o mesmo serviço. O serviço não conhece widgets; ele emite sinais com a capa carregada ou com a falha, e o dock decide onde exibi-la.
 
 ### Persistência de contas
 
@@ -68,12 +92,11 @@ As integrações Twitch, Kick e YouTube reutilizam o mesmo comportamento sem dup
 
 ## O que ainda não foi dividido
 
-Os arquivos C++ grandes devem ser divididos em uma etapa separada, com testes de compilação e abertura do OBS após cada corte:
+Os arquivos C++ grandes ainda devem ser divididos em etapas pequenas, com compilação e abertura do OBS após cada corte:
 
 1. `streamhub-control-dock.cpp`
    - `PlatformAccountService`
    - `TransmissionSyncService`
-   - `CategoryCoverService`
    - `TransmissionDockView`
 2. `obs-multi-rtmp.cpp`
    - `PluginLifecycle`
@@ -104,11 +127,11 @@ Essas divisões devem preservar a DLL única e os contratos existentes. Não dev
 
 ## Validação desta etapa
 
-- Testes do servidor local: 2 aprovados.
-- Testes do broker OAuth: 3 aprovados.
-- `node --check` deve ser executado para os módulos alterados.
-- Nenhuma alteração foi feita no contrato do plugin OBS ou na DLL nesta etapa.
+- Compilação CMake do alvo `obs-multi-rtmp` em `RelWithDebInfo`: aprovada após a extração do construtor do pedido e do serviço de capas.
+- `git diff --check`: aprovado.
+- A DLL foi compilada, mas não instalada no OBS nem submetida a teste de abertura nesta etapa.
+- O contrato HTTP enviado ao servidor permaneceu com os mesmos campos e estrutura.
 
 ## Próxima etapa recomendada
 
-Dividir `streamhub-control-dock.cpp` por responsabilidade, começando pela extração do serviço de sincronização de transmissão. Esse é o maior ponto de acoplamento da interface e oferece o melhor retorno sem mexer primeiro no ciclo de vida do plugin.
+Separar o serviço de consulta/sincronização das transmissões do `streamhub-control-dock.cpp`, mantendo o dock como coordenador visual. Esse passo precisa preservar o fluxo de OAuth e os sinais que entregam a configuração RTMP ao dock de múltiplas saídas.

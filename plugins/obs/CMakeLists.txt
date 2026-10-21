@@ -71,6 +71,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/chat/streamhub-chat-admin.cpp
   ./src/broadcast/streamhub-control-dock.h
   ./src/broadcast/streamhub-control-dock.cpp
+  ./src/broadcast/streamhub-broadcast-request.h
+  ./src/broadcast/streamhub-broadcast-request.cpp
+  ./src/broadcast/streamhub-category-cover-service.h
+  ./src/broadcast/streamhub-category-cover-service.cpp
   ./src/broadcast/streamhub-youtube-direct.h
   ./src/broadcast/streamhub-youtube-direct.cpp
   ./src/streaming/streamhub-platforms.h

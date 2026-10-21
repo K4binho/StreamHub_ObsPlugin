@@ -1,4 +1,6 @@
 #include "streamhub-control-dock.h"
+#include "streamhub-broadcast-request.h"
+#include "streamhub-category-cover-service.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -49,23 +51,6 @@ void LimitText(QTextEdit *edit, QLabel *counter, int maximum)
         edit->moveCursor(QTextCursor::End);
     }
     counter->setText(QString("%1/%2").arg(text.size()).arg(maximum));
-}
-
-QString FriendlyPlatformError(const QString &platform, const QString &error)
-{
-    const QString normalized = error.toLower();
-    if (normalized.contains("http 400") || normalized.contains("invalid request") ||
-        normalized.contains("live não está ativa")) {
-        return QObject::tr("%1: live offline ou dados indisponíveis.").arg(platform);
-    }
-    return QObject::tr("%1: não foi possível atualizar agora.").arg(platform);
-}
-
-QString PlatformApplyResult(const QString &platform, bool ok, const QString &message)
-{
-    if (ok)
-        return QObject::tr("%1 atualizada.").arg(platform);
-    return FriendlyPlatformError(platform, message);
 }
 
 QString PreviewPlatformIcon(const QString &platform)
@@ -578,6 +563,27 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     tabs->addTab(broadcast, QIcon(":/streamhub-ui/icons/camera.svg"), tr("Transmissão"));
 
     network_ = new QNetworkAccessManager(this);
+    categoryCoverService_ = new StreamHubCategoryCoverService(network_, port_, this);
+    connect(categoryCoverService_, &StreamHubCategoryCoverService::coverLoaded, this,
+            [this](const QString &id, const QPixmap &cover) {
+        if (categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch")) {
+            previewHasCategoryCover_ = true;
+            previewCover_->setPixmap(cover.scaled(previewCover_->size(), Qt::KeepAspectRatio,
+                                                  Qt::SmoothTransformation));
+        }
+        for (int row = 0; row < categoryResults_->count(); ++row) {
+            auto *item = categoryResults_->item(row);
+            if (item->data(Qt::UserRole).toString() == id)
+                item->setIcon(QIcon(cover));
+        }
+    });
+    connect(categoryCoverService_, &StreamHubCategoryCoverService::coverFailed, this,
+            [this](const QString &id) {
+        if (categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch")) {
+            previewHasCategoryCover_ = false;
+            UpdatePreviewPlatformVisual();
+        }
+    });
     loginTimer_ = new QTimer(this); loginTimer_->setSingleShot(true);
     categoryTimer_ = new QTimer(this); categoryTimer_->setSingleShot(true); categoryTimer_->setInterval(350);
     connect(category_, &QLineEdit::textEdited, this, [this]() {
@@ -600,7 +606,7 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
         category_->setText(item->text()); categoryResults_->hide();
         previewHasCategoryCover_ = false;
         UpdatePreviewPlatformVisual();
-        LoadCategoryCover(categoryId_);
+        categoryCoverService_->Fetch(categoryId_);
         UpdatePreview();
     });
     connect(title_, &QTextEdit::textChanged, this, [this]() { LimitText(title_, titleCount_, 140); UpdatePreview(); });
@@ -662,6 +668,8 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
 void StreamHubControlDock::ConnectTo(int port)
 {
     port_ = port;
+    if (categoryCoverService_)
+        categoryCoverService_->SetPort(port);
     RefreshAccounts();
 }
 
@@ -849,7 +857,7 @@ void StreamHubControlDock::ApplyTransmissionMetadata(const QJsonObject &transmis
                                             ? 0
                                             : classification_->findData(labels.first().toString());
         classification_->setCurrentIndex(qMax(0, classificationIndex));
-        LoadCategoryCover(categoryId_);
+        categoryCoverService_->Fetch(categoryId_);
     } else if (normalized == "kick") {
         if (!category.isEmpty() && category_->text().trimmed().isEmpty())
             category_->setText(category);
@@ -1332,57 +1340,6 @@ void StreamHubControlDock::SetYoutubeTransmissionError(const QString &error)
     youtubeLoginHelp_->setText(tr("Falha na sincronização: %1").arg(error));
 }
 
-void StreamHubControlDock::LoadCategoryCover(const QString &categoryId, int attempt)
-{
-    const QString id = categoryId.trimmed();
-    if (id.isEmpty()) {
-        previewHasCategoryCover_ = false;
-        UpdatePreviewPlatformVisual();
-        return;
-    }
-    const auto cached = categoryCoverCache_.constFind(id);
-    if (cached != categoryCoverCache_.cend()) {
-        previewHasCategoryCover_ = true;
-        previewCover_->setPixmap(cached.value().scaled(previewCover_->size(), Qt::KeepAspectRatio,
-                                                       Qt::SmoothTransformation));
-        return;
-    }
-
-    const QString path = QString("http://localhost:%1/api/twitch/category-cover?id=%2")
-                             .arg(port_)
-                             .arg(QString::fromUtf8(QUrl::toPercentEncoding(id)));
-    QNetworkReply *reply = network_->get(QNetworkRequest(QUrl(path)));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, id, attempt]() {
-        const QByteArray payload = reply->readAll();
-        QPixmap art;
-        art.loadFromData(payload);
-        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const bool valid = reply->error() == QNetworkReply::NoError &&
-                           (httpStatus == 0 || (httpStatus >= 200 && httpStatus < 300)) && !art.isNull();
-        reply->deleteLater();
-        if (valid) {
-            categoryCoverCache_.insert(id, art);
-            if (categoryCoverCache_.size() > 100)
-                categoryCoverCache_.erase(categoryCoverCache_.begin());
-            if (categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch")) {
-                previewHasCategoryCover_ = true;
-                previewCover_->setPixmap(art.scaled(previewCover_->size(), Qt::KeepAspectRatio,
-                                                    Qt::SmoothTransformation));
-            }
-            return;
-        }
-        if (attempt < 2 && categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch")) {
-            QTimer::singleShot(400 * (attempt + 1), this, [this, id, attempt]() {
-                if (categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch"))
-                    LoadCategoryCover(id, attempt + 1);
-            });
-        } else if (categoryId_ == id && categoryIdPlatform_ == QStringLiteral("twitch")) {
-            previewHasCategoryCover_ = false;
-            UpdatePreviewPlatformVisual();
-        }
-    });
-}
-
 void StreamHubControlDock::LoadBroadcast()
 {
     if (primaryPlatform_.isEmpty()) {
@@ -1398,73 +1355,31 @@ void StreamHubControlDock::LoadBroadcast()
 
 void StreamHubControlDock::ApplyBroadcast()
 {
-    auto splitTags = [](const QString &value) {
-        QJsonArray result;
-        for (const QString &tag : value.split(',', Qt::SkipEmptyParts)) {
-            const QString trimmed = tag.trimmed();
-            if (!trimmed.isEmpty())
-                result.append(trimmed);
-        }
-        return result;
-    };
-    const QString title = title_->toPlainText().trimmed();
-    const QString description = notification_->toPlainText().trimmed();
-    const QString gameTitle = category_->text().trimmed();
-    const QString youtubeCategory = youtubeCategory_->text().trimmed();
-    const QJsonArray tags = splitTags(tags_->text());
-    const QString language = language_->currentData().toString();
-    const QString youtubeBroadcastId = youtubeBroadcastSelector_
-        ? youtubeBroadcastSelector_->currentData().toString().trimmed() : QString();
-    const QString classification = classification_->currentData().toString();
+    if (primaryPlatform_.isEmpty()) {
+        SetBroadcastOperationStatus(tr("Serviço principal OBS não identificado."));
+        return;
+    }
     const QString privacyStatus = visibility_->currentIndex() == 0
                                       ? QStringLiteral("public")
                                       : visibility_->currentIndex() == 1
                                           ? QStringLiteral("unlisted")
                                           : QStringLiteral("private");
-
-    const QJsonObject globalMetadata{
-        {"title", title},
+    const StreamHubBroadcastMetadata metadata{
+        title_->toPlainText().trimmed(),
+        notification_->toPlainText().trimmed(),
+        category_->text().trimmed(),
+        categoryId_,
+        kickCategoryId_,
+        youtubeCategory_->text().trimmed(),
+        youtubeCategoryId_,
+        tags_->text(),
+        language_->currentData().toString(),
+        youtubeBroadcastSelector_ ? youtubeBroadcastSelector_->currentData().toString().trimmed() : QString(),
+        classification_->currentData().toString(),
+        privacyStatus,
+        primaryPlatform_,
     };
-    const QJsonObject twitchMetadata{
-        {"enabled", true},
-        {"gameName", gameTitle},
-        {"gameId", categoryId_},
-        {"tags", tags},
-        {"language", language},
-        {"contentClassificationIds", classification.isEmpty() ? QJsonArray{} : QJsonArray{classification}},
-    };
-    const QJsonObject kickMetadata{
-        {"enabled", true},
-        {"categoryName", gameTitle},
-        {"categoryId", kickCategoryId_},
-    };
-    const QJsonObject youtubeMetadata{
-        {"enabled", true},
-        {"broadcastId", youtubeBroadcastId},
-        {"description", description},
-        {"privacyStatus", privacyStatus},
-        {"categoryName", youtubeCategory},
-        {"categoryId", youtubeCategoryId_},
-        {"tags", tags},
-        {"language", language},
-        {"madeForKids", false},
-        {"selfDeclaredMadeForKids", false},
-    };
-
-    const QJsonObject body{
-        {"global_metadata", globalMetadata},
-        {"platforms", QJsonObject{
-            {"twitch", twitchMetadata},
-            {"kick", kickMetadata},
-            {"youtube", youtubeMetadata},
-        }},
-        {"title", title},
-        {"sourcePlatform", primaryPlatform_},
-    };
-    if (primaryPlatform_.isEmpty()) {
-        SetBroadcastOperationStatus(tr("Serviço principal OBS não identificado."));
-        return;
-    }
+    const QJsonObject body = StreamHubBroadcastRequest::BuildApplyPayload(metadata);
     UpdateTransmissionSyncNotice();
     SetBroadcastOperationStatus(tr("Atualizando dados..."));
     Request("POST", "/api/broadcast/apply", body, [this](const QJsonObject &o, int status) {
@@ -1495,22 +1410,7 @@ void StreamHubControlDock::SearchCategories()
             const QString id = category.value("id").toString();
             auto *item = new QListWidgetItem(QIcon(":/streamhub-ui/icons/twitch.svg"), category.value("name").toString(), categoryResults_);
             item->setData(Qt::UserRole, id);
-            const QString path = QString("http://localhost:%1/api/twitch/category-cover?id=%2")
-                                     .arg(port_)
-                                     .arg(QString::fromUtf8(QUrl::toPercentEncoding(id)));
-            QNetworkReply *imageReply = network_->get(QNetworkRequest(QUrl(path)));
-            connect(imageReply, &QNetworkReply::finished, this, [this, imageReply, id]() {
-                QPixmap art;
-                art.loadFromData(imageReply->readAll());
-                const bool valid = imageReply->error() == QNetworkReply::NoError && !art.isNull();
-                imageReply->deleteLater();
-                if (!valid) return;
-                for (int row = 0; row < categoryResults_->count(); ++row) {
-                    auto *result = categoryResults_->item(row);
-                    if (result->data(Qt::UserRole).toString() == id)
-                        result->setIcon(QIcon(art));
-                }
-            });
+            categoryCoverService_->Fetch(id);
         }
         categoryResults_->setVisible(categoryResults_->count() > 0);
     });
