@@ -1,15 +1,18 @@
 # StreamHub OBS Plugin — Manual e Build
 
 **Versão base:** OBS Studio 32.2.1+
-**Bundle StreamHub:** 57
+**Bundle StreamHub:** 66
 
 StreamHub é fork de `obs-multi-rtmp`, com saídas RTMP nativas, chat unificado, contas, moderação, recompensas, editor de transmissão, overlay e tema K4binho — Má Fase.
 
 ## 1. Recursos
 
 - **Múltiplas saídas · K4:** transmissão principal do OBS sempre aparece primeiro; destinos Twitch, YouTube, Kick, TikTok, Facebook ou RTMP personalizado aparecem abaixo.
-- **Iniciar tudo:** inicia transmissão principal do OBS antes dos destinos sincronizados.
-- **Ativação automática:** após conta conectada fornecer RTMP e stream key válidos, destino entra automaticamente em **Iniciar tudo**. Configuração de chat permanece independente.
+- **Controle individual:** saída principal e destinos auxiliares têm play/parar próprios. As saídas auxiliares com configurações padrão clonam os encoders do perfil avançado para funcionar sem a principal.
+- **Iniciar tudo:** inicia somente as saídas incluídas pelos seletores, inclusive a principal. A preferência é salva por perfil; não representa uma conexão ativa e não inicia uma live ao reabrir o OBS.
+- **Sincronização com a principal:** as opções de iniciar/parar junto do OBS são separadas do seletor de inclusão. Sincronizar contas preserva seletores desligados e credenciais marcadas como manuais.
+- **YouTube horizontal + vertical:** configurações possuem servidor/chave horizontal e servidor/chave vertical separados. A saída vertical recebe uma área vertical disponível no OBS/Aitum, com encoder próprio e cartão independente. Veja [critérios e validação](DUAL_OUTPUT_VALIDATION.md).
+- **Evento YouTube:** selecione explicitamente o evento na aba Transmissão antes de sincronizar. O nome e a visibilidade aparecem na seleção; o plugin não substitui um evento indisponível por outro.
 - **Parar tudo:** encerra destinos auxiliares e transmissão principal.
 - **StreamHub Chat · K4:** leitura por plataforma, filtros, envio, deduplicação e status.
 - **ADM:** timeout, ban, unban, modo lento, seguidores, inscritos, emotes, recompensas e resgates conforme autorização.

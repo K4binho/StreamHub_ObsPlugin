@@ -699,8 +699,12 @@ void StreamHubLauncher::SyncKickTransmission()
     });
 }
 
-void StreamHubLauncher::SyncYoutubeTransmission()
+void StreamHubLauncher::SyncYoutubeTransmission(const QString &broadcastId)
 {
+    if (broadcastId.trimmed().isEmpty()) {
+        emit youtubeTransmissionFailed(tr("Selecione o evento YouTube antes de sincronizar."));
+        return;
+    }
     if (youtubeSyncInFlight_ || !IsRunning()) {
         if (!IsRunning())
             emit youtubeTransmissionFailed(tr("Serviço StreamHub ainda não está pronto."));
@@ -710,7 +714,7 @@ void StreamHubLauncher::SyncYoutubeTransmission()
     const qint64 nodePid = process_->processId();
     RequestInternalJsonAsync(QStringLiteral("/internal/youtube-sync/nonce"), instanceToken_, nodePid,
                              CurrentProcessId(), port_, {},
-                             [this, nodePid](bool nonceOk, const QJsonObject &nonceResponse) {
+                             [this, nodePid, broadcastId](bool nonceOk, const QJsonObject &nonceResponse) {
         const QString nonce = nonceResponse.value("nonce").toString();
         if (!nonceOk || nonce.isEmpty()) {
             youtubeSyncInFlight_ = false;
@@ -718,8 +722,8 @@ void StreamHubLauncher::SyncYoutubeTransmission()
             return;
         }
         RequestInternalJsonAsync(QStringLiteral("/internal/youtube-sync"), instanceToken_, nodePid,
-                                 CurrentProcessId(), port_, {{"nonce", nonce}},
-                                 [this](bool ok, const QJsonObject &response) {
+                                 CurrentProcessId(), port_, {{"nonce", nonce}, {"broadcastId", broadcastId}},
+                                 [this, broadcastId](bool ok, const QJsonObject &response) {
             youtubeSyncInFlight_ = false;
             if (!ok) {
                 const QString error = response.value("error").toString().trimmed();
@@ -728,8 +732,11 @@ void StreamHubLauncher::SyncYoutubeTransmission()
                                                    : error);
                 return;
             }
-            if (response.value("platform").toString().compare("youtube", Qt::CaseInsensitive) != 0 ||
-                response.value("server").toString().trimmed().isEmpty() ||
+            const QString server = response.value("server").toString().trimmed();
+            if (response.value("broadcastId").toString() != broadcastId ||
+                response.value("platform").toString().compare("youtube", Qt::CaseInsensitive) != 0 ||
+                (!server.startsWith("rtmp://", Qt::CaseInsensitive) &&
+                 !server.startsWith("rtmps://", Qt::CaseInsensitive)) ||
                 response.value("streamKey").toString().trimmed().isEmpty()) {
                 emit youtubeTransmissionFailed(tr("YouTube não forneceu servidor RTMP e stream key válidos."));
                 return;

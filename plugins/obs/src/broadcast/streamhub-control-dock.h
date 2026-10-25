@@ -34,7 +34,7 @@ signals:
     void twitchTransmissionReceived(const QJsonObject &transmission);
     void kickTransmissionRequested();
     void kickTransmissionReceived(const QJsonObject &transmission);
-    void youtubeTransmissionRequested();
+    void youtubeTransmissionRequested(const QString &broadcastId);
     void youtubeTransmissionReceived(const QJsonObject &transmission);
 
 private:

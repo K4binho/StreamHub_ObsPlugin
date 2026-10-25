@@ -41,7 +41,7 @@ public:
     void Stop();
     void SyncTwitchTransmission();
     void SyncKickTransmission();
-    void SyncYoutubeTransmission();
+    void SyncYoutubeTransmission(const QString &broadcastId);
 
     int Port() const { return port_; }
     bool IsRunning() const;

@@ -469,7 +469,12 @@ function createAccounts(directory, request = fetch) {
       const lifecycle = String(broadcast.status?.lifeCycleStatus || '').toLowerCase();
       return ['live', 'testing'].includes(lifecycle);
       });
-    if (candidates.length) {
+    if (requestedId) {
+      const state = String(candidates[0]?.status?.lifeCycleStatus || '').toLowerCase();
+      if (!['live', 'testing', 'ready', 'created'].includes(state)) {
+        throw new Error('O evento YouTube selecionado já foi encerrado ou não pode receber transmissão.');
+      }
+    } else if (candidates.length) {
       candidates.sort((left, right) => {
         const leftTime = Date.parse(left.snippet?.actualStartTime || left.snippet?.scheduledStartTime || '') || 0;
         const rightTime = Date.parse(right.snippet?.actualStartTime || right.snippet?.scheduledStartTime || '') || 0;
@@ -559,17 +564,20 @@ function createAccounts(directory, request = fetch) {
     };
   };
 
-  const youtubeTransmission = async () => {
-    const content = await youtubeBroadcastContent();
+  const youtubeTransmission = async (requestedBroadcastId = '') => {
+    if (!String(requestedBroadcastId || '').trim()) {
+      throw new Error('Selecione o evento do YouTube antes de sincronizar servidor e chave.');
+    }
+    const content = await youtubeBroadcastContent(requestedBroadcastId);
     if (!content.streamId) {
       throw new Error('O YouTube não encontrou uma transmissão vinculada a uma stream.');
     }
     const streams = await youtubeRequest(`/liveStreams?part=cdn&id=${encodeURIComponent(content.streamId)}`);
     const stream = streams.items?.[0];
     const ingestion = stream?.cdn?.ingestionInfo || {};
-    const server = String(ingestion.rtmpsIngestionAddress || ingestion.ingestionAddress || '').trim();
+    const server = selectYoutubeRtmpIngestion(ingestion);
     const streamKey = String(ingestion.streamName || '').trim();
-    if (!server) throw new Error('O YouTube não retornou um endereço RTMP/RTMPS para a transmissão vinculada.');
+    if (!server) throw new Error('O evento selecionado é incompatível com RTMP (webcam/WebRTC ou outro protocolo). Selecione um evento de codificador RTMP/RTMPS na aba Transmissão; trocar somente a chave não converte um evento de webcam.');
     if (!streamKey) throw new Error('O YouTube não retornou a chave da transmissão vinculada.');
     const { streamId, ...transmission } = content;
     return { ...transmission, server, streamKey };
@@ -578,13 +586,25 @@ function createAccounts(directory, request = fetch) {
   const youtubeBroadcastEvents = async () => {
     await youtubeAccess();
     const broadcasts = await youtubeRequest(
-      '/liveBroadcasts?part=snippet,status&mine=true&maxResults=50',
+      '/liveBroadcasts?part=snippet,contentDetails,status&mine=true&maxResults=50',
     );
     const editable = (broadcasts.items || []).filter((broadcast) => {
       const lifecycle = String(broadcast.status?.lifeCycleStatus || '').toLowerCase();
       return broadcast.id && ['live', 'testing', 'ready', 'created'].includes(lifecycle);
     });
+    const streamIds = [...new Set(editable.map((item) => item.contentDetails?.boundStreamId).filter(Boolean))];
+    const streamById = new Map();
+    if (streamIds.length) {
+      const streams = await youtubeRequest(`/liveStreams?part=cdn&id=${encodeURIComponent(streamIds.join(','))}`);
+      for (const stream of streams.items || []) streamById.set(String(stream.id), stream);
+    }
+    const compatible = (broadcast) => {
+      const ingestion = streamById.get(String(broadcast.contentDetails?.boundStreamId || ''))?.cdn?.ingestionInfo || {};
+      return Boolean(selectYoutubeRtmpIngestion(ingestion) && String(ingestion.streamName || '').trim());
+    };
     editable.sort((left, right) => {
+      const compatibilityDelta = Number(compatible(right)) - Number(compatible(left));
+      if (compatibilityDelta) return compatibilityDelta;
       const rank = (broadcast) => ['live', 'testing'].includes(String(broadcast.status?.lifeCycleStatus || '').toLowerCase()) ? 0 : 1;
       const rankDelta = rank(left) - rank(right);
       if (rankDelta) return rankDelta;
@@ -596,6 +616,9 @@ function createAccounts(directory, request = fetch) {
       id: String(broadcast.id),
       title: String(broadcast.snippet?.title || '').trim(),
       state: String(broadcast.status?.lifeCycleStatus || ''),
+      visibility: String(broadcast.status?.privacyStatus || ''),
+      ingestionType: String(streamById.get(String(broadcast.contentDetails?.boundStreamId || ''))?.cdn?.ingestionType || ''),
+      rtmpCompatible: compatible(broadcast),
       scheduledStartTime: String(broadcast.snippet?.scheduledStartTime || ''),
     }));
   };
@@ -1221,8 +1244,16 @@ function createAccounts(directory, request = fetch) {
   };
 }
 
+function selectYoutubeRtmpIngestion(ingestion = {}) {
+  const candidates = [ingestion.rtmpsIngestionAddress, ingestion.ingestionAddress]
+    .map((value) => String(value || '').trim())
+    .filter((value) => /^rtmps?:\/\//i.test(value));
+  return candidates[0] || '';
+}
+
 module.exports = {
   createAccounts,
+  selectYoutubeRtmpIngestion,
   KICK_REDIRECT_URI,
   KICK_SCOPES,
   YOUTUBE_REDIRECT_URI,

@@ -1,6 +1,8 @@
 #include "streamhub-control-dock.h"
 #include "streamhub-broadcast-request.h"
 #include "streamhub-category-cover-service.h"
+#include <obs-frontend-api.h>
+#include <util/config-file.h>
 
 #include <QApplication>
 #include <QClipboard>
@@ -574,7 +576,12 @@ StreamHubControlDock::StreamHubControlDock(QWidget *parent) : QWidget(parent)
     connect(loadButton, &QPushButton::clicked, this, &StreamHubControlDock::LoadBroadcast);
     connect(applyButton, &QPushButton::clicked, this, &StreamHubControlDock::ApplyBroadcast);
     connect(youtubeBroadcastSelector_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
-        if (index >= 0 && !youtubeBroadcastSelector_->currentData().toString().trimmed().isEmpty())
+        const QString id = youtubeBroadcastSelector_->currentData().toString().trimmed();
+        if (auto *profile = obs_frontend_get_profile_config()) {
+            config_set_string(profile, "StreamHub", "YoutubeBroadcastId", id.toUtf8().constData());
+            config_save(profile);
+        }
+        if (index >= 0 && !id.isEmpty())
             RefreshPlatformContentStatus(QStringLiteral("youtube"));
     });
     buttons->setSpacing(6);
@@ -965,7 +972,11 @@ void StreamHubControlDock::RefreshYoutubeBroadcasts()
 {
     if (!youtubeBroadcastSelector_)
         return;
-    const QString previousId = youtubeBroadcastSelector_->currentData().toString().trimmed();
+    QString previousId = youtubeBroadcastSelector_->currentData().toString().trimmed();
+    if (previousId.isEmpty()) {
+        if (auto *profile = obs_frontend_get_profile_config())
+            previousId = QString::fromUtf8(config_get_string(profile, "StreamHub", "YoutubeBroadcastId"));
+    }
     SetTransmissionSyncNotice(QStringLiteral("youtube"), tr("Buscando eventos disponíveis no YouTube..."));
     Request("GET", "/api/broadcast/youtube/events", {}, [this, previousId](const QJsonObject &response, int status) {
         if (status != 200) {
@@ -976,6 +987,7 @@ void StreamHubControlDock::RefreshYoutubeBroadcasts()
         }
         const QSignalBlocker blocker(youtubeBroadcastSelector_);
         youtubeBroadcastSelector_->clear();
+        youtubeBroadcastSelector_->addItem(tr("Selecione o evento para sincronizar"), QString());
         const QJsonArray events = response.value("items").toArray();
         for (const QJsonValue &value : events) {
             const QJsonObject event = value.toObject();
@@ -984,12 +996,21 @@ void StreamHubControlDock::RefreshYoutubeBroadcasts()
             const QString state = event.value("state").toString().trimmed();
             if (id.isEmpty())
                 continue;
-            const QString label = tr("%1 · %2 · ID: %3")
+            const QString visibility = event.value("visibility").toString();
+            const QString visibilityLabel = visibility == "private" ? tr("Privada") :
+                visibility == "public" ? tr("Pública") : visibility == "unlisted" ? tr("Não listada") : visibility;
+            const bool compatibilityKnown=event.contains("rtmpCompatible");
+            const bool compatible=event.value("rtmpCompatible").toBool();
+            const QString protocolLabel=!compatibilityKnown?tr("Protocolo não verificado"):
+                compatible?tr("RTMP/RTMPS disponível"):tr("Não compatível com RTMP — webcam/WebRTC ou sem chave");
+            const QString label = tr("%1 · %2 · %3 · %4 · ID: %5")
                 .arg(title.isEmpty() ? tr("Sem título") : title,
-                     state.isEmpty() ? tr("estado desconhecido") : state, id);
+                     state.isEmpty() ? tr("estado desconhecido") : state,
+                     visibilityLabel, protocolLabel, id);
             youtubeBroadcastSelector_->addItem(label, id);
+            if(compatibilityKnown)youtubeBroadcastSelector_->setItemData(youtubeBroadcastSelector_->count()-1,compatible,Qt::UserRole+1);
         }
-        if (youtubeBroadcastSelector_->count() == 0) {
+        if (youtubeBroadcastSelector_->count() == 1) {
             youtubeBroadcastSelector_->addItem(tr("Nenhum evento editável encontrado"), QString());
             youtubeBroadcastContent_ = {};
             SetTransmissionSyncNotice(QStringLiteral("youtube"), tr("Nenhum evento editável foi retornado pelo YouTube."));
@@ -999,7 +1020,13 @@ void StreamHubControlDock::RefreshYoutubeBroadcasts()
         if (selected < 0)
             selected = 0;
         youtubeBroadcastSelector_->setCurrentIndex(selected);
-        RefreshPlatformContentStatus(QStringLiteral("youtube"));
+        if(selected==0) {
+            youtubeBroadcastContent_={};youtubeTransmission_={};
+            SetTransmissionSyncNotice(QStringLiteral("youtube"), previousId.isEmpty()
+                ? tr("Escolha um evento marcado RTMP/RTMPS disponível e clique em Sincronizar.")
+                : tr("O evento salvo não está mais disponível ou foi encerrado. Escolha um evento RTMP/RTMPS; a seleção não foi trocada automaticamente."));
+        }
+        if (selected > 0) RefreshPlatformContentStatus(QStringLiteral("youtube"));
     });
 }
 
@@ -1343,32 +1370,47 @@ void StreamHubControlDock::RefreshYoutubeAccount()
             youtubeConnectButton_->setText(tr("Trocar conta"));
             youtubeConnectButton_->setEnabled(true);
             youtubeSyncButton_->setEnabled(true);
-            QTimer::singleShot(0, this, &StreamHubControlDock::SyncYoutubeTransmission);
+            QTimer::singleShot(0, this, &StreamHubControlDock::RefreshYoutubeBroadcasts);
         }
     });
 }
 
 void StreamHubControlDock::SyncYoutubeTransmission()
 {
+    const QString broadcastId = youtubeBroadcastSelector_ ? youtubeBroadcastSelector_->currentData().toString().trimmed() : QString();
+    if (broadcastId.isEmpty()) {
+        RefreshYoutubeBroadcasts();
+        youtubeLoginHelp_->setText(tr("Selecione o evento na aba Transmissão e clique em Sincronizar novamente."));
+        return;
+    }
+    const QVariant compatible=youtubeBroadcastSelector_->currentData(Qt::UserRole+1);
+    if(compatible.isValid()&&!compatible.toBool()) {
+        youtubeLoginHelp_->setText(tr("Este evento usa webcam/WebRTC ou não possui chave RTMP. Escolha um evento marcado RTMP/RTMPS disponível na aba Transmissão. Seus servidores e chaves atuais foram preservados."));
+        return;
+    }
     youtubeSyncButton_->setEnabled(false);
     youtubeTransmission_ = {};
-    RefreshYoutubeBroadcasts();
     youtubeLoginHelp_->setText(tr("Buscando dados oficiais do conteúdo da transmissão..."));
-    emit youtubeTransmissionRequested();
+    emit youtubeTransmissionRequested(broadcastId);
 }
 
 void StreamHubControlDock::SetYoutubeTransmission(const QJsonObject &transmission)
 {
+    if (!youtubeBroadcastSelector_ || transmission.value("broadcastId").toString() != youtubeBroadcastSelector_->currentData().toString()) {
+        SetYoutubeTransmissionError(tr("O evento selecionado mudou. Sincronize novamente o evento desejado."));
+        return;
+    }
     const QString server = transmission.value("server").toString().trimmed();
     const QString key = transmission.value("streamKey").toString().trimmed();
-    if (server.isEmpty() || key.isEmpty()) {
+    if ((!server.startsWith("rtmp://", Qt::CaseInsensitive) &&
+         !server.startsWith("rtmps://", Qt::CaseInsensitive)) || key.isEmpty()) {
         SetYoutubeTransmissionError(tr("YouTube não forneceu servidor RTMP e stream key válidos."));
         return;
     }
     youtubeTransmission_ = transmission;
     SetTransmissionSyncNotice("youtube", {});
     youtubeSyncButton_->setEnabled(true);
-    youtubeLoginHelp_->setText(tr("RTMP e chave de transmissão atualizados em Múltiplas saídas."));
+    youtubeLoginHelp_->setText(tr("Evento sincronizado. Destinos com servidor e chave manuais são preservados."));
     emit youtubeTransmissionReceived(youtubeTransmission_);
 }
 

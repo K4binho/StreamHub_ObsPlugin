@@ -43,7 +43,17 @@ struct OutputTargetConfig {
     std::string customAccent = "#00C8FF";
     std::string protocol = "RTMP";
     bool syncStart = false;
+    bool startWithParent = true;
     bool syncStop = false;
+    bool enabled = false;
+    bool manualCredentials = false;
+    std::string orientation = "horizontal";
+    int videoBitrateKbps = 0;
+    nlohmann::json copiedEncoding;
+    std::string canvasUuid;
+    std::string sceneMode = "independent";
+    std::string parentTargetId;
+    std::string youtubeBroadcastId;
 
     nlohmann::json serviceParam;
     nlohmann::json outputParam;
@@ -56,6 +66,7 @@ using OutputTargetConfigPtr = std::shared_ptr<OutputTargetConfig>;
 
 struct MultiOutputConfig {
 public:
+    bool mainEnabled = true;
     std::list<OutputTargetConfigPtr> targets;
     std::list<VideoEncoderConfigPtr> videoConfig;
     std::list<AudioEncoderConfigPtr> audioConfig;
@@ -73,7 +84,7 @@ inline T FindById(std::list<T>& list, const S& id) {
 
 MultiOutputConfig& GlobalMultiOutputConfig();
 
-void SaveMultiOutputConfig();
+bool SaveMultiOutputConfig();
 
 bool LoadMultiOutputConfig();
 

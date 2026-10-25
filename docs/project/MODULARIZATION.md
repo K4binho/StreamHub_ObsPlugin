@@ -1,6 +1,15 @@
 # StreamHub — Modularização e responsabilidades
 
-**Última atualização:** 18/10/2026
+**Última atualização:** 24/10/2026
+
+## Organização atual do plugin
+
+- `src/ui/streamhub-startup-window.h/.cpp`: fundo preto de superfícies de prévia e restauração antecipada do layout salvo. Instalação idempotente, sem criar janelas nativas.
+- `src/ui/streamhub-native-theme.h/.cpp`: aparência nativa da barra de título. O ponto de entrada existente instala também o hook de abertura para preservar compatibilidade.
+- `src/streaming/vertical-workspace.h/.cpp`: coordenação do editor vertical.
+- `vertical-preview.cpp`, `vertical-interaction.cpp`, `vertical-panels.cpp`, `vertical-scenes.cpp` e `vertical-sources.cpp`: desenho, interação, montagem da interface e operações de edição separados em unidades de compilação. Veja [detalhes](VERTICAL_EDITOR_MODULARIZATION.md).
+
+O mapa abaixo registra extrações anteriores; os coordenadores grandes ainda exigem reorganização incremental. Esta rodada não representa uma reescrita completa do projeto.
 
 ## Diagnóstico
 
@@ -126,6 +135,8 @@ Essas divisões devem preservar a DLL única e os contratos existentes. Não dev
 - Toda refatoração deve manter o contrato público e ser validada antes da instalação da DLL.
 
 ## Validação desta etapa
+
+Rodada de 24/10/2026: módulo de abertura extraído e compilação RelWithDebInfo aprovada; CTest 7/7 e servidor Node 18/18 aprovados. A DLL em uso pelo OBS foi preservada. Os itens abaixo registram a rodada anterior.
 
 - Compilação CMake do alvo `obs-multi-rtmp` em `RelWithDebInfo`: aprovada após a extração do construtor do pedido e do serviço de capas.
 - `git diff --check`: aprovado.

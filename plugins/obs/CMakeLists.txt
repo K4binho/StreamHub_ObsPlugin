@@ -43,6 +43,8 @@ if(ENABLE_QT)
 endif()
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+  ./src/ui/streamhub-startup-window.h
+  ./src/ui/streamhub-startup-window.cpp
   ./src/app/pch.h
   ./src/app/obs-multi-rtmp.h
   ./src/app/obs-multi-rtmp.cpp
@@ -50,6 +52,15 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/streaming/edit-widget.cpp
   ./src/streaming/push-widget.h
   ./src/streaming/push-widget.cpp
+  ./src/streaming/vertical-workspace.h
+  ./src/streaming/vertical-workspace.cpp
+  ./src/streaming/vertical-preview.h
+  ./src/streaming/vertical-preview.cpp
+  ./src/streaming/vertical-interaction.cpp
+  ./src/streaming/vertical-panels.cpp
+  ./src/streaming/vertical-scenes.cpp
+  ./src/streaming/vertical-sources.cpp
+  ./src/streaming/vertical-editor-widgets.h
   ./src/core/json-util.hpp
   ./src/streaming/output-config.h
   ./src/streaming/output-config.cpp
@@ -124,6 +135,50 @@ set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES C_STANDARD 11 C_STANDARD_
 
 include(CTest)
 if(BUILD_TESTING)
+  add_test(NAME streamhub-vertical-modules COMMAND ${CMAKE_COMMAND}
+    "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../.."
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/streaming/test_vertical_modules.cmake")
+  add_executable(streamhub-center-snap-test ../../tests/streaming/test_center_snap.cpp)
+  target_include_directories(streamhub-center-snap-test PRIVATE src/streaming)
+  add_test(NAME streamhub-center-snap COMMAND streamhub-center-snap-test)
+  add_executable(streamhub-output-lifecycle-test ../../tests/streaming/test_output_lifecycle.cpp)
+  target_include_directories(streamhub-output-lifecycle-test PRIVATE src/streaming)
+  add_test(NAME streamhub-output-lifecycle COMMAND streamhub-output-lifecycle-test)
+  add_executable(streamhub-output-config-test ../../tests/streaming/test_output_target_config.cpp)
+  target_compile_features(streamhub-output-config-test PRIVATE cxx_std_20)
+  target_include_directories(streamhub-output-config-test PRIVATE src/streaming src/core ../../third_party/nlohmann-json)
+  add_test(NAME streamhub-output-config COMMAND streamhub-output-config-test)
+  if(ENABLE_QT)
+    add_executable(streamhub-vertical-editor-test ../../tests/streaming/test_vertical_editor.cpp)
+    target_compile_features(streamhub-vertical-editor-test PRIVATE cxx_std_20)
+    target_include_directories(streamhub-vertical-editor-test PRIVATE src/streaming .deps/include)
+    target_link_libraries(streamhub-vertical-editor-test PRIVATE Qt6::Core Qt6::Gui OBS::libobs OBS::obs-frontend-api)
+    if(WIN32)
+      add_test(NAME streamhub-vertical-editor COMMAND streamhub-vertical-editor-test
+        "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-32.2.1/build_x64/libobs-d3d11/Release/libobs-d3d11.dll"
+        "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-32.2.1/libobs/data")
+    else()
+      add_test(NAME streamhub-vertical-editor COMMAND streamhub-vertical-editor-test)
+    endif()
+    set_tests_properties(streamhub-vertical-editor PROPERTIES TIMEOUT 30
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>;PATH=path_list_prepend:$<TARGET_FILE_DIR:OBS::libobs>;PATH=path_list_prepend:$<TARGET_FILE_DIR:OBS::obs-frontend-api>;PATH=path_list_prepend:${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-2026-07-15-x64/bin")
+    add_executable(streamhub-output-settings-test
+      ../../tests/streaming/test_output_settings.cpp src/streaming/streamhub-platforms.cpp)
+    target_compile_features(streamhub-output-settings-test PRIVATE cxx_std_20)
+    target_include_directories(streamhub-output-settings-test PRIVATE
+      src/app src/core src/streaming .deps/include ../../third_party/nlohmann-json)
+    target_link_libraries(streamhub-output-settings-test PRIVATE Qt6::Core Qt6::Widgets OBS::libobs OBS::obs-frontend-api)
+    add_test(NAME streamhub-output-settings COMMAND streamhub-output-settings-test)
+    if(WIN32)
+      set(_streamhub_test_qpa windows)
+    else()
+      set(_streamhub_test_qpa offscreen)
+    endif()
+    set_tests_properties(streamhub-output-settings PROPERTIES
+      TIMEOUT 30
+      ENVIRONMENT "QT_QPA_PLATFORM=${_streamhub_test_qpa};QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>;PATH=path_list_prepend:$<TARGET_FILE_DIR:OBS::libobs>;PATH=path_list_prepend:$<TARGET_FILE_DIR:OBS::obs-frontend-api>;PATH=path_list_prepend:${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-2026-07-15-x64/bin")
+  endif()
   add_executable(streamhub-noise-suppressor-dsp-test
     ../../tests/audio/test_noise_suppressor_dsp.c
     ../../libraries/noise-suppressor/src/noise-suppressor-dsp.c

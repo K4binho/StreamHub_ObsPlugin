@@ -9,9 +9,14 @@
 #include <chrono>
 
 #include "push-widget.h"
+#include "output-lifecycle.h"
 #include "plugin-support.h"
 
 #include "output-config.h"
+#include "streamhub-output-settings.h"
+#include "vertical-workspace.h"
+#include "vertical-output.h"
+#include "obs.hpp"
 
 #include "streamhub-bundle.h"
 #include "streamhub-chat-dock.h"
@@ -43,10 +48,15 @@
 #include <QMainWindow>
 #include <QListWidget>
 #include <QStackedWidget>
+#include <QGroupBox>
+#include <QScrollArea>
+#include <QUrl>
 
 #ifdef _WIN32
 #include <Windows.h>
 #endif
+
+static StreamHubVerticalWorkspace *s_verticalWorkspaceDock = nullptr;
 
 #define ConfigSection "obs-multi-rtmp"
 
@@ -163,249 +173,6 @@ public:
 
 private:
     QString selected_;
-};
-
-class StreamHubInlineSettings : public QWidget
-{
-public:
-    StreamHubInlineSettings(const std::string &targetId, PushWidget *pushWidget,
-                            std::function<void()> onSaved, std::function<void()> onDelete,
-                            std::function<void()> onClose,
-                            QWidget *parent = nullptr)
-        : QWidget(parent), targetId_(targetId), pushWidget_(pushWidget), onSaved_(std::move(onSaved)),
-          onDelete_(std::move(onDelete)), onClose_(std::move(onClose))
-    {
-        setObjectName("inlineSettings");
-        auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(14, 12, 14, 12);
-        layout->setSpacing(9);
-
-        auto *header = new QHBoxLayout();
-        icon_ = new QLabel(this);
-        icon_->setFixedSize(26, 26);
-        icon_->setAlignment(Qt::AlignCenter);
-        header->addWidget(icon_);
-        title_ = new QLabel(this);
-        title_->setObjectName("inlineTitle");
-        title_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        header->addWidget(title_);
-        auto *close = new QPushButton(QString::fromUtf8(u8"×"), this);
-        close->setObjectName("inlineClose");
-        close->setFixedSize(28, 28);
-        close->setToolTip(tr("Fechar configurações"));
-        connect(close, &QPushButton::clicked, this, [this]() {
-            if (onClose_)
-                onClose_();
-            else
-                hide();
-        });
-        header->addWidget(close);
-        layout->addLayout(header);
-
-        auto *form = new QFormLayout();
-        form->setHorizontalSpacing(12);
-        form->setVerticalSpacing(8);
-        form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-        form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-        name_ = new QLineEdit(this);
-        server_ = new QLineEdit(this);
-        key_ = new QLineEdit(this);
-        server_->setEchoMode(QLineEdit::Password);
-        key_->setEchoMode(QLineEdit::Password);
-        server_->setPlaceholderText(tr("Servidor RTMP da plataforma"));
-        key_->setPlaceholderText(tr("Cole a chave de transmissão"));
-        form->addRow(tr("Nome"), name_);
-        form->addRow(tr("Servidor RTMP"), SecretField(server_, serverVisible_, this));
-        form->addRow(tr("Stream key"), SecretField(key_, keyVisible_, this));
-        customIcon_ = new QComboBox(this);
-        customIcon_->addItem(QIcon(":/streamhub-ui/icons/settings.svg"), tr("RTMP"), "settings");
-        customIcon_->addItem(QIcon(":/streamhub-ui/icons/camera.svg"), tr("Câmera"), "camera");
-        customIcon_->addItem(QIcon(":/streamhub-ui/icons/twitch.svg"), tr("Twitch"), "twitch");
-        customIcon_->addItem(QIcon(":/streamhub-ui/icons/kick.svg"), tr("Kick"), "kick");
-        customIcon_->addItem(QIcon(":/streamhub-ui/icons/youtube.svg"), tr("YouTube"), "youtube");
-        customIcon_->addItem(QIcon(":/streamhub-ui/icons/tiktok.svg"), tr("TikTok"), "tiktok");
-        customColor_ = new QPushButton(tr("Escolher cor"), this);
-        connect(customColor_, &QPushButton::clicked, this, [this]() {
-            const QColor selected = QColorDialog::getColor(customAccent_, this, tr("Cor do destino RTMP"));
-            if (selected.isValid()) {
-                customAccent_ = selected;
-                UpdateCustomColorButton();
-            }
-        });
-        customIconLabel_ = new QLabel(tr("Ícone personalizado"), this);
-        customColorLabel_ = new QLabel(tr("Cor personalizada"), this);
-        form->addRow(customIconLabel_, customIcon_);
-        form->addRow(customColorLabel_, customColor_);
-        layout->addLayout(form);
-
-        syncStart_ = new QCheckBox(tr("Iniciar junto com a transmissão principal do OBS"), this);
-        syncStop_ = new QCheckBox(tr("Parar junto com a transmissão principal do OBS"), this);
-        layout->addWidget(syncStart_);
-        layout->addWidget(syncStop_);
-
-        auto *actions = new QGridLayout();
-        auto *advanced = new QPushButton(tr("Configurações avançadas"), this);
-        advanced->setObjectName("inlineSecondary");
-        connect(advanced, &QPushButton::clicked, this, [this]() {
-            if (pushWidget_->ShowEditDlg()) {
-                Reload();
-                if (onSaved_)
-                    onSaved_();
-            }
-        });
-        actions->addWidget(advanced, 0, 0);
-        auto *remove = new QPushButton(tr("Excluir destino"), this);
-        remove->setObjectName("inlineDanger");
-        connect(remove, &QPushButton::clicked, this, [this]() { if (onDelete_) onDelete_(); });
-        actions->addWidget(remove, 0, 1);
-        auto *save = new QPushButton(tr("Salvar alterações"), this);
-        save->setObjectName("inlinePrimary");
-        connect(save, &QPushButton::clicked, this, [this]() { Save(); });
-        actions->addWidget(save, 1, 0, 1, 2);
-        actions->setColumnStretch(0, 1);
-        actions->setColumnStretch(1, 1);
-        layout->addLayout(actions);
-
-        savedNotice_ = new QLabel(tr("✓ Alterações salvas"), this);
-        savedNotice_->setObjectName("savedNotice");
-        savedNotice_->setAlignment(Qt::AlignCenter);
-        savedNotice_->hide();
-        layout->addWidget(savedNotice_);
-        saveNoticeTimer_ = new QTimer(this);
-        saveNoticeTimer_->setSingleShot(true);
-        connect(saveNoticeTimer_, &QTimer::timeout, savedNotice_, &QWidget::hide);
-        Reload();
-    }
-
-    void Reload()
-    {
-        auto target = FindById(GlobalMultiOutputConfig().targets, targetId_);
-        if (!target)
-            return;
-        const auto &platform = StreamHubPlatformForTarget(*target);
-        icon_->setPixmap(QIcon(platform.iconPath).pixmap(24, 24));
-        title_->setText(tr("Configurações — %1").arg(platform.name));
-        name_->setText(QString::fromStdString(target->name));
-        server_->setText(QString::fromStdString(target->serviceParam.value("server", std::string{})));
-        key_->setText(QString::fromStdString(target->serviceParam.value("key", std::string{})));
-        HideSecret(server_, serverVisible_);
-        HideSecret(key_, keyVisible_);
-        syncStart_->setChecked(target->syncStart);
-        syncStop_->setChecked(target->syncStop);
-        const bool custom = QString::fromStdString(target->platform).toLower() == "custom";
-        customIconLabel_->setVisible(custom);
-        customIcon_->setVisible(custom);
-        customColorLabel_->setVisible(custom);
-        customColor_->setVisible(custom);
-        const int iconIndex = customIcon_->findData(QString::fromStdString(target->customIcon));
-        customIcon_->setCurrentIndex(iconIndex >= 0 ? iconIndex : 0);
-        customAccent_ = QColor(QString::fromStdString(target->customAccent));
-        if (!customAccent_.isValid()) customAccent_ = QColor("#00C8FF");
-        UpdateCustomColorButton();
-    }
-
-private:
-    void Save()
-    {
-        auto target = FindById(GlobalMultiOutputConfig().targets, targetId_);
-        if (!target)
-            return;
-        target->name = name_->text().trimmed().toStdString();
-        target->serviceParam["server"] = server_->text().trimmed().toStdString();
-        target->serviceParam["key"] = key_->text().trimmed().toStdString();
-        target->syncStart = syncStart_->isChecked();
-        target->syncStop = syncStop_->isChecked();
-        if (QString::fromStdString(target->platform).toLower() == "custom") {
-            target->customIcon = customIcon_->currentData().toString().toStdString();
-            target->customAccent = customAccent_.name(QColor::HexRgb).toStdString();
-        }
-        if (target->serviceParam.value("server", std::string{}).empty() ||
-            target->serviceParam.value("key", std::string{}).empty()) {
-            target->syncStart = false;
-            target->syncStop = false;
-            syncStart_->setChecked(false);
-            syncStop_->setChecked(false);
-        }
-        SaveMultiOutputConfig();
-        pushWidget_->ReloadConfig();
-        if (onSaved_)
-            onSaved_();
-        savedNotice_->show();
-        saveNoticeTimer_->start(2800);
-    }
-
-    QWidget *SecretField(QLineEdit *field, QPushButton *&visibleButton, QWidget *parent)
-    {
-        auto *holder = new QWidget(parent);
-        holder->setObjectName("secretField");
-        holder->setMinimumHeight(42);
-        auto *row = new QHBoxLayout(holder);
-        row->setContentsMargins(0, 0, 0, 0);
-        row->setSpacing(6);
-        row->addWidget(field, 1);
-
-        visibleButton = new QPushButton(tr("Ver"), holder);
-        visibleButton->setObjectName("secretAction");
-        visibleButton->setToolTip(tr("Mostrar ou ocultar"));
-        visibleButton->setMinimumWidth(48);
-        visibleButton->setFixedHeight(40);
-        connect(visibleButton, &QPushButton::clicked, this, [field, visibleButton]() {
-            const bool show = field->echoMode() == QLineEdit::Password;
-            field->setEchoMode(show ? QLineEdit::Normal : QLineEdit::Password);
-            visibleButton->setText(show ? QObject::tr("Ocultar") : QObject::tr("Ver"));
-        });
-        row->addWidget(visibleButton);
-
-        auto *copy = new QPushButton(tr("Copiar"), holder);
-        copy->setObjectName("secretAction");
-        copy->setToolTip(tr("Copiar sem exibir"));
-        copy->setMinimumWidth(58);
-        copy->setFixedHeight(40);
-        connect(copy, &QPushButton::clicked, this, [field]() {
-            QApplication::clipboard()->setText(field->text());
-        });
-        row->addWidget(copy);
-        field->setMinimumHeight(40);
-        return holder;
-    }
-
-    void HideSecret(QLineEdit *field, QPushButton *visibleButton)
-    {
-        field->setEchoMode(QLineEdit::Password);
-        if (visibleButton)
-            visibleButton->setText(tr("Ver"));
-    }
-
-    void UpdateCustomColorButton()
-    {
-        if (!customColor_) return;
-        customColor_->setStyleSheet(QString("background:%1; color:%2; border:1px solid #f1faff; "
-                                            "border-radius:6px; padding:6px 10px; font-weight:700;")
-                                        .arg(customAccent_.name(), customAccent_.lightness() > 150 ? "#080d14" : "#f1faff"));
-        customColor_->setText(customAccent_.name(QColor::HexRgb).toUpper());
-    }
-
-    std::string targetId_;
-    PushWidget *pushWidget_;
-    std::function<void()> onSaved_;
-    std::function<void()> onDelete_;
-    std::function<void()> onClose_;
-    QLabel *icon_ = nullptr;
-    QLabel *title_ = nullptr;
-    QLineEdit *name_ = nullptr;
-    QLineEdit *server_ = nullptr;
-    QLineEdit *key_ = nullptr;
-    QPushButton *serverVisible_ = nullptr;
-    QPushButton *keyVisible_ = nullptr;
-    QLabel *savedNotice_ = nullptr;
-    QTimer *saveNoticeTimer_ = nullptr;
-    QCheckBox *syncStart_ = nullptr;
-    QCheckBox *syncStop_ = nullptr;
-    QLabel *customIconLabel_ = nullptr;
-    QLabel *customColorLabel_ = nullptr;
-    QComboBox *customIcon_ = nullptr;
-    QPushButton *customColor_ = nullptr;
-    QColor customAccent_ = QColor("#00C8FF");
 };
 
 
@@ -708,6 +475,7 @@ public:
         aggregateTimer_ = new QTimer(this);
         aggregateTimer_->setInterval(1000);
         QObject::connect(aggregateTimer_, &QTimer::timeout, this, [this]() {
+            RefreshLinkedOutputStatuses();
             double totalBps = 0.0;
             int active = 0;
             for (auto *output : GetAllPushWidgets()) {
@@ -718,7 +486,7 @@ public:
 
             if (frontendReady_) {
                 obs_output_t *mainOutput = obs_frontend_get_streaming_output();
-                if (mainOutput && obs_output_active(mainOutput)) {
+                if (mainOutput && obs_output_active(mainOutput) && obs_frontend_streaming_active()) {
                     ++active;
                     const auto now = std::chrono::steady_clock::now();
                     const uint64_t bytes = obs_output_get_total_bytes(mainOutput);
@@ -771,10 +539,32 @@ public:
         mainToggle->setToolTip(tr("Iniciar ou parar a transmissão principal do OBS"));
         mainToggle->setAccessibleName(tr("Transmissão principal"));
         mainCardLayout->addWidget(mainToggle, 0, 2, 2, 1);
-        mainToggle->setChecked(true);
-        mainToggle->setEnabled(false);
-        mainToggle->setCursor(Qt::ArrowCursor);
-        mainToggle->setToolTip(tr("A transmissão principal está sempre incluída"));
+        mainToggle->setCursor(Qt::PointingHandCursor);
+        mainToggle->setToolTip(tr("Incluir saída principal em Iniciar tudo (preferência salva)"));
+        QObject::connect(mainToggle, &QPushButton::clicked, this, [mainToggle](bool checked) {
+            auto &config = GlobalMultiOutputConfig();
+            const bool previous = config.mainEnabled;
+            config.mainEnabled = checked;
+            if (!SaveMultiOutputConfig()) {
+                config.mainEnabled = previous;
+                mainToggle->setChecked(previous);
+                QMessageBox::warning(mainToggle, QObject::tr("Falha ao salvar"), QObject::tr("Não foi possível salvar a seleção da saída principal."));
+            }
+        });
+        auto *mainPlay = new QPushButton(mainCard);
+        mainPlay->setObjectName("outputStreamButton");
+        mainPlay->setCursor(Qt::PointingHandCursor);
+        mainPlay->setFixedSize(32, 30);
+        mainPlay->setIconSize(QSize(17, 17));
+        mainCardLayout->addWidget(mainPlay, 0, 3, 2, 1);
+        QObject::connect(mainPlay, &QPushButton::clicked, this, [this]() {
+            if (mainStopping_) return;
+            if (obs_frontend_streaming_active() || mainStarting_) {
+                StopHorizontalOnly();
+            } else {
+                StartHorizontalOnly();
+            }
+        });
         auto *mainSettingsButton = new QPushButton(mainCard);
         mainSettingsButton->setObjectName("outputEdit");
         mainSettingsButton->setFixedSize(32, 30);
@@ -782,7 +572,7 @@ public:
         mainSettingsButton->setIconSize(QSize(17, 17));
         mainSettingsButton->setToolTip(tr("Configurações de transmissão do OBS"));
         mainSettingsButton->setAccessibleName(tr("Configurações de transmissão do OBS"));
-        mainCardLayout->addWidget(mainSettingsButton, 0, 3, 2, 1);
+        mainCardLayout->addWidget(mainSettingsButton, 0, 4, 2, 1);
         QObject::connect(mainSettingsButton, &QPushButton::clicked, this, []() {
             auto *mainWindow = static_cast<QMainWindow *>(obs_frontend_get_main_window());
             if (!mainWindow)
@@ -813,7 +603,7 @@ public:
                 dialog->activateWindow();
             });
         });
-        const auto updateMainCard = [mainStatus, mainToggle, mainName, mainIcon, mainCard]() {
+        const auto updateMainCard = [this, mainStatus, mainToggle, mainName, mainIcon, mainCard, mainPlay, mainSettingsButton]() {
             QString mainServiceName = QObject::tr("Transmissão principal");
             QString mainPlatform = "custom";
             if (obs_service_t *service = obs_frontend_get_streaming_service()) {
@@ -841,8 +631,13 @@ public:
                 mainToggle->SetAccentColor(QColor(mainAccent));
             }
             const bool active = obs_frontend_streaming_active();
-            mainToggle->setChecked(true);
-            mainStatus->setText(active ? QObject::tr("● Ao vivo") : QObject::tr("● Pronta"));
+            mainToggle->setChecked(GlobalMultiOutputConfig().mainEnabled);
+            mainPlay->setIcon(QIcon(active || mainStarting_ || mainStopping_ ? ":/streamhub-ui/icons/stop.svg" : ":/streamhub-ui/icons/play.svg"));
+            mainPlay->setEnabled(!mainStopping_);
+            mainPlay->setToolTip(mainStopping_ ? tr("Encerrando saída principal...") : active || mainStarting_ ? tr("Parar saída principal") : tr("Iniciar somente a saída principal"));
+            mainPlay->setAccessibleName(mainPlay->toolTip());
+            mainSettingsButton->setEnabled(!active && !mainStarting_ && !mainStopping_);
+            mainStatus->setText(mainStopping_ ? tr("● Encerrando...") : mainStarting_ ? tr("● Conectando...") : active ? tr("● Ao vivo") : tr("● Pronta"));
             mainStatus->setProperty("ready", true);
             mainStatus->style()->unpolish(mainStatus); mainStatus->style()->polish(mainStatus);
         };
@@ -854,9 +649,11 @@ public:
         layout_->addWidget(addCardColumnInset(mainCard));
 
         QObject::connect(startAllButton, &QPushButton::clicked, [this]() {
-            if (!obs_frontend_streaming_active()) {
+            horizontalOnlyRequested_ = false;
+            horizontalOnlyMode_ = false;
+            if (GlobalMultiOutputConfig().mainEnabled && !obs_frontend_streaming_active() && !mainStarting_ && !mainStopping_) {
+                mainStarting_ = true;
                 obs_frontend_streaming_start();
-                return;
             }
 
             for (auto x : GetAllPushWidgets()) {
@@ -865,9 +662,11 @@ public:
             }
         });
         QObject::connect(stopAllButton, &QPushButton::clicked, [this]() {
+            horizontalOnlyRequested_ = false;
+            horizontalOnlyMode_ = false;
             for (auto x : GetAllPushWidgets())
                 x->StopStreaming();
-            if (obs_frontend_streaming_active())
+            if (obs_frontend_streaming_active() || mainStarting_)
                 obs_frontend_streaming_stop();
         });
  
@@ -1045,6 +844,10 @@ public:
             QLabel#outputName { color: #f2f7ff; font-size: 14px; font-weight: 700; }
             QLabel#outputStatus { color: #9eb2cb; }
             QLabel#outputStatus[ready="true"] { color: #16d86a; }
+            QLabel#outputStatus[error="true"] { color: #ff647c; }
+            QPushButton#outputStreamButton { background:#00a6e8; border:1px solid #37cfff; border-radius:6px; }
+            QPushButton#outputStreamButton:hover { background:#56d6ff; }
+            QPushButton#outputStreamButton:disabled { background:#24374b; border-color:#38536a; }
             QWidget#outputSummary { background:rgba(8,18,32,220); border:1px solid #29496f;
                 border-radius:8px; }
             QLabel#summaryTitle { color:#9eb2cb; font-size:10px; }
@@ -1108,6 +911,58 @@ public:
         return result;
     }
 
+    PushWidget *FindOutputWidget(const std::string &id)
+    {
+        for(int row=0;row<outputsContainer_->count();++row){
+            auto *item=outputsContainer_->item(row);
+            if(item->data(Qt::UserRole).toString().toStdString()==id)
+                return dynamic_cast<PushWidget *>(outputsContainer_->itemWidget(item));
+        }
+        return nullptr;
+    }
+
+    std::vector<PushWidget *> LinkedOutputWidgets(const std::string &id)
+    {
+        std::vector<PushWidget *> outputs;
+        if(auto *root=FindOutputWidget(id))outputs.push_back(root);
+        for(const auto &target:GlobalMultiOutputConfig().targets)
+            if(target&&target->platform=="youtube"&&target->orientation=="vertical"&&target->parentTargetId==id)
+                if(auto *child=FindOutputWidget(target->id))outputs.push_back(child);
+        return outputs;
+    }
+
+    void ToggleLinkedOutput(const std::string &id)
+    {
+        auto *root=FindOutputWidget(id);if(!root)return;
+        const auto outputs=LinkedOutputWidgets(id);
+        StreamHubToggleLinkedOutputs(outputs,[root](auto *output){return output==root||output->IsEnabledForLinkedStart();});
+        RefreshLinkedOutputStatuses();
+    }
+
+    void RefreshLinkedOutputStatuses()
+    {
+        for(const auto &target:GlobalMultiOutputConfig().targets) {
+            if(!target||target->platform!="youtube"||target->orientation=="vertical")continue;
+            auto *root=FindOutputWidget(target->id);if(!root)continue;
+            const auto outputs=LinkedOutputWidgets(target->id);
+            QStringList status;bool busy=false;
+            if(outputs.size()>1) {
+                status.append(tr("Horizontal: %1").arg(root->StreamStatus()));
+                for(auto *output:outputs) {
+                    busy=busy||output->IsBusy();
+                    if(output!=root)status.append(tr("Vertical: %1%2").arg(output->StreamStatus(),
+                        output->IsEnabledForLinkedStart()?QString():tr(" (início separado)")));
+                }
+            }
+            root->SetLinkedStatus(status.join('\n'),busy);
+            for(int row=0;row<outputsContainer_->count();++row){
+                auto *item=outputsContainer_->item(row);
+                if(outputsContainer_->itemWidget(item)==root)
+                    item->setSizeHint(QSize(1,(std::max)(root->sizeHint().height(),68)));
+            }
+        }
+    }
+
     void SaveConfig()
     {
         SaveMultiOutputConfig();
@@ -1139,6 +994,55 @@ public:
     void MarkFrontendReady()
     {
         frontendReady_ = true;
+    }
+
+    void ObserveMainOutputEvent(obs_frontend_event event)
+    {
+        if (event == OBS_FRONTEND_EVENT_STREAMING_STARTING) {
+            mainStarting_ = true;
+            horizontalOnlyMode_ = horizontalOnlyRequested_;
+            horizontalOnlyRequested_ = false;
+        }
+        if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING) mainStopping_ = true;
+        if (event == OBS_FRONTEND_EVENT_STREAMING_STARTED) mainStarting_ = false;
+        if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
+            mainStarting_ = false;
+            mainStopping_ = false;
+        }
+    }
+
+    void StartHorizontalOnly()
+    {
+        if (obs_frontend_streaming_active() || mainStarting_ || mainStopping_)
+            return;
+        horizontalOnlyRequested_ = true;
+        mainStarting_ = true;
+        obs_frontend_streaming_start();
+    }
+
+    void StopHorizontalOnly()
+    {
+        if ((!obs_frontend_streaming_active() && !mainStarting_) || mainStopping_)
+            return;
+        horizontalOnlyMode_ = true;
+        mainStopping_ = true;
+        obs_frontend_streaming_stop();
+    }
+
+    bool HorizontalOnlyMode() const { return horizontalOnlyMode_; }
+
+    bool SuppressAuxiliarySync(obs_frontend_event event) const
+    {
+        return horizontalOnlyMode_ && event >= OBS_FRONTEND_EVENT_STREAMING_STARTING &&
+               event <= OBS_FRONTEND_EVENT_STREAMING_STOPPED;
+    }
+
+    void FinishHorizontalOnlyStop(obs_frontend_event event)
+    {
+        if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
+            horizontalOnlyMode_ = false;
+            horizontalOnlyRequested_ = false;
+        }
     }
 
     QString PrimaryPlatform() const
@@ -1188,11 +1092,17 @@ public:
         const QString key = transmission.value("streamKey").toString().trimmed();
         if (server.isEmpty() || key.isEmpty())
             return;
+        if (!server.startsWith("rtmp://", Qt::CaseInsensitive) &&
+            !server.startsWith("rtmps://", Qt::CaseInsensitive)) {
+            blog(LOG_WARNING, TAG "Rejected non-RTMP server for %s output sync.",
+                 platform.toUtf8().constData());
+            return;
+        }
 
         auto &global = GlobalMultiOutputConfig();
         OutputTargetConfigPtr target;
         for (const auto &candidate : global.targets) {
-            if (candidate && QString::fromStdString(candidate->platform).compare(platform, Qt::CaseInsensitive) == 0) {
+            if (candidate && candidate->orientation != "vertical" && QString::fromStdString(candidate->platform).compare(platform, Qt::CaseInsensitive) == 0) {
                 target = candidate;
                 break;
             }
@@ -1217,9 +1127,17 @@ public:
             created = true;
         }
 
-        target->serviceParam["server"] = server.toStdString();
-        target->serviceParam["key"] = key.toStdString();
-        target->syncStart = true;
+        if (!target->manualCredentials) {
+            OBSOutputAutoRelease currentOutput = obs_get_output_by_name(("streamhub-output-" + target->id).c_str());
+            if (currentOutput && obs_output_active(currentOutput)) {
+                QMessageBox::warning(this, tr("Saída em uso"), tr("Pare esta saída antes de sincronizar seu servidor e sua chave."));
+                return;
+            }
+            target->serviceParam["server"] = server.toStdString();
+            target->serviceParam["key"] = key.toStdString();
+        }
+        if (platform == "youtube")
+            target->youtubeBroadcastId = transmission.value("broadcastId").toString().toStdString();
         SaveConfig();
 
         PushWidget *pushWidget = nullptr;
@@ -1437,6 +1355,10 @@ private:
     QLabel *activeOutputs_ = nullptr;
     QTimer *aggregateTimer_ = nullptr;
     bool frontendReady_ = false;
+    bool mainStarting_ = false;
+    bool mainStopping_ = false;
+    bool horizontalOnlyRequested_ = false;
+    bool horizontalOnlyMode_ = false;
     std::chrono::steady_clock::time_point mainLastInfoTime_{};
     uint64_t mainTotalBytes_ = 0;
     double mainCurrentBps_ = 0.0;
@@ -1474,17 +1396,55 @@ private:
             targetId, pushWidget,
             [this, pushWidget]() {
                 pushWidget->ReloadConfig();
+                if (s_verticalWorkspaceDock)
+                    s_verticalWorkspaceDock->RefreshFromConfig();
+                for (const auto &target : GlobalMultiOutputConfig().targets) {
+                    bool found = false;
+                    for (int row = 0; row < outputsContainer_->count(); ++row) {
+                        auto *item = outputsContainer_->item(row);
+                        if (item->data(Qt::UserRole).toString().toStdString() == target->id) {
+                            if (auto *widget = dynamic_cast<PushWidget *>(outputsContainer_->itemWidget(item))) widget->ReloadConfig();
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) AddPushWidget(target->id);
+                }
                 outputsContainer_->doItemsLayout();
                 if (outputPlatformsChanged_)
                     outputPlatformsChanged_(ConfiguredPlatforms());
             },
             [pushWidget]() { pushWidget->GetDeleteButton()->click(); },
             [dialog]() { dialog->reject(); }, dialog);
-        dialogLayout->addWidget(settingsPanel_);
+        auto *settingsScroll = new QScrollArea(dialog);
+        const auto selectedTarget = FindById(GlobalMultiOutputConfig().targets, targetId);
+        if (selectedTarget && selectedTarget->platform == "youtube" && selectedTarget->orientation != "vertical") {
+            auto *verticalControl = new QPushButton(tr("Iniciar / parar saída vertical"), dialog);
+            verticalControl->setObjectName("youtubeVerticalPlayback");
+            connect(verticalControl, &QPushButton::clicked, dialog, [this, targetId]() {
+                for (const auto &target : GlobalMultiOutputConfig().targets) {
+                    if (target->parentTargetId != targetId || target->orientation != "vertical") continue;
+                    for (int row = 0; row < outputsContainer_->count(); ++row) {
+                        auto *item = outputsContainer_->item(row);
+                        if (item->data(Qt::UserRole).toString().toStdString() != target->id) continue;
+                        if (auto *widget = dynamic_cast<PushWidget *>(outputsContainer_->itemWidget(item)))
+                            widget->GetStreamButton()->click();
+                        return;
+                    }
+                }
+                QMessageBox::information(this, tr("Saída vertical"), tr("Configure e salve a saída vertical antes de iniciar."));
+            });
+            dialogLayout->addWidget(verticalControl);
+
+        }
+        settingsScroll->setWidgetResizable(true);
+        settingsScroll->setFrameShape(QFrame::NoFrame);
+        settingsScroll->setWidget(settingsPanel_);
+        dialogLayout->addWidget(settingsScroll);
         dialog->setStyleSheet(styleSheet());
         dialog->adjustSize();
         const int dialogWidth = (std::min)(520, (std::max)(420, mainWindow->width() / 3));
-        dialog->resize(dialogWidth, dialog->sizeHint().height());
+        dialog->resize((std::max)(dialogWidth, 540), (std::min)(mainWindow->height() - 80, settingsPanel_->sizeHint().height() + 24));
         dialog->move(mainWindow->frameGeometry().center() -
                      QPoint(dialog->width() / 2, dialog->height() / 2));
         settingsDialog_ = dialog;
@@ -1514,6 +1474,14 @@ private:
             return;
         }
         outputTargets->erase(currentTarget);
+        for (int row = 0; row < outputsContainer_->count(); ++row) {
+            auto *item = outputsContainer_->item(row);
+            auto target = FindById(*outputTargets, item->data(Qt::UserRole).toString().toStdString());
+            if (target && target->parentTargetId == targetId) {
+                target->parentTargetId.clear();
+                item->setHidden(false);
+            }
+        }
 
         // Delete from List View
         const QString id = QString::fromStdString(targetId);
@@ -1541,6 +1509,12 @@ private:
         listItem->setSizeHint(cardSize);
         outputsContainer_->addItem(listItem);
         outputsContainer_->setItemWidget(listItem, pushWidget);
+        const auto target = FindById(GlobalMultiOutputConfig().targets, targetId);
+        if(target&&target->platform=="youtube"&&target->orientation!="vertical")
+            pushWidget->SetStreamAction([this,targetId](){ToggleLinkedOutput(targetId);});
+        if (target && target->orientation == "vertical" && !target->parentTargetId.empty() &&
+            FindById(GlobalMultiOutputConfig().targets, target->parentTargetId))
+            listItem->setHidden(true);
 
         QObject::connect(pushWidget->GetDeleteButton(), &QPushButton::clicked, [this, targetId]() {
             auto msgbox = new QMessageBox(
@@ -1699,6 +1673,44 @@ bool obs_module_load()
     }
     brandDock(dock);
 
+    s_verticalWorkspaceDock = new StreamHubVerticalWorkspace(
+        [dock](bool start) {
+            if (start) dock->StartHorizontalOnly();
+            else dock->StopHorizontalOnly();
+        },
+        [dock]() {
+            for (auto *output : dock->GetAllPushWidgets())
+                output->StopStreaming();
+        });
+    QWidget *verticalCanvasPanel = s_verticalWorkspaceDock->CreateCanvasPanel();
+    QWidget *verticalScenesPanel = s_verticalWorkspaceDock->CreateScenesPanel();
+    QWidget *verticalSourcesPanel = s_verticalWorkspaceDock->CreateSourcesPanel();
+    const bool canvasDockAdded = obs_frontend_add_dock_by_id(
+        "streamhub-vertical-canvas", "Canvas vertical", verticalCanvasPanel);
+    const bool scenesDockAdded = obs_frontend_add_dock_by_id(
+        "streamhub-vertical-scenes", "Cenas verticais", verticalScenesPanel);
+    const bool sourcesDockAdded = obs_frontend_add_dock_by_id(
+        "streamhub-vertical-sources", "Fontes verticais", verticalSourcesPanel);
+    if (canvasDockAdded) brandDock(verticalCanvasPanel);
+    if (scenesDockAdded) brandDock(verticalScenesPanel);
+    if (sourcesDockAdded) brandDock(verticalSourcesPanel);
+    QTimer::singleShot(0, mainwin, [mainwin, canvasDockAdded, scenesDockAdded, sourcesDockAdded]() {
+        const auto prepareResize = [mainwin](const char *name, bool added) {
+            if (!added)
+                return;
+            if (auto *dockWidget = mainwin->findChild<QDockWidget *>(name)) {
+                dockWidget->setMinimumSize(0, 0);
+                dockWidget->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+                dockWidget->setFeatures(dockWidget->features() | QDockWidget::DockWidgetMovable |
+                                        QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+            }
+        };
+        prepareResize("streamhub-vertical-canvas", canvasDockAdded);
+        prepareResize("streamhub-vertical-scenes", scenesDockAdded);
+        prepareResize("streamhub-vertical-sources", sourcesDockAdded);
+    });
+    s_verticalWorkspaceDock->RefreshFromConfig();
+
     blog(LOG_INFO, TAG "version: %s by SoraYuki https://github.com/sorayuki/obs-multi-rtmp/", PLUGIN_VERSION);
 
     // --- StreamHub: sobe o servidor de chat + o dock nativo que mostra ele ---
@@ -1795,9 +1807,28 @@ bool obs_module_load()
     obs_frontend_add_event_callback(
         [](enum obs_frontend_event event, void *private_data) {
             auto dock = static_cast<MultiOutputWidget*>(private_data);
+            dock->ObserveMainOutputEvent(event);
+            if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED || event == OBS_FRONTEND_EVENT_SCENE_LIST_CHANGED ||
+                event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED || event == OBS_FRONTEND_EVENT_FINISHED_LOADING ||
+                event == OBS_FRONTEND_EVENT_PROFILE_CHANGED) {
+                const bool activateMainScene = event != OBS_FRONTEND_EVENT_SCENE_LIST_CHANGED;
+                for (const auto &target : GlobalMultiOutputConfig().targets)
+                    if (target) StreamHubFollowVertical(*target, activateMainScene);
+            }
+            if (s_verticalWorkspaceDock &&
+                (event == OBS_FRONTEND_EVENT_SCENE_CHANGED || event == OBS_FRONTEND_EVENT_SCENE_LIST_CHANGED ||
+                 event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED || event == OBS_FRONTEND_EVENT_FINISHED_LOADING ||
+                 event == OBS_FRONTEND_EVENT_PROFILE_CHANGED))
+                s_verticalWorkspaceDock->RefreshFromConfig();
 
-            for(auto x: dock->GetAllPushWidgets())
-                x->OnOBSEvent(event);
+            if (s_verticalWorkspaceDock)
+                s_verticalWorkspaceDock->SetHorizontalOnlyMode(dock->HorizontalOnlyMode());
+            if (!dock->SuppressAuxiliarySync(event))
+                for(auto x: dock->GetAllPushWidgets())
+                    x->OnOBSEvent(event);
+            dock->FinishHorizontalOnlyStop(event);
+            if (s_verticalWorkspaceDock)
+                s_verticalWorkspaceDock->SetHorizontalOnlyMode(dock->HorizontalOnlyMode());
 
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
             {
@@ -1811,6 +1842,8 @@ bool obs_module_load()
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
             {
                 dock->LoadConfig();
+                if (s_verticalWorkspaceDock)
+                    s_verticalWorkspaceDock->RefreshFromConfig();
             }
         }, dock
     );

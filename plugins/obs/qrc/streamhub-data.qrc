@@ -39,6 +39,8 @@
     <file alias="icons/tiktok.svg">../resources/assets/icons/tiktok.svg</file>
     <file alias="icons/facebook.svg">../resources/assets/icons/facebook.svg</file>
     <file alias="icons/settings.svg">../resources/assets/icons/settings.svg</file>
+    <file alias="icons/scene-sync-locked.svg">../resources/assets/icons/scene-sync-locked.svg</file>
+    <file alias="icons/scene-sync-broken.svg">../resources/assets/icons/scene-sync-broken.svg</file>
     <file alias="icons/camera.svg">../resources/assets/icons/camera.svg</file>
     <file alias="icons/play.svg">../resources/assets/icons/play.svg</file>
     <file alias="icons/stop.svg">../resources/assets/icons/stop.svg</file>

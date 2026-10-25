@@ -14,6 +14,8 @@ O StreamHub é um plugin para OBS Studio que reúne saídas RTMP, chat multiplat
 
 O StreamHub adiciona três áreas principais ao OBS: **Múltiplas saídas · K4**, **StreamHub Chat · K4** e **Informações de transmissão K4**. O servidor local e o overlay acompanham a DLL, sem exigir que o usuário copie manualmente as pastas internas do projeto.
 
+O editor vertical acrescenta os painéis **Canvas vertical**, **Cenas verticais** e **Fontes verticais**, com uma composição 9:16 independente da prévia horizontal.
+
 ## O que você encontra
 
 | Recurso | O que faz |
@@ -26,6 +28,9 @@ O StreamHub adiciona três áreas principais ao OBS: **Múltiplas saídas · K4*
 | **Overlay** | Exibe mensagens em uma fonte de navegador transparente do OBS, com duração, canal destacado e filtros configuráveis. |
 | **K4 Noise Suppressor** | Inclui o filtro de redução de ruído baseado em RNNoise na DLL principal do plugin. |
 | **Tema K4binho — Má Fase** | Aplica identidade visual, ícones e tema integrado ao OBS. |
+| **Canvas vertical** | Organiza cenas e fontes em 9:16, com edição, encaixe, sincronização de cenas e controles próprios. |
+| **YouTube horizontal + vertical** | Mantém duas saídas com chaves distintas e controle conjunto pelo cartão YouTube. |
+| **Abertura do OBS** | Protege o fundo da prévia com preto e antecipa a restauração dos painéis salvos. |
 
 ## Capturas do projeto
 
@@ -68,6 +73,15 @@ O projeto oferece destinos RTMP para Twitch, Kick, YouTube, TikTok, Facebook e s
 | **RTMP personalizado** | Endereço e chave configuráveis pelo usuário. | Sem integração de chat fornecida pelo StreamHub. |
 
 Os recursos das APIs podem variar por conta, permissões, região e estado da transmissão. A documentação técnica registra o que foi validado e o que ainda está pendente; consulte [Manual e build](docs/project/BUILD_AND_USAGE.md) e [Arquitetura e contexto](docs/project/ARCHITECTURE.md).
+
+### Validação em 24/10/2026
+
+- **YouTube:** teste privado confirmado pelo usuário com as prévias horizontal e vertical recebidas pelo Studio em qualidade “Excelente”. Isso valida o envio de vídeo nesse teste, não todos os recursos de chat e metadados.
+- **Vertical do YouTube:** no Studio, selecione **Codificador** e associe uma segunda chave à versão vertical. **Corte automático** usa um recorte da horizontal, não o canvas do OBS. Para próximos eventos, use **Reutilizar configurações** e confira o modo e a chave antes de começar; a persistência desse campo entre eventos ainda não foi validada.
+- **Abertura:** fundo preto e restauração antecipada do layout implementados; não houve gravação quadro a quadro para comprovar ausência de qualquer transição.
+- **Twitch Dual Format:** funcionamento confirmado pelo usuário em teste real, usando Enhanced Broadcasting com o canvas adicional **StreamHub**. Veja a [configuração e evidências](docs/project/TWITCH_DUAL_FORMAT.md). Isso não comprova chat, moderação ou estabilidade em sessões prolongadas; esses testes seguem no [roteiro Twitch](docs/project/TWITCH_TEST_PLAN.md).
+
+As mudanças descritas podem estar no código-fonte antes de um novo release. Confira a versão e as notas do pacote baixado.
 
 ## Instalação
 
@@ -115,6 +129,18 @@ tools/                utilitários de build, atualização e publicação
 ```
 
 O plugin OBS controla os docks e as saídas RTMP. O servidor local concentra conectores, chamadas às plataformas e tokens. O broker OAuth trata os fluxos que precisam de um retorno HTTPS público. Essa separação ajuda a manter cada parte com uma função definida; veja o [documento de modularização](docs/project/MODULARIZATION.md).
+
+O editor vertical está dividido em coordenação, prévia, interação, painéis, cenas e fontes; veja o [mapa dos módulos](docs/project/VERTICAL_EDITOR_MODULARIZATION.md). A proteção de abertura está em `src/ui/streamhub-startup-window.*`, separada do tema nativo em `src/ui/streamhub-native-theme.*`, dentro de `plugins/obs`.
+
+Para executar os testes do servidor local:
+
+```powershell
+cd apps/local-server
+npm ci
+npm test
+```
+
+Os testes usam respostas simuladas; não iniciam lives nem comprovam funcionamento das plataformas em uma conta real.
 
 ## Segurança e privacidade
 

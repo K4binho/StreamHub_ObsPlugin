@@ -177,7 +177,7 @@ app.post('/internal/youtube-sync', authorizeInternal, async (req, res) => {
     return;
   }
   try {
-    const transmission = await accounts.youtubeTransmission();
+    const transmission = await accounts.youtubeTransmission(String(req.body?.broadcastId || ''));
     res.json({ ...transmission, pid: process.pid, obsPid: validPid(OBS_PID) ? OBS_PID : null });
   } catch (err) {
     res.status(400).json({ error: err.message });
